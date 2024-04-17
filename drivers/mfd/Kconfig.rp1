@@ -1,0 +1,8 @@
+# Copyright (c) 2024 Junho Lee <junho@tsnlab.com>
+# SPDX -License-Identifier: Apache-2.0
+
+config MFD_RP1
+	bool "RP1 peripheral controller driver"
+	default y
+	help
+	  Enable driver for RP1 peripheral controller on Raspberry Pi 5.

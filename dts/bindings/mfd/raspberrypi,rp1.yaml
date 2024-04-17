@@ -1,0 +1,12 @@
+# Copyright (C) 2023 Grinn
+# SPDX-License-Identifier: Apache-2.0
+
+description: RP1 peripheral controller
+
+compatible: "raspberrypi,rp1"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
