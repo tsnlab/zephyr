@@ -7,3 +7,9 @@ config GPIO_RP1
 	depends on DT_HAS_RASPBERRYPI_RP1_GPIO_ENABLED
 	help
 	  Enable Driver for GPIO banks on RP1 peripheral controller.
+
+config GPIO_RP1_INIT_PRIORITY
+	int "RP1 GPIO initialization priority"
+	default 85
+	help
+	  Driver initialization priority for GPIO banks on RP1 peripheral controller.

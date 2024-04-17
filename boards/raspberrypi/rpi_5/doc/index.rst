@@ -32,6 +32,29 @@ Supported Features
 .. zephyr:board-supported-hw::
 
 See `Raspberry Pi hardware`_ for the complete list of hardware features.
+.. list-table::
+   :header-rows: 1
+
+   * - Peripheral
+     - Kconfig option
+     - Devicetree compatible
+   * - GIC-400
+     - N/A
+     - :dtcompatible:`arm,gic-v2`
+   * - GPIO
+     - :kconfig:option:`CONFIG_GPIO`
+     - :dtcompatible:`raspberrypi,rp1-gpio`
+   * - GPIO (Internal)
+     - :kconfig:option:`CONFIG_GPIO`
+     - :dtcompatible:`brcm,brcmstb-gpio`
+   * - UART
+     - :kconfig:option:`CONFIG_SERIAL`
+     - :dtcompatible:`arm,pl011`
+
+Not all hardware features are supported yet. See `Raspberry Pi hardware`_ for the complete list of hardware features.
+
+The default configuration can be found in
+:zephyr_file:`boards/raspberrypi/rpi_5/rpi_5_defconfig`.
 
 Programming and Debugging
 *************************
