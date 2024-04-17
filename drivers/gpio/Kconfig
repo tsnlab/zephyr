@@ -244,4 +244,6 @@ source "drivers/gpio/Kconfig.ambiq"
 
 source "drivers/gpio/Kconfig.brcmstb"
 
+source "drivers/gpio/Kconfig.rp1"
+
 endif # GPIO
