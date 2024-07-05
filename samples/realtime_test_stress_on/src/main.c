@@ -40,7 +40,6 @@ static k_tid_t stress_thread_tid;
 int main(void)
 {
 	uint64_t curr_ts;
-	uint64_t comp_ts;
 
 	k_tid_t sub_thread_tid = k_thread_create(
 			&sub_thread_metadata, sub_thread_stack_area,
