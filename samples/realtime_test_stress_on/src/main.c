@@ -3,7 +3,7 @@
 
 #define THREAD_STACK_SIZE	1024
 #define THREAD_PRIORITY		1
-#define SLEEPTIME_MS		1000
+#define SLEEPTIME_MS		100
 
 /***************************************************
  *
@@ -64,7 +64,7 @@ int main(void)
 	curr_ts = get_timestamp_ms();
 	for(;;) {
 		/* 100ms interval */
-		if((get_timestamp_ms() - curr_ts) >= 100){
+		if((get_timestamp_ms() - curr_ts) >= SLEEPTIME_MS){
 			k_wakeup(sub_thread_tid);
 			curr_ts = get_timestamp_ms();
 		}
@@ -105,7 +105,7 @@ void sub_thread()
 	printk("start sub_thread()\n");
 	for(int i=0; i<1000; i++){
 		printk("%llu\n", get_timestamp_ms() % 1000);
-		k_msleep(SLEEPTIME_MS);
+		k_msleep(1000);
 	}
 }
 
