@@ -4,13 +4,14 @@
 #define THREAD_STACK_SIZE	1024
 #define THREAD_PRIORITY		1
 #define SLEEPTIME_MS		100
+#define SLEEPTIME_NS		100000000 - 100000
 
 /***************************************************
  *
  * Define function and thread
  *
  ***************************************************/
-uint64_t get_timestamp_ms(void);
+uint64_t get_timestamp_ns(void);
 
 #if 0
 // Static thread
@@ -60,15 +61,15 @@ int main(void)
 	k_thread_start(&sub_thread_metadata);
 	k_thread_start(&stress_thread_metadata);
 
-	curr_ts = get_timestamp_ms();
+	curr_ts = get_timestamp_ns();
 	for(;;) {
 		/* 100ms interval */
-		if((get_timestamp_ms() - curr_ts) >= SLEEPTIME_MS){
+		if((get_timestamp_ns() - curr_ts) >= SLEEPTIME_NS){
 			k_wakeup(sub_thread_tid);
-			curr_ts = get_timestamp_ms();
+			curr_ts = get_timestamp_ns();
 		}
 
-		/* 
+		/*
 		 * one tick is 10ms in qemu_x86.
 		 * so, k_usleep(1) sleeps for 10ms on qemu_x86.
 		 */
@@ -87,7 +88,7 @@ int main(void)
  * Implemetation function and thread
  *
  ***************************************************/
-uint64_t get_timestamp_ms(void)
+uint64_t get_timestamp_ns(void)
 {
 	/*
 	int64_t ts_tick = k_uptime_ticks();
@@ -96,22 +97,22 @@ uint64_t get_timestamp_ms(void)
 	printk("ts_ms : %lld\n\n", ts_ms);
 	*/
 
-	return k_uptime_get();
+	return k_ticks_to_ns_floor64(k_uptime_ticks());
 }
 
 void sub_thread()
 {
 	printk("start sub_thread()\n");
-	for(int i=0; i<1000; i++){
-		printk("%llu\n", get_timestamp_ms() % 1000);
-		k_msleep(1000);
+	for(int i=0; i<1010; i++){
+		printk("%llu\n", get_timestamp_ns());
+		k_sleep(Z_TIMEOUT_NS(SLEEPTIME_NS));
 	}
 }
 
 void stress_thread()
 {
 	printk("start stress_thread()\n");
-	for(int i=0;;) { 
+	for(int i=0;;) {
 		i++;
 		k_usleep(1);
 	}

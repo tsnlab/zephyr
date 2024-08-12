@@ -3,14 +3,14 @@
 
 #define THREAD_STACK_SIZE	1024
 #define THREAD_PRIORITY		1
-#define SLEEPTIME_MS		100
+#define SLEEPTIME_NS		100000000 - 100000
 
 /***************************************************
  *
  * Define function and thread
  *
  ***************************************************/
-uint64_t get_timestamp_ms(void);
+uint64_t get_timestamp_ns(void);
 
 #if 0
 // Static thread
@@ -53,7 +53,7 @@ int main(void)
  * Implemetation function and thread
  *
  ***************************************************/
-uint64_t get_timestamp_ms(void)
+uint64_t get_timestamp_ns(void)
 {
 	/*
 	int64_t ts_tick = k_uptime_ticks();
@@ -62,14 +62,13 @@ uint64_t get_timestamp_ms(void)
 	printk("ts_ms : %lld\n\n", ts_ms);
 	*/
 
-	return k_uptime_get();
+	return k_ticks_to_ns_ceil64(k_uptime_ticks());
 }
 
 void sub_thread()
 {
-	for(int i=0; i<1000; i++){
-		printk("%llu\n", get_timestamp_ms()%1000);
-		//k_msleep(SLEEPTIME_MS);
-		k_busy_wait(SLEEPTIME_MS * 1000);
+	for(int i=0; i<1010; i++){
+		printk("%llu\n", get_timestamp_ns());
+		k_sleep(Z_TIMEOUT_NS(SLEEPTIME_NS));
 	}
 }
