@@ -61,21 +61,6 @@ int main(void)
 	k_thread_start(&sub_thread_metadata);
 	k_thread_start(&stress_thread_metadata);
 
-	curr_ts = get_timestamp_ns();
-	for(;;) {
-		/* 100ms interval */
-		if((get_timestamp_ns() - curr_ts) >= SLEEPTIME_NS){
-			k_wakeup(sub_thread_tid);
-			curr_ts = get_timestamp_ns();
-		}
-
-		/*
-		 * one tick is 10ms in qemu_x86.
-		 * so, k_usleep(1) sleeps for 10ms on qemu_x86.
-		 */
-		k_usleep(1);
-	}
-
 	return 0;
 }
 
