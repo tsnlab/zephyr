@@ -4,7 +4,7 @@
 #define THREAD_STACK_SIZE	1024
 #define THREAD_PRIORITY		1
 #define SLEEPTIME_MS		100
-#define SLEEPTIME_NS		100000000 - 100000
+#define SLEEPTIME_NS		100000000
 
 /***************************************************
  *
@@ -97,15 +97,18 @@ uint64_t get_timestamp_ns(void)
 	printk("ts_ms : %lld\n\n", ts_ms);
 	*/
 
-	return k_ticks_to_ns_floor64(k_uptime_ticks());
+	return k_cyc_to_ns_ceil64(k_cycle_get_64());
 }
 
 void sub_thread()
 {
 	printk("start sub_thread()\n");
+	uint64_t ts1, ts2;
 	for(int i=0; i<1010; i++){
-		printk("%llu\n", get_timestamp_ns());
-		k_sleep(Z_TIMEOUT_NS(SLEEPTIME_NS));
+		ts1 = get_timestamp_ns();
+		printk("%llu\n", ts1);
+		ts2 = get_timestamp_ns();
+		k_sleep(Z_TIMEOUT_NS(SLEEPTIME_NS - (ts2 - ts1)));
 	}
 }
 
