@@ -1,0 +1,26 @@
+/*
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <arm/armv7-r.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-r5f";
+			reg = <0>;
+		};
+	};
+
+	soc {
+
+	};
+};
