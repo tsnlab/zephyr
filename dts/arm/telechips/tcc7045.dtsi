@@ -7,6 +7,10 @@
 #include <mem.h>
 #include <arm/armv7-r.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+
 
 / {
 	cpus {
@@ -21,6 +25,18 @@
 	};
 
 	soc {
+        sram0: memory@00000000 {
+            compatible = "mmio-sram";
+            reg = <0x00000000 0x80000>;
+        };
+
+        gic: interrupt-controller@a0f10000 {
+            compatible = "arm,gic-v2", "arm,gic";
+            reg = <0xa0f10000 0x1000>;
+            interrupt-controller;
+            #interrupt-cells = <4>;
+            status = "okay";
+        };
 
 	};
 };
