@@ -1,0 +1,14 @@
+# Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_TCC7045
+
+config NUM_IRQS
+	int
+	default 220
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	int
+	default 2000000
+
+endif

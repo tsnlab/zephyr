@@ -657,6 +657,7 @@ tdo	Shangai Top Display Optoelectronics Co., Ltd
 technexion	TechNexion
 technologic	Technologic Systems
 techstar	Shenzhen Techstar Electronics Co., Ltd.
+telechips	Telechips, Inc.
 telink	Telink Semiconductor
 telit	Telit Cinterion
 tempo	Tempo Semiconductor
