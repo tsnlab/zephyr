@@ -30,13 +30,32 @@
             reg = <0x00000000 0x80000>;
         };
 
+        interrupt-parent = <&gic>;
+
         gic: interrupt-controller@a0f10000 {
-            compatible = "arm,gic-v2", "arm,gic";
-            reg = <0xa0f10000 0x1000>;
+            compatible = "arm,gic-v1", "arm,gic";
+            reg = <0xa0f10000 0x1000>,
+                    <0xa0f10000 0x100>;
             interrupt-controller;
             #interrupt-cells = <4>;
             status = "okay";
         };
 
+        // Define the UART node
+        uart0: serial@a0200000 {
+            compatible = "telechips,tcc-uart";
+            reg = <0xa0200000 0x1000>;
+            interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+            clocks = <&uart0_clk>;
+            status = "okay";
+        };
+
+        // Define GPIO controller
+        gpio: gpio@a0f22000 {
+            compatible = "telechips,tcc-gpio";
+            reg = <0xa0f22000 0x1000>;
+            gpio-controller;
+            #gpio-cells = <2>;
+        };
 	};
 };
