@@ -7,13 +7,20 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/pcie/pcie.h>
+#include <zephyr/drivers/pcie/controller.h>
+#ifdef CONFIG_GIC_V3_ITS
+#include <zephyr/drivers/interrupt_controller/gicv3_its.h>
+#endif
+
+#define DT_DRV_COMPAT brcm_brcmstb_pcie
+
 #include <zephyr/arch/common/sys_bitops.h>
 #include <zephyr/arch/cpu.h>
-#include <zephyr/device.h>
-#include <zephyr/kernel.h>
 #include <zephyr/math/ilog2.h>
 #include <zephyr/sys/device_mmio.h>
-
 #include <zephyr/drivers/pcie/pcie.h>
 #include <zephyr/drivers/pcie/controller.h>
 
@@ -124,6 +131,10 @@ LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 #define BCM2712_RC_BAR4_SIZE   0x0
 #define BCM2712_RC_BAR4_PCI    0x0
 #define BCM2712_SCB0_SIZE      0x400000
+
+#define BCM2712_BAR0_REGION_START 0x410000
+#define BCM2712_BAR1_REGION_START 0x0
+#define BCM2712_BAR2_REGION_START 0x400000
 
 #define BCM2712_BURST_SIZE 0x1
 
@@ -353,7 +364,31 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 	return true;
 }
 
-static DEVICE_API(pcie_ctrl, pcie_brcmstb_api) = {
+static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
+{
+	return 0;
+}
+
+void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned int reg, uint32_t data)
+{
+}
+
+bool pcie_brcmstb_region_allocate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, size_t bar_size, uintptr_t *bar_bus_addr)
+{
+	return true;
+}
+
+bool pcie_brcmstb_region_get_allocate_base(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, size_t align, uintptr_t *bar_base_addr)
+{
+	return true;
+}
+
+bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, uintptr_t bar_bus_addr, uintptr_t *bar_addr)
+{
+	return true;
+}
+
+static struct pcie_ctrl_driver_api pcie_brcmstb_api = {
 	.conf_read = pcie_brcmstb_conf_read,
 	.conf_write = pcie_brcmstb_conf_write,
 	.region_allocate = pcie_brcmstb_region_allocate,
@@ -498,8 +533,10 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	/* Set SCB Size */
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
 	tmp &= ~PCIE_MISC_MISC_CTRL_SCB0_SIZE_MASK;
+
 	tmp |= (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
+
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
 
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_UBUS_CTRL);
@@ -532,7 +569,8 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	sys_write16(tmp16, data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
 
 	tmp = sys_read32(data->cfg_addr + PCIE_RC_CFG_PRIV1_ID_VAL3);
-	tmp &= ~PCIE_RC_CFG_PRIV1_ID_VAL3_CLASS_CODE_MASK;
+	tmp &= PCIE_RC_CFG_PRIV1_ID_VAL3_CLASS_CODE_MASK;
+
 	tmp |= BCM2712_PCIE_RC_CFG_PRIV1_ID_VAL3_CLASS_CODE;
 	sys_write32(tmp, data->cfg_addr + PCIE_RC_CFG_PRIV1_ID_VAL3);
 
@@ -599,6 +637,7 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
 	tmp |= PCI_COMMAND_MEMORY;
 	sys_write32(tmp, data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
+
 	k_busy_wait(500000);
 
 	return 0;

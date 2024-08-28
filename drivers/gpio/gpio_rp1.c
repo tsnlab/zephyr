@@ -11,6 +11,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio/gpio_utils.h>
+#include <zephyr/kernel.h>
 
 #define GPIO_STATUS(base, n) (base + 0x8 * n)
 #define GPIO_CTRL(base, n)   (GPIO_STATUS(base, n) + 0x4)
