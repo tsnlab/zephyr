@@ -25,9 +25,14 @@
 	};
 
 	soc {
-        sram0: memory@00000000 {
+        memory@00000000 {
             compatible = "mmio-sram";
             reg = <0x00000000 0x80000>;
+        };
+
+        cr5con@a0f20000 {
+            compatible = "cr5con";
+            reg = <0xa0f21000 0x0078>; /* Cortex-R5 Configuration Register Bank */
         };
 
         interrupt-parent = <&gic>;
@@ -35,27 +40,151 @@
         gic: interrupt-controller@a0f10000 {
             compatible = "arm,gic-v1", "arm,gic";
             reg = <0xa0f10000 0x1000>,
-                    <0xa0f10000 0x100>;
+                  <0xa0f11000 0x100>;
             interrupt-controller;
             #interrupt-cells = <4>;
-            status = "okay";
+        };
+
+        flash@20000000 {
+            compatible = "telechips,flash";
+            reg = <0x20000000 0x200000>, /* Program Flash Area */
+                  <0x30000000 0x40000>;  /* Data Flash Area */
+        };
+
+        external_flash@40000000 {
+            compatible = "telechips,serial-nor";
+            reg = <0x40000000 0x200000>,  /* External Serial-NOR0 Flash Area */
+                  <0x48000000 0x4000000>; /* External Serial-NOR1 Flash Area */
+        };
+
+        canfd@a0000000 {
+            compatible = "telechips,canfd";
+            reg = <0xa0000000 0x00fc>, /* CAN FD Controller-0 */
+                  <0xa0010000 0x00fc>, /* CAN FD Controller-1 */
+                  <0xa0020000 0x00fc>; /* CAN FD Controller-2 */
+        };
+
+        gpsb@a0100000 {
+            compatible = "telechips,gpsb";
+            reg = <0xa0100000 0x0038>, /* GPSB Controller-0 */
+                  <0xa0110000 0x0038>, /* GPSB Controller-1 */
+                  <0xa0120000 0x0038>, /* GPSB Controller-2 */
+                  <0xa0130000 0x0038>, /* GPSB Controller-3 */
+                  <0xa0140000 0x0038>; /* GPSB Controller-4 */
         };
 
         // Define the UART node
-        uart0: serial@a0200000 {
+        //uart0: serial@a0200000 {
+        //    compatible = "telechips,tcc-uart";
+        //    reg = <0xa0200000 0x1000>;
+        //    interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+        //    clocks = <&uart0_clk>;
+        //    status = "okay";
+        //};
+        uart@a0200000 {
             compatible = "telechips,tcc-uart";
-            reg = <0xa0200000 0x1000>;
-            interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
-            clocks = <&uart0_clk>;
-            status = "okay";
+            reg = <0xa0200000 0x004c>, /* UART Controller-0 */
+                  <0xa0210000 0x004c>, /* UART Controller-1 */
+                  <0xa0220000 0x004c>, /* UART Controller-2 */
+                  <0xa0230000 0x004c>, /* UART Controller-3 */
+                  <0xa0240000 0x004c>, /* UART Controller-4 */
+                  <0xa0250000 0x004c>; /* UART Controller-5 */
         };
 
+        i2c@a0400000 {
+            compatible = "telechips,i2c";
+            reg = <0xa0400000 0x0028>, /* I2C Master Controller-0 */
+                  <0xa0410000 0x0028>, /* I2C Master Controller-1 */
+                  <0xa0420000 0x0028>, /* I2C Master Controller-2 */
+                  <0xa0430000 0x0028>, /* I2C Master Controller-3 */
+                  <0xa0440000 0x0028>, /* I2C Master Controller-4 */
+                  <0xa0450000 0x0028>; /* I2C Master Controller-5 */
+        };
+
+        pdm@a0700000 {
+            compatible = "telechips,pdm";
+            reg = <0xa0700000 0x0094>, /* PDM Module-0 */
+                  <0xa0710000 0x0094>, /* PDM Module-1 */
+                  <0xa0720000 0x0094>; /* PDM Module-2 */
+        };
+
+        ictc@a0600000 {
+            compatible = "telechips,ictc";
+            reg = <0xa0600000 0x0050>, /* INPUT CAPTURE TIME COUNTER-0 */
+                  <0xa0610000 0x0050>, /* INPUT CAPTURE TIME COUNTER-1 */
+                  <0xa0620000 0x0050>, /* INPUT CAPTURE TIME COUNTER-2 */
+                  <0xa0630000 0x0050>, /* INPUT CAPTURE TIME COUNTER-3 */
+                  <0xa0640000 0x0050>, /* INPUT CAPTURE TIME COUNTER-4 */
+                  <0xa0650000 0x0050>; /* INPUT CAPTURE TIME COUNTER-5 */
+        };
+
+        dma@a0800000 {
+            compatible = "telechips,dma";
+            reg = <0xa0800000 0x1000>, /* General DMA Controller -0 */
+                  <0xa0810000 0x1000>, /* General DMA Controller -1 */
+                  <0xa0820000 0x1000>, /* General DMA Controller -2 */
+                  <0xa0830000 0x1000>, /* General DMA Controller -3 */
+                  <0xa0840000 0x1000>, /* General DMA Controller -4 */
+                  <0xa0850000 0x1000>, /* General DMA Controller -5 */
+                  <0xa0860000 0x1000>, /* General DMA Controller -6 */
+                  <0xa0870000 0x1000>; /* General DMA Controller -7 */
+        };
+
+        adc@a0080000 {
+            compatible = "telechips,adc";
+            reg = <0xa0080000 0x00b8>, /* ADC Controller-0 */
+                  <0xa0090000 0x00b8>; /* ADC Controller-1 */
+        };
+
+        /* Add other peripherals here in a similar way */
+
+        syscon@a0f20000 {
+            compatible = "syscon";
+            reg = <0xa0f20000 0x0078>; /* System Configuration Register Bank */
+        };
+
+
         // Define GPIO controller
-        gpio: gpio@a0f22000 {
+        gpio@a0f22000 {
             compatible = "telechips,tcc-gpio";
-            reg = <0xa0f22000 0x1000>;
+            reg = <0xa0f22000 0x0f08>;
             gpio-controller;
             #gpio-cells = <2>;
         };
+
+        wdt@a0f23000 {
+            compatible = "telechips,watchdog";
+            reg = <0xa0f23000 0x0018>; /* Windowed Watchdog Timer */
+        };
+
+        rtc@a0f28c00 {
+            compatible = "telechips,rtc";
+            reg = <0xa0f28c00 0x004c>; /* RTC */
+        };
+
+        timer@a0f2a000 {
+            compatible = "telechips,timer";
+            reg = <0xa0f2a000 0x0020>, /* Timer -0 */
+                  <0xa0f2a100 0x0020>, /* Timer -1 */
+                  <0xa0f2a200 0x0020>, /* Timer -2 */
+                  <0xa0f2a300 0x0020>, /* Timer -3 */
+                  <0xa0f2a400 0x0020>, /* Timer -4 */
+                  <0xa0f2a500 0x0020>, /* Timer -5 */
+                  <0xa0f2a600 0x0020>, /* Timer -6 */
+                  <0xa0f2a700 0x0020>, /* Timer -7 */
+                  <0xa0f2a800 0x0020>, /* Timer -8 */
+                  <0xa0f2a900 0x0020>; /* Timer -9 */
+        };
+
+        flashctrl@a1000000 {
+            compatible = "telechips,flashctrl";
+            reg = <0xa1000000 0x8064>; /* Program Flash Controller */
+        };
+
+        dataflashctrl@a1080000 {
+            compatible = "telechips,dataflashctrl";
+            reg = <0xa1080000 0x8064>; /* Data Flash Controller */
+        };
+
 	};
 };
