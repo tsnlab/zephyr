@@ -538,6 +538,7 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
 
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
+	printk("%x\n", sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL));
 
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_UBUS_CTRL);
 	tmp |= PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK;
@@ -612,6 +613,16 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_PCIE_CTRL);
 	tmp |= PCIE_MISC_PCIE_CTRL_PCIE_PERSTB_MASK;
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_PCIE_CTRL);
+	// printk("CTRL %x\n ", sys_read32(data->cfg_addr + PCIE_MISC_PCIE_CTRL));
+
+	k_busy_wait(300000);
+	/*
+	for (int i = 0; i < 100; i++) {
+		k_busy_wait(5000);
+		uint32_t aaa = sys_read32(data->cfg_addr + 0x4068);
+		printk("waiting %x %x %x\n", aaa, (aaa & 0x20) != 0, (aaa & 0x10) != 0);
+	}
+	*/
 
 	k_busy_wait(500000);
 
@@ -619,6 +630,9 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCI_COMMAND);
 	tmp |= (PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
 	sys_write32(tmp, data->cfg_addr + PCI_COMMAND);
+	// printk("%x\n", sys_read32(data->cfg_addr + PCI_COMMAND));
+
+	// printk("PCIE_STATUS %x\n", sys_read32(data->cfg_addr + 0x4068));
 
 	for (int i = 0; i < DMA_RANGES_IDX; i++) {
 		pcie_brcmstb_set_outbound_win(dev, i, config->common->ranges[i].host_map_addr,
@@ -637,6 +651,19 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
 	tmp |= PCI_COMMAND_MEMORY;
 	sys_write32(tmp, data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
+	printk("COMMAND %x\n", sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND));
+
+	if (data->cfg_phys_addr == 0x1000110000) {
+		k_busy_wait(500000);
+		mem_addr_t asdf;
+		device_map(&asdf, 0x1b00000000, 0x4000, K_MEM_CACHE_NONE);
+		printk("TIMESTAMP_COUNT %x\n", sys_read32(asdf + 0x0300));
+		printk("SYS_CLOCK_HI %x\n", sys_read32(asdf + 0x0380));
+		printk("SYS_CLOCK_LO %x\n", sys_read32(asdf + 0x0384));
+		printk("CYCLE_1S %x\n", sys_read32(asdf + 0x0034));
+		sys_write32(125000000, asdf + 0x0034);
+		printk("CYCLE_1S %x\n", sys_read32(asdf + 0x0034));
+	}
 
 	k_busy_wait(500000);
 
