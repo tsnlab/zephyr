@@ -1,0 +1,13 @@
+# Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+identifier: topst_vcp_45
+name: Telechips TOPST VCP-45
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 768
+flash: 1024
+supported:
+  - serial
+vendor: tcc
