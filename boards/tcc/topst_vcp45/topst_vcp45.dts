@@ -1,0 +1,37 @@
+/*
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
+
+/dts-v1/;
+#include <arm/tcc/tcc7045.dtsi>
+
+/ {
+	model = "TOPST VCP45 Cortex-R5";
+	compatible = "tcc,topst-vcc45";
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &uart1;
+		zephyr,shell-uart = &uart1;
+		zephyr,ocm = &ocm;
+	};
+};
+
+&uart1 {
+	status = "okay";
+	current-speed = <115200>;
+	clock-frequency = <99999901>;
+};
+
+&ttc0 {
+	status = "okay";
+	clock-frequency = <5000000>;
+};
+
+&psgpio {
+	status = "okay";
+};

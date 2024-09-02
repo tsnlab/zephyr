@@ -1,4 +1,4 @@
 series:
-- name: tcc7045
+- name: tcc70xx
   socs:
   - name: tcc7045

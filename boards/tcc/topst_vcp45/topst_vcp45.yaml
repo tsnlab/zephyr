@@ -1,0 +1,12 @@
+identifier: topst_vcp45
+name: Telechips TOPST VCP45 board for Cortex-R5
+arch: arm
+toolchain:
+  - zephyr
+ram: 65536
+flash: 32768
+testing:
+  ignore_tags:
+    - net
+    - bluetooth
+vendor: tcc

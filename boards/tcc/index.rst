@@ -1,4 +1,4 @@
-.. _boards-telechips:
+.. _boards-tcc:
 
 Telechips, Inc.
 ######################
