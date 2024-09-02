@@ -1,5 +1,4 @@
-# Copyright (c) 2019 Lexmark International, Inc.
-# Copyright (c) 2019 Stephanos Ioannidis <root@stephanos.io>
+# Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_TCC7045
@@ -7,10 +6,12 @@ if SOC_TCC7045
 config NUM_IRQS
 	# must be >= the highest interrupt number used
 	# - include the UART interrupts
+    int
 	default 220
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-	default 5000000
+    int
+	default 2000000
 
 # Workaround for not being able to have commas in macro arguments
 DT_CHOSEN_Z_FLASH := zephyr,flash

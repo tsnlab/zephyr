@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * Copyright (c) 2021 Lexmark International, Inc.
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
  */
 
 #include <zephyr/kernel.h>

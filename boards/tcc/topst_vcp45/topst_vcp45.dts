@@ -10,14 +10,13 @@
 
 / {
 	model = "TOPST VCP45 Cortex-R5";
-	compatible = "tcc,topst-vcc45";
+	compatible = "tcc,topst_vcc45";
 
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,console = &uart1;
 		zephyr,shell-uart = &uart1;
-		zephyr,ocm = &ocm;
 	};
 };
 
@@ -32,6 +31,3 @@
 	clock-frequency = <5000000>;
 };
 
-&psgpio {
-	status = "okay";
-};
