@@ -6,10 +6,8 @@ type: mcu
 arch: arm
 toolchain:
   - zephyr
-#ram: 65536
-#flash: 32768
-ram: 768
-flash: 1024
+ram: 65536
+flash: 32768
 testing:
   ignore_tags:
     - net

@@ -30,4 +30,3 @@
 	status = "okay";
 	clock-frequency = <5000000>;
 };
-

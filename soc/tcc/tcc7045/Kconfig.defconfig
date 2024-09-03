@@ -6,12 +6,10 @@ if SOC_TCC7045
 config NUM_IRQS
 	# must be >= the highest interrupt number used
 	# - include the UART interrupts
-    int
 	default 220
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-    int
-	default 2000000
+	default 5000000
 
 # Workaround for not being able to have commas in macro arguments
 DT_CHOSEN_Z_FLASH := zephyr,flash

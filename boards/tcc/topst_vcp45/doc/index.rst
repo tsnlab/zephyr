@@ -12,6 +12,8 @@ The TOPST_VCP_45 is a 32-Bit MCU Board for Real time Applications.
      :align: center
      :alt: TOPST_VCP_45 Board
 
+* PL011 UART controller
+
 Hardware
 ********
 
@@ -31,12 +33,15 @@ Supported Features
 
 The following features are supported:
 
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
-+-----------+------------+-------------------------------------+
++------------+------------+-------------------------------------+
+| Interface  | Controller | Driver/Component                    |
++============+============+=====================================+
+| UART       | on-chip    | serial port-polling;                |
+|            |            | serial port-interrupt               |
++------------+------------+-------------------------------------+
+| PL011 UART | on-chip    | serial port                         |
++------------+------------+-------------------------------------+
+
 
 Not all hardware features are supported yet. See `TCC70xx Full Specification`_ for the complete list of hardware features.
 
