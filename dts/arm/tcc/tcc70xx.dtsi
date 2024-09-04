@@ -85,10 +85,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_56";
 			reg = <0xa0f2a000 0x20>;
@@ -99,10 +95,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_57";
 			reg = <0xa0f2a100 0x20>;
@@ -113,10 +105,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_58";
 			reg = <0xa0f2a200 0x20>;
@@ -127,10 +115,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_59";
 			reg = <0xa0f2a300 0x20>;
@@ -141,10 +125,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_60";
 			reg = <0xa0f2a400 0x20>;
@@ -155,10 +135,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_61";
 			reg = <0xa0f2a500 0x20>;
@@ -169,10 +145,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_62";
 			reg = <0xa0f2a600 0x20>;
@@ -183,10 +155,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_63";
 			reg = <0xa0f2a700 0x20>;
@@ -197,10 +165,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 64 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_64";
 			reg = <0xa0f2a800 0x20>;
@@ -211,10 +175,6 @@
 			compatible = "xlnx,ttcps";
 			status = "disabled";
 			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 37 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>,
-						<GIC_SPI 38 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_65";
 			reg = <0xa0f2a900 0x20>;
