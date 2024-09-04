@@ -5,6 +5,7 @@
  */
 
 #include <arm/tcc/tcc70xx.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
 
 / {
 	cpus {
@@ -25,7 +26,7 @@
 		gic: interrupt-controller@a0f10000 {
 			compatible = "arm,gic-v1", "arm,gic";
 			reg = <0xa0f10000 0x1000>,
-			        <0xa0f11000 0x100>;
+				<0xa0f11000 0x100>;
 			interrupt-controller;
 			#interrupt-cells = <4>;
 			status = "okay";
