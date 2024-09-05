@@ -1,16 +1,16 @@
-.. _topst_vcp_45:
+.. _topst_vcp45:
 
-TOPST_VCP_45
+TOPST_VCP45
 ###################
 
 Overview
 ********
 
-The TOPST_VCP_45 is a 32-Bit MCU Board for Real time Applications.
+The TOPST_VCP45 is a 32-Bit MCU Board for Real time Applications.
 
-.. image:: topst_vcp_45.png
+.. image:: topst_vcp45.png
      :align: center
-     :alt: TOPST_VCP_45 Board
+     :alt: TOPST_VCP45 Board
 
 * PL011 UART controller
 
@@ -77,4 +77,3 @@ Debugging
 
 References
 **********
-.. target-notes::
