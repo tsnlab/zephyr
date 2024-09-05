@@ -6,6 +6,7 @@
  */
 
 /dts-v1/;
+
 #include <arm/tcc/tcc7045.dtsi>
 
 / {

@@ -78,4 +78,3 @@ Debugging
 References
 **********
 .. target-notes::
-
