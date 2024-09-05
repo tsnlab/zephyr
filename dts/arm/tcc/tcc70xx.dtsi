@@ -10,9 +10,9 @@
 
 / {
 	soc {
-		flash0: flash@c0000000 {
+		flash0: flash@20000000 {
 			compatible = "soc-nv-flash";
-			reg = <0xc0000000 DT_SIZE_M(32)>;
+			reg = <0x20000000 DT_SIZE_M(32)>;
 		};
 
 		sram0: memory@0 {
@@ -40,51 +40,11 @@
 			clocks = <&clk_uart>;
 		};
 
-		uart2: uart@a0220000 {
-			compatible = "arm,pl011";
-			reg = <0xa0220000 0x4c>;
-			status = "disabled";
-			interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_18";
-			clocks = <&clk_uart>;
-		};
-
-		uart3: uart@a0230000 {
-			compatible = "arm,pl011";
-			reg = <0xa0230000 0x4c>;
-			status = "disabled";
-			interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_19";
-			clocks = <&clk_uart>;
-		};
-
-		uart4: uart@a0240000 {
-			compatible = "arm,pl011";
-			reg = <0xa0240000 0x4c>;
-			status = "disabled";
-			interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_20";
-			clocks = <&clk_uart>;
-		};
-
-		uart5: uart@a0250000 {
-			compatible = "arm,pl011";
-			reg = <0xa0250000 0x4c>;
-			status = "disabled";
-			interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_21";
-			clocks = <&clk_uart>;
-		};
-
 		ttc0: timer@a0f2a000 {
 			//compatible = "tcc,ttcvcp";
 			compatible = "xlnx,ttcps";
 			status = "disabled";
-			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL
+			interrupts = <GIC_PPI 56 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_56";
 			reg = <0xa0f2a000 0x20>;
@@ -94,92 +54,60 @@
 			//compatible = "tcc,ttcvcp";
 			compatible = "xlnx,ttcps";
 			status = "disabled";
-			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL
+			interrupts = <GIC_PPI 57 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_57";
 			reg = <0xa0f2a100 0x20>;
 		};
 
-		ttc2: timer@a0f2a200 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_58";
-			reg = <0xa0f2a200 0x20>;
+		gpioa@a0f22000 {
+			compatible = "simple-bus";
+			reg = <0xa0f22000 0x40>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gpio-controller;
+			#gpio-cells = <1>;
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			source-num = <1 0 1 31>;
+			label = "gpioa";
+//			gpio-ranges = <&pinctrl 0 0 32>;
+			gio_aon: gpio@0 {
+				compatible = "brcm,brcmstb-gpio";
+				reg = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <31>;
+				status = "disabled";
+			};
 		};
 
-		ttc3: timer@a0f2a300 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_59";
-			reg = <0xa0f2a300 0x20>;
-		};
+	};
 
-		ttc4: timer@a0f2a400 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_60";
-			reg = <0xa0f2a400 0x20>;
-		};
+	pinctrl {
+		pinctrl_gpio {
+			gpa {
+				pin-info = <0x0 0 31>;
+				source-num = <1 0 1 31>;
+			};
 
-		ttc5: timer@a0f2a500 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_61";
-			reg = <0xa0f2a500 0x20>;
-		};
+			gpb {
+				pin-info = <0x40 0 29>;
+				source-num = <1 0 32 50>;
+			};
 
-		ttc6: timer@a0f2a600 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_62";
-			reg = <0xa0f2a600 0x20>;
-		};
+			gpc {
+				pin-info = <0x80 0 22>;
+				source-num =  <1 0 61 30>;
+			};
 
-		ttc7: timer@a0f2a700 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_63";
-			reg = <0xa0f2a700 0x20>;
+			gpk {
+				pin-info = <0xc0 0 18>;
+				source-num = <0xff>;
+			};
 		};
-
-		ttc8: timer@a0f2a800 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 64 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_64";
-			reg = <0xa0f2a800 0x20>;
-		};
-
-		ttc9: timer@a0f2a900 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
-			status = "disabled";
-			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL
-						IRQ_DEFAULT_PRIORITY>;
-			interrupt-names = "irq_65";
-			reg = <0xa0f2a900 0x20>;
-		};
-
 	};
 
 	clocks {

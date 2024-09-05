@@ -39,13 +39,13 @@
 extern uint32_t _image_rom_end_order;
 static const struct arm_mpu_region mpu_regions[] = {
 	MPU_REGION_ENTRY("FLASH0",
-			0xc0000000,
+			0x20000000,
 			REGION_32M,
 			MPUTYPE_READ_ONLY),
 
 	MPU_REGION_ENTRY("SRAM_PRIV",
 			0x00000000,
-			REGION_2G,
+			REGION_64M,
 			MPUTYPE_PRIV_WBWACACHE_XN),
 
 	MPU_REGION_ENTRY("SRAM",
@@ -54,7 +54,7 @@ static const struct arm_mpu_region mpu_regions[] = {
 			MPUTYPE_READ_ONLY_PRIV),
 
 	MPU_REGION_ENTRY("REGISTERS",
-			0xf8000000,
+			0xa0f20000,
 			REGION_128M,
 			MPUTYPE_PRIV_DEVICE),
 };

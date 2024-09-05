@@ -6,6 +6,7 @@
 
 /dts-v1/;
 
+#include <arm/tcc/tcc70xx.dtsi>
 #include <arm/tcc/tcc7045.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 
@@ -15,6 +16,10 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
+	aliases {
+		led0 = &led_act;
+	};
+
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
@@ -22,6 +27,19 @@
 		zephyr,shell-uart = &uart1;
 	};
 
+	leds {
+		compatible = "gpio-leds";
+
+		led_act: led-act {
+			gpios = <&gio_aon 9 GPIO_ACTIVE_LOW>;
+			label = "ACT";
+		};
+	};
+
+};
+
+&gio_aon {
+	status = "okay";
 };
 
 &ttc0 {
