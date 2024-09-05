@@ -13,8 +13,6 @@
 / {
 	compatible = "tcc,topst_vcc45";
 	model = "TOPST VCP45 Cortex-R5";
-	#address-cells = <1>;
-	#size-cells = <0>;
 
 	aliases {
 		led0 = &led_act;
