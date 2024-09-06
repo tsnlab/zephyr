@@ -152,6 +152,7 @@ LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 #define PCIE_RC_DL_MDIO_ADDR                0x1100
 #define PCIE_RC_DL_MDIO_WR_DATA             0x1104
 <<<<<<< HEAD
+<<<<<<< HEAD
 #define PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD 0x12 /* 18.52ns as ticks */
 
 #define SET_ADDR_OFFSET 0x1f
@@ -180,6 +181,9 @@ enum pcie_region_type {
 	PCIE_REGION_MAX,
 =======
 #define PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD 0x12 // 18.52ns as ticks
+=======
+#define PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD 0x12 /* 18.52ns as ticks */
+>>>>>>> f277dfa7b12 (Fix compliance check failure)
 
 #define SET_ADDR_OFFSET 0x1f
 
@@ -228,9 +232,13 @@ static uint32_t encode_ibar_size(uint64_t size)
 	uint32_t tmp;
 	uint32_t size_upper = (uint32_t)(size >> 32);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
+=======
+
+>>>>>>> f277dfa7b12 (Fix compliance check failure)
 	if (size_upper > 0) {
 		tmp = ilog2(size_upper) + 32;
 	} else {
@@ -570,7 +578,11 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	uint64_t rc_bar2_offset = config->ranges[DMA_RANGES_IDX].host_map_addr -
 				  config->ranges[DMA_RANGES_IDX].pcie_bus_addr;
 	uint64_t rc_bar2_size = config->ranges[DMA_RANGES_IDX].map_length;
+<<<<<<< HEAD
 >>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
+=======
+
+>>>>>>> f277dfa7b12 (Fix compliance check failure)
 	tmp = lower_32_bits(rc_bar2_offset);
 	tmp &= ~PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_MASK;
 	tmp |= encode_ibar_size(rc_bar2_size) << PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_LSB;
