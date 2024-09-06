@@ -75,7 +75,7 @@
 			label = "gpioa";
 //			gpio-ranges = <&pinctrl 0 0 32>;
 			gio_aon: gpio@0 {
-				compatible = "brcm,brcmstb-gpio";
+				compatible = "tcc,tccvcp-gpio";
 				reg = <0>;
 				gpio-controller;
 				#gpio-cells = <2>;
