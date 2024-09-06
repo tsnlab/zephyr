@@ -132,10 +132,6 @@ LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 #define BCM2712_RC_BAR4_PCI    0x0
 #define BCM2712_SCB0_SIZE      0x400000
 
-#define BCM2712_BAR0_REGION_START 0x410000
-#define BCM2712_BAR1_REGION_START 0x0
-#define BCM2712_BAR2_REGION_START 0x400000
-
 #define BCM2712_BURST_SIZE 0x1
 
 #define BCM2712_CLOCK_RATE 750000000ULL /* 750Mhz */
@@ -155,6 +151,7 @@ LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 
 #define PCIE_RC_DL_MDIO_ADDR                0x1100
 #define PCIE_RC_DL_MDIO_WR_DATA             0x1104
+<<<<<<< HEAD
 #define PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD 0x12 /* 18.52ns as ticks */
 
 #define SET_ADDR_OFFSET 0x1f
@@ -181,12 +178,30 @@ enum pcie_region_type {
 	PCIE_REGION_MEM,
 	PCIE_REGION_MEM64,
 	PCIE_REGION_MAX,
+=======
+#define PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD 0x12 // 18.52ns as ticks
+
+#define SET_ADDR_OFFSET 0x1f
+
+#define DMA_RANGES_IDX 3
+
+struct pcie_brcmstb_config {
+	struct pcie_ctrl_config common;
+	size_t dma_ranges_count;
+	struct {
+		uint32_t flags;
+		uintptr_t child_addr;
+		uintptr_t parent_addr;
+		size_t size;
+	} dma_ranges[];
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 };
 
 struct pcie_brcmstb_data {
 	uintptr_t cfg_phys_addr;
 	mm_reg_t cfg_addr;
 	size_t cfg_size;
+<<<<<<< HEAD
 	struct {
 		uintptr_t phys_start;
 		uintptr_t bus_start;
@@ -194,6 +209,8 @@ struct pcie_brcmstb_data {
 		size_t allocation_offset;
 	} regions[PCIE_REGION_MAX];
 	size_t bar_cnt;
+=======
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 };
 
 static inline uint32_t lower_32_bits(uint64_t val)
@@ -210,7 +227,10 @@ static uint32_t encode_ibar_size(uint64_t size)
 {
 	uint32_t tmp;
 	uint32_t size_upper = (uint32_t)(size >> 32);
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 	if (size_upper > 0) {
 		tmp = ilog2(size_upper) + 32;
 	} else {
@@ -226,6 +246,7 @@ static uint32_t encode_ibar_size(uint64_t size)
 	return 0;
 }
 
+<<<<<<< HEAD
 static mm_reg_t pcie_brcmstb_map_bus(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
 	struct pcie_brcmstb_data *data = dev->data;
@@ -364,26 +385,32 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 	return true;
 }
 
+=======
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
 	return 0;
 }
 
-void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned int reg, uint32_t data)
+void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned int reg,
+			     uint32_t data)
 {
 }
 
-bool pcie_brcmstb_region_allocate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, size_t bar_size, uintptr_t *bar_bus_addr)
-{
-	return true;
-}
-
-bool pcie_brcmstb_region_get_allocate_base(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, size_t align, uintptr_t *bar_base_addr)
+bool pcie_brcmstb_region_allocate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64,
+				  size_t bar_size, uintptr_t *bar_bus_addr)
 {
 	return true;
 }
 
-bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64, uintptr_t bar_bus_addr, uintptr_t *bar_addr)
+bool pcie_brcmstb_region_get_allocate_base(const struct device *dev, pcie_bdf_t bdf, bool mem,
+					   bool mem64, size_t align, uintptr_t *bar_base_addr)
+{
+	return true;
+}
+
+bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64,
+				   uintptr_t bar_bus_addr, uintptr_t *bar_addr)
 {
 	return true;
 }
@@ -396,6 +423,7 @@ static struct pcie_ctrl_driver_api pcie_brcmstb_api = {
 	.region_translate = pcie_brcmstb_region_translate,
 };
 
+<<<<<<< HEAD
 static int pcie_brcmstb_parse_regions(const struct device *dev)
 {
 	const struct pcie_brcmstb_config *config = dev->config;
@@ -430,6 +458,8 @@ static int pcie_brcmstb_parse_regions(const struct device *dev)
 	return 0;
 }
 
+=======
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 static mm_reg_t pcie_brcmstb_mdio_from_pkt(int port, int regad, int cmd)
 {
 	return (mm_reg_t)cmd << 20 | port << 16 | regad;
@@ -439,7 +469,13 @@ static void pcie_brcmstb_mdio_write(mm_reg_t base, uint8_t port, uint8_t regad, 
 {
 	sys_write32(pcie_brcmstb_mdio_from_pkt(port, regad, MDIO_CMD_WRITE),
 		    base + PCIE_RC_DL_MDIO_ADDR);
+<<<<<<< HEAD
 	sys_write32(MDIO_DATA_DONE_MASK | wrdata, base + PCIE_RC_DL_MDIO_WR_DATA);
+=======
+	sys_read32(base + PCIE_RC_DL_MDIO_ADDR);
+	sys_write32(MDIO_DATA_DONE_MASK | wrdata, base + PCIE_RC_DL_MDIO_WR_DATA);
+	sys_read32(base + PCIE_RC_DL_MDIO_WR_DATA);
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 }
 
 static void pcie_brcmstb_munge_pll(const struct device *dev)
@@ -452,11 +488,15 @@ static void pcie_brcmstb_munge_pll(const struct device *dev)
 
 	pcie_brcmstb_mdio_write(data->cfg_addr, MDIO_PORT0, SET_ADDR_OFFSET, 0x1600);
 	for (i = 0; i < 7; i++) {
+<<<<<<< HEAD
 		k_busy_wait(300);
+=======
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 		pcie_brcmstb_mdio_write(data->cfg_addr, MDIO_PORT0, regs[i], vals[i]);
 	}
 }
 
+<<<<<<< HEAD
 static void pcie_brcmstb_set_outbound_win(const struct device *dev, uint8_t win, uintptr_t cpu_addr,
 					  uintptr_t pcie_addr, size_t size)
 {
@@ -498,6 +538,11 @@ static void pcie_brcmstb_set_outbound_win(const struct device *dev, uint8_t win,
 static int pcie_brcmstb_setup(const struct device *dev)
 {
 	const struct pcie_brcmstb_config *config = dev->config;
+=======
+static int pcie_brcmstb_setup(const struct device *dev)
+{
+	const struct pcie_ctrl_config *config = dev->config;
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 	struct pcie_brcmstb_data *data = dev->data;
 	uint32_t tmp;
 	uint16_t tmp16;
@@ -516,10 +561,16 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	tmp |= (BCM2712_BURST_SIZE << PCIE_MISC_MISC_CTRL_MAX_BURST_SIZE_LSB);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
 
+<<<<<<< HEAD
 	uint64_t rc_bar2_offset = config->common->ranges[DMA_RANGES_IDX].host_map_addr -
 				  config->common->ranges[DMA_RANGES_IDX].pcie_bus_addr;
 	uint64_t rc_bar2_size = config->common->ranges[DMA_RANGES_IDX].map_length;
 
+=======
+	uint64_t rc_bar2_offset = config->ranges[DMA_RANGES_IDX].host_map_addr -
+				  config->ranges[DMA_RANGES_IDX].pcie_bus_addr;
+	uint64_t rc_bar2_size = config->ranges[DMA_RANGES_IDX].map_length;
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 	tmp = lower_32_bits(rc_bar2_offset);
 	tmp &= ~PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_MASK;
 	tmp |= encode_ibar_size(rc_bar2_size) << PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_LSB;
@@ -533,12 +584,16 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	/* Set SCB Size */
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
 	tmp &= ~PCIE_MISC_MISC_CTRL_SCB0_SIZE_MASK;
+<<<<<<< HEAD
 
 	tmp |= (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
 
+=======
+	tmp |= (ilog2(config->ranges[DMA_RANGES_IDX].map_length) - 15)
+	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
-	printk("%x\n", sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL));
 
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_UBUS_CTRL);
 	tmp |= PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK;
@@ -586,16 +641,25 @@ static int pcie_brcmstb_setup(const struct device *dev)
 
 static int pcie_brcmstb_init(const struct device *dev)
 {
+<<<<<<< HEAD
 	const struct pcie_brcmstb_config *config = dev->config;
 	struct pcie_brcmstb_data *data = dev->data;
 	uint32_t tmp;
 	int ret;
 
 	if (config->common->ranges_count < DMA_RANGES_IDX) {
+=======
+	const struct pcie_ctrl_config *config = dev->config;
+	struct pcie_brcmstb_data *data = dev->data;
+	uint32_t tmp;
+
+	if (config->ranges_count < DMA_RANGES_IDX) {
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 		/* Workaround since macros for `dma-ranges` property is not available */
 		return -EINVAL;
 	}
 
+<<<<<<< HEAD
 	ret = pcie_brcmstb_parse_regions(dev);
 	if (ret != 0) {
 		return ret;
@@ -603,6 +667,10 @@ static int pcie_brcmstb_init(const struct device *dev)
 
 	data->cfg_phys_addr = config->common->cfg_addr;
 	data->cfg_size = config->common->cfg_size;
+=======
+	data->cfg_phys_addr = config->cfg_addr;
+	data->cfg_size = config->cfg_size;
+>>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
 
 	device_map(&data->cfg_addr, data->cfg_phys_addr, data->cfg_size, K_MEM_CACHE_NONE);
 
@@ -613,16 +681,8 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_PCIE_CTRL);
 	tmp |= PCIE_MISC_PCIE_CTRL_PCIE_PERSTB_MASK;
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_PCIE_CTRL);
-	// printk("CTRL %x\n ", sys_read32(data->cfg_addr + PCIE_MISC_PCIE_CTRL));
 
-	k_busy_wait(300000);
-	/*
-	for (int i = 0; i < 100; i++) {
-		k_busy_wait(5000);
-		uint32_t aaa = sys_read32(data->cfg_addr + 0x4068);
-		printk("waiting %x %x %x\n", aaa, (aaa & 0x20) != 0, (aaa & 0x10) != 0);
-	}
-	*/
+	k_busy_wait(500000);
 
 	k_busy_wait(500000);
 
@@ -630,9 +690,6 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCI_COMMAND);
 	tmp |= (PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
 	sys_write32(tmp, data->cfg_addr + PCI_COMMAND);
-	// printk("%x\n", sys_read32(data->cfg_addr + PCI_COMMAND));
-
-	// printk("PCIE_STATUS %x\n", sys_read32(data->cfg_addr + 0x4068));
 
 	for (int i = 0; i < DMA_RANGES_IDX; i++) {
 		pcie_brcmstb_set_outbound_win(dev, i, config->common->ranges[i].host_map_addr,
@@ -651,19 +708,6 @@ static int pcie_brcmstb_init(const struct device *dev)
 	tmp = sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
 	tmp |= PCI_COMMAND_MEMORY;
 	sys_write32(tmp, data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
-	printk("COMMAND %x\n", sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND));
-
-	if (data->cfg_phys_addr == 0x1000110000) {
-		k_busy_wait(500000);
-		mem_addr_t asdf;
-		device_map(&asdf, 0x1b00000000, 0x4000, K_MEM_CACHE_NONE);
-		printk("TIMESTAMP_COUNT %x\n", sys_read32(asdf + 0x0300));
-		printk("SYS_CLOCK_HI %x\n", sys_read32(asdf + 0x0380));
-		printk("SYS_CLOCK_LO %x\n", sys_read32(asdf + 0x0384));
-		printk("CYCLE_1S %x\n", sys_read32(asdf + 0x0034));
-		sys_write32(125000000, asdf + 0x0034);
-		printk("CYCLE_1S %x\n", sys_read32(asdf + 0x0034));
-	}
 
 	k_busy_wait(500000);
 
