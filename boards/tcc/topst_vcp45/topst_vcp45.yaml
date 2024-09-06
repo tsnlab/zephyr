@@ -6,6 +6,7 @@ type: mcu
 arch: arm
 toolchain:
   - zephyr
+  - cross-compile
 ram: 65536
 flash: 32768
 testing:
