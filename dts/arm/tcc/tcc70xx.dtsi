@@ -80,7 +80,7 @@
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <31>;
-				status = "disabled";
+				status = "ok";
 			};
 		};
 
