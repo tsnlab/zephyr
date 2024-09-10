@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 zephyr_sources(
+  startup.S
+  vector.S
+  vfp_init.S
+  arm_a.S
   soc.c
 )
 zephyr_sources_ifdef(
