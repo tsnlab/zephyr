@@ -189,6 +189,8 @@ enum pcie_region_type {
 
 #define DMA_RANGES_IDX 3
 
+#define PCIE_ECAM_BDF_SHIFT 12
+
 struct pcie_brcmstb_config {
 	struct pcie_ctrl_config common;
 	size_t dma_ranges_count;
@@ -255,11 +257,15 @@ static uint32_t encode_ibar_size(uint64_t size)
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d5589bab6af (Implement config r/w functions)
 static mm_reg_t pcie_brcmstb_map_bus(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
 	struct pcie_brcmstb_data *data = dev->data;
 
 	sys_write32(bdf << PCIE_ECAM_BDF_SHIFT, data->cfg_addr + PCIE_EXT_CFG_INDEX);
+<<<<<<< HEAD
 	return data->cfg_addr + PCIE_EXT_CFG_DATA + reg * sizeof(uint32_t);
 }
 
@@ -395,14 +401,30 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 
 =======
 >>>>>>> 6fe4ad1d9f9 (Refactor PCIe init functions)
+=======
+	return data->cfg_addr + PCIE_EXT_CFG_DATA + reg;
+}
+
+>>>>>>> d5589bab6af (Implement config r/w functions)
 static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
-	return 0;
+	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg);
+	if (!conf_addr) {
+		return 0xffffffff;
+	}
+
+	return sys_read32(conf_addr);
 }
 
 void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned int reg,
 			     uint32_t data)
 {
+	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg);
+	if (!conf_addr) {
+		return;
+	}
+
+	sys_write32(data, conf_addr);
 }
 
 bool pcie_brcmstb_region_allocate(const struct device *dev, pcie_bdf_t bdf, bool mem, bool mem64,
