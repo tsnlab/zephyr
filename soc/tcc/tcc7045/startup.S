@@ -58,12 +58,6 @@ init:
 	orr	r0, r0, #0xd3
 	msr	cpsr, r0
 
-#ifdef PRELOAD_ONRAM
-	bl PRELOAD_loadOnRam
-	dsb
-        isb
-        bl PRELOAD_JOB
-#endif
  /* Stack Setup for each ARM Excution Mode */
 stack_setup:
 	mrs	r0, cpsr
@@ -150,7 +144,6 @@ branch_prefiction:
         bic	r0, r0, #(0x1<<13)
         mcr p15, 0, r0, c1, c0, 0
 
-#ifdef PFLASH_STANDALONE
 /* Copy Vector Table to SRAM_0 */
 vector_copy:
 	ldr r0, =__VECTOR_START_LOAD
@@ -162,7 +155,6 @@ vcopy_loop:
 	strlt r3, [r1], #4
 	blt vcopy_loop
 
-#endif
 
 	bl      vfp_init
 	bl      PMIO_EarlyWakeUp

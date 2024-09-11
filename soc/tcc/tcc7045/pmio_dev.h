@@ -44,8 +44,6 @@
 #ifndef  MCU_BSP_PMIO_DEV_HEADER
 #define  MCU_BSP_PMIO_DEV_HEADER
 
-#if 1 // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
-
 /*
 ***************************************************************************************************
 *                                             INCLUDE FILES
@@ -189,8 +187,6 @@
 *                                         FUNCTION PROTOTYPES
 ***************************************************************************************************
 */
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
 
 #endif  // MCU_BSP_PMIO_DEV_HEADER
 

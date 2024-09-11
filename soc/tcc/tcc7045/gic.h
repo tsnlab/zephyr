@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_GIC_HEADER
 #define MCU_BSP_GIC_HEADER
 
-#if 1 // ( MCU_BSP_SUPPORT_DRIVER_GIC == 1 )
-
 #include <sal_internal.h>
 #include <gic_enum.h>
 /*
@@ -306,8 +304,6 @@ SALRetCode_t GIC_SmIrqSetHigh
     uint32                              uiIntId,
     boolean                             bEnable
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_GIC == 1 )
 
 #endif  // MCU_BSP_GIC_HEADER
 

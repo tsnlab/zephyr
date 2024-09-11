@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_GDMA_HEADER
 #define MCU_BSP_GDMA_HEADER
 
-#if 1 //( MCU_BSP_SUPPORT_DRIVER_GDMA == 1 )
-
 #include <sal_internal.h>
 
 #define GDMA_CON_MAX                     (8UL)
@@ -260,8 +258,6 @@ uint32 GDMA_GetTransferSize
 (
     GDMAInformation_t *                 sDmacon
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_GDMA == 1 )
 
 #endif  // MCU_BSP_GDMA_HEADER
 

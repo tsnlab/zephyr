@@ -2,8 +2,6 @@
 
 vfp_init:
 
-#ifdef FPU_D16
-
 /* Globally enable VFP */
     mrc p15, #0, r0, c1, c0, #2     @ r0 = Access Control Register
     orr r0, r0, #(0xf << 20)        @ enable full access for p10,11
@@ -32,7 +30,6 @@ vfp_init:
     vmov    d13,r1,r1
     vmov    d14,r1,r1
     vmov    d15,r1,r1
-#endif
 
     bx  lr
 

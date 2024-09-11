@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_PMIO_HEADER
 #define MCU_BSP_PMIO_HEADER
 
-#if 1 // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
-
 #include <sal_internal.h>
 #include <gic_enum.h>
 
@@ -188,8 +186,6 @@ void PMIO_SetNotiGpkIrq
     uint32                              puiNotiIrqSrcDirect,
     POWERAppHandler                     fHandler
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
 
 #endif  // MCU_BSP_PMIO_HEADER
 

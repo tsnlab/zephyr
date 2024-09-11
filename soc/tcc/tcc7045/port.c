@@ -123,54 +123,17 @@ mode. */
 determined priority level.  Sometimes it is necessary to turn interrupt off in
 the CPU itself before modifying certain hardware registers. */
 
-#ifndef __GNU_C__
-/* Green Hills recommends intrinsics instead of inline assembly. */
-__asm volatile void asmCPU_IRQ_DISABLE(void) // GHC Warning
-{
-	CPSID i;
-	DSB;
-	ISB;
-}
-
-__asm volatile void asmCPU_IRQ_ENABLE(void)// GHC Warning
-{
-	CPSIE i;
-	DSB;
-	ISB;
-}
-
-__asm volatile void asmDSBISB(void)// GHC Warning
-{
-	DSB;
-	ISB;
-}
-
-__asm uint32_t asmGetAPSR(void)// GHC Warning
-{
-	MRS r0, APSR;
-}
-#endif
-
-#ifdef __GNU_C__
 #define portCPU_IRQ_DISABLE()										\
 	__asm volatile ( "CPSID i" );									\
 	__asm volatile ( "DSB" );										\
 	__asm volatile ( "ISB" );
-#else
-#define portCPU_IRQ_DISABLE()	asmCPU_IRQ_DISABLE()
-#endif
 
-#ifdef __GNU_C__
 #define portCPU_IRQ_ENABLE()										\
 	__asm volatile ( "CPSIE i" );									\
 	__asm volatile ( "DSB" );										\
 	__asm volatile ( "ISB" );
-#else
-#define portCPU_IRQ_ENABLE()		asmCPU_IRQ_ENABLE()
-#endif
 
 /* Macro to unmask all interrupt priorities. */
-#ifdef __GNU_C__
 #define portCLEAR_INTERRUPT_MASK()									\
 {																	\
 	portCPU_IRQ_DISABLE();											\
@@ -179,15 +142,6 @@ __asm uint32_t asmGetAPSR(void)// GHC Warning
 						"ISB		\n" );							\
 	portCPU_IRQ_ENABLE();											\
 }
-#else
-#define portCLEAR_INTERRUPT_MASK()									\
-{																	\
-	portCPU_IRQ_DISABLE();											\
-	portICCPMR_PRIORITY_MASK_REGISTER = portUNMASK_VALUE;			\
-	asmDSBISB();													\
-	portCPU_IRQ_ENABLE();											\
-}
-#endif
 #define portINTERRUPT_PRIORITY_REGISTER_OFFSET		0x400UL
 #define portMAX_8_BIT_VALUE							( ( uint8_t ) 0xff )
 #define portBIT_0_SET								( ( uint8_t ) 0x01 )
@@ -457,11 +411,7 @@ uint32_t ulAPSR, ulCycles = 8; /* 8 bits per byte. */
 
 	/* Only continue if the CPU is not in User mode.  The CPU must be in a
 	Privileged mode for the scheduler to start. */
-#ifdef __GNU_C__
 	__asm volatile ( "MRS %0, APSR" : "=r" ( ulAPSR ) );
-#else
-	ulAPSR = asmGetAPSR();
-#endif
 	ulAPSR &= portAPSR_MODE_BITS_MASK;
 	configASSERT( ulAPSR != portAPSR_USER_MODE );
 
@@ -577,24 +527,13 @@ void FreeRTOS_Tick_Handler( void )
 
 	void vPortTaskUsesFPU( void )
 	{
-#ifdef FPU_USE
 	uint32_t ulInitialFPSCR = 0;
-#endif
 		/* A task is registering the fact that it needs an FPU context.  Set the
 		FPU flag (which is saved as part of the task context). */
 		ulPortTaskHasFPUContext = pdTRUE;
 
-#ifdef FPU_USE
-		#ifdef __GNU_C__
 		/* Initialise the floating point status register. */
 		__asm volatile ( "FMXR 	FPSCR, %0" :: "r" (ulInitialFPSCR) );
-		#else // for green hills compiler see. C:\GHS\ARM.V2015.1.6\comp_201516\include\arm\vfp_ghs.h
-		//__VFP_FPSCR		= 1
-		/* VMRS/VMRS: VFP write/read system registers */
-		//void __VMSR(__ghs_c_int__ regnum, unsigned int Rn);
-		__VMSR(1, 0);
-		#endif
-#endif
 	}
 
 #endif /* configUSE_TASK_FPU_SUPPORT */
