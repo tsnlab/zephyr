@@ -1,76 +1,50 @@
-/* SPDX-License-Identifier: Apache-2.0
- *
- * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
- */
-
-#include <zephyr/kernel.h>
-#include <zephyr/arch/arm/mpu/arm_mpu.h>
-
-#define MPUTYPE_READ_ONLY \
-	{ \
-		.rasr = (P_RO_U_RO_Msk \
-				| (7 << MPU_RASR_TEX_Pos) \
-				| MPU_RASR_C_Msk \
-				| MPU_RASR_B_Msk \
-				| MPU_RASR_XN_Msk) \
-	}
-
-#define MPUTYPE_READ_ONLY_PRIV \
-	{ \
-		.rasr = (P_RO_U_RO_Msk \
-				| (5 << MPU_RASR_TEX_Pos) \
-				| MPU_RASR_B_Msk) \
-	}
-
-#define MPUTYPE_PRIV_WBWACACHE_XN \
-	{ \
-		.rasr = (P_RW_U_NA_Msk \
-				| (5 << MPU_RASR_TEX_Pos) \
-				| MPU_RASR_B_Msk \
-				| MPU_RASR_XN_Msk) \
-	}
-
-#define MPUTYPE_PRIV_DEVICE \
-	{ \
-		.rasr = (P_RW_U_NA_Msk \
-				| (2 << MPU_RASR_TEX_Pos)) \
-	}
-
-extern uint32_t _image_rom_end_order;
-static const struct arm_mpu_region mpu_regions[] = {
-	MPU_REGION_ENTRY("FLASH0",
-			0x20000000,
-			REGION_32M,
-			MPUTYPE_READ_ONLY),
-
-	MPU_REGION_ENTRY("SRAM_PRIV",
-			0x00000000,
-			REGION_512K,
-			MPUTYPE_PRIV_WBWACACHE_XN),
-
-	MPU_REGION_ENTRY("SRAM",
-			0x00000000,
-			((uint32_t)&_image_rom_end_order),
-			MPUTYPE_READ_ONLY_PRIV),
-
-	MPU_REGION_ENTRY("REGISTERS",
-			0xa0f20000,
-			REGION_128M,
-			MPUTYPE_PRIV_DEVICE),
-};
-
-const struct arm_mpu_config mpu_config = {
-	.num_regions = ARRAY_SIZE(mpu_regions),
-	.mpu_regions = mpu_regions,
-};
-
-#if 0 // POOKY 20240910
-
+/*
+***************************************************************************************************
+*
+*   FileName : mpu.c
+*
+*   Copyright (c) Telechips Inc.
+*
+*   Description :
+*
+*
+***************************************************************************************************
+*
+*   TCC Version 1.0
+*
+*   This source code contains confidential information of Telechips.
+*
+*   Any unauthorized use without a written permission of Telechips including not limited to
+*   re-distribution in source or binary form is strictly prohibited.
+*
+*   This source code is provided "AS IS" and nothing contained in this source code shall constitute
+*   any express or implied warranty of any kind, including without limitation, any warranty of
+*   merchantability, fitness for a particular purpose or non-infringement of any patent, copyright
+*   or other third party intellectual property right. No warranty is made, express or implied,
+*   regarding the information's accuracy,completeness, or performance.
+*
+*   In no event shall Telechips be liable for any claim, damages or other liability arising from,
+*   out of or in connection with this source code or the use in the source code.
+*
+*   This source code is provided subject to the terms of a Mutual Non-Disclosure Agreement between
+*   Telechips and Company.
+*   This source code is provided "AS IS" and nothing contained in this source code shall constitute
+*   any express or implied warranty of any kind, including without limitation, any warranty
+*   (of merchantability, fitness for a particular purpose or non-infringement of any patent,
+*   copyright or other third party intellectual property right. No warranty is made, express or
+*   implied, regarding the information's accuracy, completeness, or performance.
+*   In no event shall Telechips be liable for any claim, damages or other liability arising from,
+*   out of or in connection with this source code or the use in the source code.
+*   This source code is provided subject to the terms of a Mutual Non-Disclosure Agreement
+*   between Telechips and Company.
+*
+***************************************************************************************************
+*/
 
 #if 1 // ( MCU_BSP_SUPPORT_DRIVER_MPU == 1 )
 
 //#include <cache.h>
-// #include <bsp.h>
+#include <bsp.h>
 #include <mpu.h>
 //#include <reg_phys.h>
 
@@ -101,10 +75,10 @@ const struct arm_mpu_config mpu_config = {
 
 static void MPU_EnableRegion
 (
-    uint32_t                              uiRegionNumber,
-    uint32_t                              uiAddr,
-    uint32_t                              uiSize,
-    uint32_t                              uiAttr
+    uint32                              uiRegionNumber,
+    uint32                              uiAddr,
+    uint32                              uiSize,
+    uint32                              uiAttr
 );
 
 
@@ -120,21 +94,21 @@ static void MPU_EnableRegion
 ***************************************************************************************************
 */
 
-static uint32_t MPU_GetSizeOfRegion
+static uint32 MPU_GetSizeOfRegion
 (
-    uint8_t                               ucRegionIdx
+    uint8                               ucRegionIdx
 );
 
 static void MPU_EnableRegion
 (
-    uint32_t                              uiRegionNumber,
-    uint32_t                              uiAddr,
-    uint32_t                              uiSize,
-    uint32_t                              uiAttr
+    uint32                              uiRegionNumber,
+    uint32                              uiAddr,
+    uint32                              uiSize,
+    uint32                              uiAttr
 )
 {
-    uint32_t  uiAddress;
-    uint32_t  uiRegionsize;
+    uint32  uiAddress;
+    uint32  uiRegionsize;
 
     uiAddress       = uiAddr;
     uiRegionsize    = 0;
@@ -160,22 +134,22 @@ static void MPU_EnableRegion
     }
 }
 
-static uint32_t MPU_GetSizeOfRegion
+static uint32 MPU_GetSizeOfRegion
 (
-    uint8_t                               ucRegionIdx
+    uint8                               ucRegionIdx
 )
 {
-    uint32_t      uiSize;
-    uint32_t      uiI;
-    uint32_t      uiMask;
+    uint32      uiSize;
+    uint32      uiI;
+    uint32      uiMask;
 
     if(ucRegionIdx == MPU_DMA_INDEX)
     {
-        uiSize = ((uint32_t)(&_end_of_nc_dma) - (uint32_t)(&__nc_dmastart));
+        uiSize = ((uint32)(&_end_of_nc_dma) - (uint32)(&__nc_dmastart));
     }
     else if(ucRegionIdx == MPU_CAN_INDEX)
     {
-        uiSize = ((uint32_t)(&_end_of_nc_can) - (uint32_t)(&__nc_canstart));
+        uiSize = ((uint32)(&_end_of_nc_can) - (uint32)(&__nc_canstart));
     }
     else
     {
@@ -221,12 +195,12 @@ void MPU_Init
 
         //Msg(4:0686) Array has fewer initializers than its declared size. Default initialization is applied to the remainder of the array elements. MISRA-C:2004 Rule 9.2; REFERENCE - ISO-6.5.7 Semantics
     };
-    uint32_t      uiIndex;
+    uint32      uiIndex;
 
-    sMPUTable[MPU_CAN_INDEX].uiRegionBase = (uint32_t)&__nc_canstart;
+    sMPUTable[MPU_CAN_INDEX].uiRegionBase = (uint32)&__nc_canstart;
     sMPUTable[MPU_CAN_INDEX].uiRegionSize = MPU_GetSizeOfRegion(MPU_CAN_INDEX);
 
-    sMPUTable[MPU_DMA_INDEX].uiRegionBase = (uint32_t)&__nc_dmastart;
+    sMPUTable[MPU_DMA_INDEX].uiRegionBase = (uint32)&__nc_dmastart;
     sMPUTable[MPU_DMA_INDEX].uiRegionSize = MPU_GetSizeOfRegion(MPU_DMA_INDEX);
 
     for( uiIndex = 0; uiIndex < ( sizeof( sMPUTable ) / sizeof( sMPUTable[ 0 ] ) ) ; uiIndex++ )
@@ -235,7 +209,7 @@ void MPU_Init
     }
 }
 
-uint32_t MPU_GetDMABaseAddress
+uint32 MPU_GetDMABaseAddress
 (
     void
 )
@@ -243,25 +217,24 @@ uint32_t MPU_GetDMABaseAddress
     // 1. Ths "__nc_dmastart" value already contains the physical base(0xC0000000). Please reference the linker(your) script file(.ld)
     // 2. The dma address is valid only physical address(memory and peripheral point of view).
 
-    uint32_t  uiDMAStart;
+    uint32  uiDMAStart;
 
-    uiDMAStart  = ( uint32_t )( &__nc_dmastart ); // Physical Offset for 512KB SRAM for execution zero base
+    uiDMAStart  = ( uint32 )( &__nc_dmastart ); // Physical Offset for 512KB SRAM for execution zero base
 
     return uiDMAStart;
 }
 
-uint32_t MPU_GetCANBaseAddress
+uint32 MPU_GetCANBaseAddress
 (
     void
 )
 {
-    uint32_t  uiCANStart;
+    uint32  uiCANStart;
 
-    uiCANStart  = ( uint32_t )( &__nc_canstart ); // Physical Offset for 512KB SRAM for execution zero base
+    uiCANStart  = ( uint32 )( &__nc_canstart ); // Physical Offset for 512KB SRAM for execution zero base
 
     return uiCANStart;
 }
 
 #endif  // ( MCU_BSP_SUPPORT_DRIVER_MPU == 1 )
 
-#endif // POOKY 20240910

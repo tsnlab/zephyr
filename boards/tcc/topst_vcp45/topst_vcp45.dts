@@ -45,6 +45,11 @@
 	clock-frequency = <5000000>;
 };
 
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+};
+
 &uart1 {
 	status = "okay";
 	current-speed = <115200>;

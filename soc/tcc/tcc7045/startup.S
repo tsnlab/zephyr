@@ -166,7 +166,8 @@ vcopy_loop:
 
 	bl      vfp_init
 	bl      PMIO_EarlyWakeUp
-	b       cmain
+    /* POOKY 20240911 */
+	/* b       cmain */
 	b       .
 
 /*
