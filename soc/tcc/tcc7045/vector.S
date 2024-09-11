@@ -7,15 +7,17 @@
 .global ARM_Reserved
 .global _start
 _start:
+
+# POOKY 20240911
 _vector:
-	ldr pc, =reset_handler
-	ldr pc, =ARM_ExceptUndefInstrHndlr
-	ldr pc, =ARM_ExceptSwiHndlr
-	ldr pc, =ARM_ExceptPrefetchAbortHndlr
-	ldr pc, =ARM_ExceptDataAbortHndlr
-	ldr pc, =ARM_Reserved
-	ldr pc, =ARM_ExceptIrqHndlr
-	ldr pc, =ARM_ExceptFiqHndlr
+    ldr pc, =reset_handler
+#    ldr pc, =ARM_ExceptUndefInstrHndlr
+#    ldr pc, =ARM_ExceptSwiHndlr
+#    ldr pc, =ARM_ExceptPrefetchAbortHndlr
+#    ldr pc, =ARM_ExceptDataAbortHndlr
+#    ldr pc, =ARM_Reserved
+#    ldr pc, =ARM_ExceptIrqHndlr
+#    ldr pc, =ARM_ExceptFiqHndlr
 
 	
 reset_handler:

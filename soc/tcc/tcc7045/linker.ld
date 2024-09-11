@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*
- #include <zephyr/arch/arm/cortex_a_r/scripts/linker.ld>
- */
+#include <zephyr/arch/arm/cortex_a_r/scripts/linker.ld>
+
 
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
