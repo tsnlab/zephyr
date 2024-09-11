@@ -792,7 +792,6 @@ static int pcie_brcmstb_init(const struct device *dev)
 	/* Wait until the registers become accessible */
 	k_busy_wait(500000);
 
-<<<<<<< HEAD
 	for (int i = 0; i < DMA_RANGES_IDX; i++) {
 		pcie_brcmstb_set_outbound_win(dev, i, config->common->ranges[i].host_map_addr,
 					      config->common->ranges[i].pcie_bus_addr,
@@ -805,13 +804,6 @@ static int pcie_brcmstb_init(const struct device *dev)
 		sys_write32(config->regs[i].addr, data->cfg_addr + PCIE_EXT_CFG_DATA +
 							  PCI_BASE_ADDRESS_0 + 0x4 * (i - 1));
 	}
-=======
-	// TODO: allocate BARs dynamically
-	// for (int i = 0; i < DMA_RANGES_IDX; i++) {
-	// 	sys_write32(config->ranges[i].pcie_bus_addr,
-	// 		    data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_BASE_ADDRESS_0 + 0x4 * i);
-	// }
->>>>>>> a317c259bd3 (WIP: Add region_* operations)
 
 	/* Enable resources */
 	tmp = sys_read32(data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_COMMAND);
