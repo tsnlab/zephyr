@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_CLOCK_HEADER
 #define MCU_BSP_CLOCK_HEADER
 
-#if 1 //( MCU_BSP_SUPPORT_DRIVER_CLOCK == 1 )
-
 #include <sal_internal.h>
 
 /*
@@ -143,8 +141,6 @@ sint32 CLOCK_SetSwReset
     sint32                              iId,
     boolean                             bReset
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_CLOCK == 1 )
 
 #endif  // MCU_BSP_CLOCK_HEADER
 

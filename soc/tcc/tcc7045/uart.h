@@ -44,12 +44,6 @@
 #ifndef MCU_BSP_UART_HEADER
 #define MCU_BSP_UART_HEADER
 
-#if 1//( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
-
-#if 0 // ( MCU_BSP_SUPPORT_DRIVER_GDMA != 1 )
-    #error MCU_BSP_SUPPORT_DRIVER_GDMA value must be 1.
-#endif  //
-
 /*
 ***************************************************************************************************
 *                                             INCLUDE FILES
@@ -246,8 +240,6 @@ void UART_ISR
 (
     void *                              pArg
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
 
 #endif  // MCU_BSP_UART_HEADER
 

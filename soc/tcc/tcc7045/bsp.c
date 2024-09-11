@@ -49,54 +49,9 @@
 #include "clock.h"
 #include "gic.h"
 #include "gpio.h"
-
-#if 1 //( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
-    #include "uart.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_TIMER == 1 )
-    #include "timer.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_TIMER == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_WATCHDOG == 1 )
-    #include <wdt.h>
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_WATCHDOG == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_I2C == 1 )
-    #include "i2c.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_I2C == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_GPSB == 1 )
-    #include "gpsb.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_GPSB == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_ADC == 1 )
-    #include <adc.h>
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_ADC == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_MBOX == 1 )
-    #include "mbox.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_MBOX == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_PMU == 1 )
-    #include <pmu.h>
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMU == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
-    #include <pmio.h>
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_DSE == 1 )
-    #include "dse.h"
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_DSE == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_FMU == 1 )
-    #include <fmu.h>
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_FMU == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_RTC == 1 )
-    #include <rtc.h>
-#endif  // MCU_BSP_SUPPORT_DRIVER_RTC == 1 )
+#include "uart.h"
+#include "timer.h"
+#include <pmio.h>
 
 /*
 ***************************************************************************************************
@@ -125,10 +80,6 @@ void BSP_PreInit
     CLOCK_Init();
     GIC_Init();
 
-#if ( MCU_BSP_SUPPORT_DRIVER_PMU == 1 )
-    PMU_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMU == 1 )
-
     BSP_EnableSYSPower();
 }
 
@@ -137,51 +88,11 @@ void BSP_Init
     void
 )
 {
-#if ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
     (void)UART_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
 
-#if ( MCU_BSP_SUPPORT_DRIVER_TIMER == 1 )
     (void)TIMER_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_TIMER == 1 )
 
-#if ( MCU_BSP_SUPPORT_DRIVER_WATCHDOG == 1 )
-    //(void)WDT_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_WATCHDOG == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_DSE == 1 )
-    (void)DSE_Init(DES_SEL_ALL);
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_DSE == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_I2C == 1 )
-    I2C_Init();
-#endif // (MCU_BSP_SUPPORT_DRIVER_I2C == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_GPSB == 1 )
-    GPSB_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_GPSB == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_ADC == 1 )
-    (void) ADC_Init(ADC_MODE_NORMAL,ADC_MODULE_0);
-    (void) ADC_Init(ADC_MODE_NORMAL,ADC_MODULE_1);
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_ADC == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_FMU == 1 )
-    (void)FMU_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_FMU == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_RTC == 1 )
-    (void)RTC_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_RTC == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_MBOX == 1 )
-    MBOX_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_MBOX == 1 )
-
-#if ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
     PMIO_Init();
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_PMIO == 1 )
-
 
     mcu_printf("\nInitialize System done\n");
     mcu_printf("Welcome to Telechips MCU BSP\n");

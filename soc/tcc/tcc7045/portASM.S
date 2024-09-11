@@ -1,29 +1,3 @@
-/*
- * RTOS Kernel V10.3.1
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * http://www.RTOS.org
- * http://aws.amazon.com/freertos
- *
- * 1 tab == 4 spaces!
- */
 
 	.text
 	.arm
@@ -39,7 +13,6 @@
 
 	/* Variables and functions. */
 	.extern ulMaxAPIPriorityMask
-	.extern _freertos_vector_table
 	.extern pxCurrentTCB
 	.extern vTaskSwitchContext
 	.extern vApplicationIRQHandler
@@ -49,9 +22,6 @@
 	.global RTOS_IRQ_Handler
 	.global RTOS_SWI_Handler
 	.global vPortRestoreTaskContext
-
-
-
 
 .macro portSAVE_CONTEXT
 
@@ -72,15 +42,10 @@
 	LDR		R3, [R2]
 	CMP		R3, #0
 
-#ifdef FPU_USE
 	/* Save the floating point context, if any. */
 	FMRXNE  R1,  FPSCR
 	VPUSHNE {D0-D15}
-#ifdef FPU_D32
-	VPUSHNE	{D16-D31}
-#endif
 	PUSHNE	{R1}
-#endif
 
 	/* Save ulPortTaskHasFPUContext itself. */
 	PUSH	{R3}
@@ -108,15 +73,10 @@
 	STR		R1, [R0]
 	CMP		R1, #0
 
-#ifdef FPU_USE
 	/* Restore the floating point context, if any. */
 	POPNE 	{R0}
-#ifdef FPU_D32
-	VPOPNE	{D16-D31}
-#endif	
 	VPOPNE	{D0-D15}
 	VMSRNE  FPSCR, R0
-#endif
 
 	/* Restore the critical section nesting depth. */
 	LDR		R0, ulCriticalNestingConst
@@ -297,26 +257,16 @@ switch_before_exit:
 vApplicationIRQHandler:
 	PUSH	{LR}
 
-#ifdef FPU_USE
 	FMRX	R1,  FPSCR
 	VPUSH	{D0-D15}
-#ifdef FPU_D32	
-	VPUSH	{D16-D31}
-#endif	
 	PUSH	{R1}
-#endif
 
 	LDR		r1, vApplicationFPUSafeIRQHandlerConst
 	BLX		r1
 
-#ifdef FPU_USE
 	POP		{R0}
-#ifdef FPU_D32	
-	VPOP	{D16-D31}
-#endif	
 	VPOP	{D0-D15}
 	VMSR	FPSCR, R0
-#endif
 
 	POP {PC}
 
@@ -334,8 +284,4 @@ ulPortInterruptNestingConst: .word ulPortInterruptNesting
 vApplicationFPUSafeIRQHandlerConst: .word vApplicationFPUSafeIRQHandler
 
 .end
-
-
-
-
 

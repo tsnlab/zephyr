@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_GIC_ENUM_HEADER
 #define MCU_BSP_GIC_ENUM_HEADER
 
-#if 1 // ( MCU_BSP_SUPPORT_DRIVER_GIC == 1 )
-
 /*
 ***************************************************************************************************
 *                                             DEFINITIONS
@@ -196,8 +194,6 @@ enum
     GIC_SFMC1                           = (GIC_SPI_START + 120UL),
     GIC_SPU                             = (GIC_SPI_START + 121UL),
 };
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_GIC == 1 )
 
 #endif  // MCU_BSP_GIC_ENUM_HEADER
 

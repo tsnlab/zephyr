@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_UART_DRV_HEADER
 #define MCU_BSP_UART_DRV_HEADER
 
-#if 1 // ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
-
 /*
 ***************************************************************************************************
 *                                             INCLUDE FILES
@@ -188,8 +186,6 @@ typedef struct UART_STATUS
     UartInterruptData_t                 sRxIntr;        // Rx Interrupt
     UartInterruptData_t                 sTxIntr;        // Tx Interrupt
 } UartStatus_t;
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_UART == 1 )
 
 #endif  // MCU_BSP_UART_DRV_HEADER
 

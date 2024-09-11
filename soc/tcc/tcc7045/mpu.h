@@ -44,8 +44,6 @@
 #ifndef MCU_BSP_MPU_HEADER
 #define MCU_BSP_MPU_HEADER
 
-#if 1 //( MCU_BSP_SUPPORT_DRIVER_MPU == 1 )
-
 #include <sal_api.h>
 
 #define MPU_REGION_32B                  (0x00000004U)
@@ -377,8 +375,6 @@ uint32 MPU_GetCANBaseAddress
 (
     void
 );
-
-#endif  // ( MCU_BSP_SUPPORT_DRIVER_MPU == 1 )
 
 #endif  // MCU_BSP_MPU_HEADER
 
