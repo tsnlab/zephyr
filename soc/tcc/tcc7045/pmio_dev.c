@@ -211,11 +211,6 @@ typedef struct
 /*                                             STATIC FUNCTION                                  */
 /************************************************************************************************/
 
-static void PMIO_Delay
-(
-    uint32_t                              uiCnt
-);
-
 static void PMIO_SetPort
 (
     PMIOPortSel_t                       uiPortType,
@@ -316,31 +311,6 @@ PMIONoti_t gtPMIONoti;
 /*************************************************************************************************/
 /*                                             Implementation                                    */
 /* ***********************************************************************************************/
-static void PMIO_Delay
-(
-    uint32_t                              uiCnt
-)
-{
-    uint32_t uiDesc;
-
-    uiDesc  = uiCnt;
-
-    if(uiDesc == (uint32_t)(0UL))
-    {
-        while(TRUE)
-        {
-            BSP_NOP_DELAY();
-        }
-    }
-    else
-    {
-        for(; uiDesc > (uint32_t)(0UL) ; uiDesc--)
-        {
-            BSP_NOP_DELAY();
-        }
-    }
-}
-
 static void PMIO_SetPort
 (
     PMIOPortSel_t                       uiPortType,

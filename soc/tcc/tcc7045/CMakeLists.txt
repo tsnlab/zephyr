@@ -4,21 +4,25 @@
 
 zephyr_sources(
   startup.S
-  vector.S
-  vfp_init.S
-  arm_a.S
-  sal.S
+#  vector.S
+#  vfp_init.S
+#  arm_a.S
+#  sal.S
   #rtos.S
   # portASM.S
+  #mpu.c
+#  bsp.c
+#  port.c
+#  pmio_dev.c
   soc.c
 )
 zephyr_sources_ifdef(
   CONFIG_ARM_MPU
   arm_mpu_regions.c
-  mpu.c
-  bsp.c
-  port.c
-  pmio_dev.c
+#  mpu.c
+  #bsp.c
+  #port.c
+  #pmio_dev.c
 )
 
 zephyr_include_directories(.)
