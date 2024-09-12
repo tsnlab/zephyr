@@ -403,7 +403,7 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 
 static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
-	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg);
+	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg * 4);
 	if (!conf_addr) {
 		return 0xffffffff;
 	}
@@ -414,7 +414,7 @@ static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf,
 void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned int reg,
 			     uint32_t data)
 {
-	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg);
+	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg * 4);
 	if (!conf_addr) {
 		return;
 	}
@@ -439,10 +439,6 @@ static bool pcie_brcmstb_region_allocate_type(struct pcie_brcmstb_data *data, pc
 
 	*bar_bus_addr = addr;
 	data->regions[type].allocation_offset = addr - data->regions[type].bus_start + bar_size;
-
-	// TODO: Replace this with pcie_brcmstb_conf_write
-	sys_write32(addr, data->cfg_addr + PCIE_EXT_CFG_DATA + PCI_BASE_ADDRESS_0 +
-				  0x4 * data->bar_cnt++);
 
 	return true;
 }
@@ -679,7 +675,10 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	/* Set SCB Size */
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
 	tmp &= ~PCIE_MISC_MISC_CTRL_SCB0_SIZE_MASK;
+<<<<<<< HEAD
 
+=======
+>>>>>>> c895b18dca3 (Fix bar assignments)
 	tmp |= (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
 
