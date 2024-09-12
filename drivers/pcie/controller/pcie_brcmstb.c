@@ -404,6 +404,7 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 static uint32_t pcie_brcmstb_conf_read(const struct device *dev, pcie_bdf_t bdf, unsigned int reg)
 {
 	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg * 4);
+
 	if (!conf_addr) {
 		return 0xffffffff;
 	}
@@ -415,6 +416,7 @@ void pcie_brcmstb_conf_write(const struct device *dev, pcie_bdf_t bdf, unsigned 
 			     uint32_t data)
 {
 	mm_reg_t conf_addr = pcie_brcmstb_map_bus(dev, bdf, reg * 4);
+
 	if (!conf_addr) {
 		return;
 	}
