@@ -120,13 +120,15 @@ static void MPU_EnableRegion
         uiRegionsize    = uiSize;
         uiRegionsize    <<= 1;
         uiRegionsize    |= MPU_REGION_EN;
-        ARM_DSB();
+        // POOKY 20240912
+        //ARM_DSB();
 
         MPU_WriteControlRegisterConfigurationData( MPU_ARM_CP15_MPU_REG_BASEADDR,    uiAddress );
         MPU_WriteControlRegisterConfigurationData( MPU_ARM_CP15_MPU_REG_ACCESS_CTRL, uiAttr );
         MPU_WriteControlRegisterConfigurationData( MPU_ARM_CP15_MPU_REG_SIZE_EN,     uiRegionsize );
 
-        ARM_DSB();
+        // POOKY 20240912
+        //ARM_DSB();
     }
     else
     {

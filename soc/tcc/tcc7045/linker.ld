@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/arch/arm/cortex_a_r/scripts/linker.ld>
-
 
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
@@ -83,7 +81,8 @@ SECTIONS
     *vector.o (.vector .text .rodata .rodata*)
     . = ALIGN(0x20);
     __VECTOR_END__ = .;
-  } > SRAM AT > REMAP_FLASH
+  /* } > SRAM AT > REMAP_FLASH POOKY 20240911 Origin */
+  } > REMAP_FLASH
 
   /* .data section which is used for initialized data */
   .data :
@@ -139,3 +138,5 @@ SECTIONS
   PROVIDE(end = .);
   /DISCARD/ : { *(.ARM.exidx* .ARM.extab* .glue* .vfp11_veneer .v4_bx .iplt .igot.* .rel.*) }
 }
+
+#include <zephyr/arch/arm/cortex_a_r/scripts/linker.ld>

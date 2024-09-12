@@ -12,32 +12,17 @@
 	soc {
 		flash0: flash@20000000 {
 			compatible = "soc-nv-flash";
-			reg = <0x20000000 DT_SIZE_M(32)>;
+			reg = <0x20000000 DT_SIZE_M(4)>;
 		};
 
 		sram0: memory@0 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x79980>;
+			reg = <0x0 0x80000>;
 		};
 
-		arm_stack: memory@79980 {
+		sram1: memory@1000000 {
 			compatible = "mmio-sram";
-			reg = <0x79980 0x680>;
-		};
-
-		can_nc_sram: memory@7a000 {
-			compatible = "mmio-sram";
-			reg = <0x7a000 0x2000>;
-		};
-
-		nc_sram: memory@7c000 {
-			compatible = "mmio-sram";
-			reg = <0x7c000 0x4000>;
-		};
-
-		remap_flash: flash@1043000 {
-			compatible = "soc-nv-flash";
-			reg = <0x01043000 0x00200000>;
+			reg = <0x01000000 0x400000>;
 		};
 
 		uart0: uart@a0200000 {

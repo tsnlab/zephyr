@@ -56,7 +56,7 @@
 *                                             DEFINITIONS
 ***************************************************************************************************
 */
-//#define   DEBUG_ENABLE                    1
+#define   DEBUG_ENABLE                    1
 
 #define DBG_MAX_TAGS                    (27UL)
 #define DBG_ZERO                        (0UL)
