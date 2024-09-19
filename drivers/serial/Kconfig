@@ -220,6 +220,8 @@ rsource "Kconfig.rtt"
 
 rsource "Kconfig.bt"
 
+rsource "Kconfig.tccvcp"
+
 rsource "Kconfig.xlnx"
 
 rsource "Kconfig.xmc4xxx"
@@ -278,6 +280,8 @@ rsource "Kconfig.ene"
 
 rsource "Kconfig.rzt2m"
 
-source "drivers/serial/Kconfig.renesas_ra8"
+rsource "Kconfig.renesas_ra8"
+
+source "drivers/serial/Kconfig.si32"
 
 endif # SERIAL

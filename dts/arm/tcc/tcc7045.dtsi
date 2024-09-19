@@ -5,7 +5,6 @@
  */
 
 #include <arm/tcc/tcc70xx.dtsi>
-#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
 
 / {
 	cpus {
