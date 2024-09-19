@@ -51,8 +51,7 @@
 		};
 
 		ttc0: timer@a0f2a000 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
+			compatible = "tcc,ttcvcp";
 			status = "disabled";
 			interrupts = <GIC_PPI 56 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
@@ -61,8 +60,7 @@
 		};
 
 		ttc1: timer@a0f2a100 {
-			//compatible = "tcc,ttcvcp";
-			compatible = "xlnx,ttcps";
+			compatible = "tcc,ttcvcp";
 			status = "disabled";
 			interrupts = <GIC_PPI 57 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
