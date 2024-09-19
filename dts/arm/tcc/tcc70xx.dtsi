@@ -10,9 +10,16 @@
 
 / {
 	soc {
+#if 0
+		pinctrl: pinctrl@ff180000 {
+			reg = <0xff180000 0xc80>;
+			compatible = "xlnx,pinctrl-zynqmp";
+		};
+#endif
+
 		flash0: flash@20000000 {
 			compatible = "soc-nv-flash";
-			reg = <0x20000000 DT_SIZE_M(4)>;
+			reg = <0x20000000 DT_SIZE_M(2)>;
 		};
 
 		sram0: memory@0 {
@@ -26,23 +33,21 @@
 		};
 
 		uart0: uart@a0200000 {
-			compatible = "arm,pl011";
+			compatible = "tcc,tccvcp-uart";
 			reg = <0xa0200000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_16";
-			clocks = <&clk_uart>;
 		};
 
 		uart1: uart@a0210000 {
-			compatible = "arm,pl011";
+			compatible = "tcc,tccvcp-uart";
 			reg = <0xa0210000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_17";
-			clocks = <&clk_uart>;
 		};
 
 		ttc0: timer@a0f2a000 {
@@ -90,37 +95,4 @@
 		};
 
 	};
-
-	pinctrl {
-		pinctrl_gpio {
-			gpa {
-				pin-info = <0x0 0 31>;
-				source-num = <1 0 1 31>;
-			};
-
-			gpb {
-				pin-info = <0x40 0 29>;
-				source-num = <1 0 32 50>;
-			};
-
-			gpc {
-				pin-info = <0x80 0 22>;
-				source-num =  <1 0 61 30>;
-			};
-
-			gpk {
-				pin-info = <0xc0 0 18>;
-				source-num = <0xff>;
-			};
-		};
-	};
-
-	clocks {
-		clk_uart: clk_uart {
-			compatible = "fixed-clock";
-			clock-frequency = <44236800>;
-			#clock-cells = <0>;
-		};
-	};
-
 };
