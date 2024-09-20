@@ -1,25 +1,9 @@
-/* uart_tccvcp.c - Xilinx Zynq family serial driver */
-
 /*
- * Copyright (c) 2018 Xilinx, Inc.
- *
+ * Copyright (c) 2024 Hounjoung Rim <hounjoung@tsnlab.com>
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #define DT_DRV_COMPAT tcc_tccvcp_uart
-
-/**
- * @brief Xilinx Zynq Family Serial Driver
- *
- * This is the driver for the Xilinx Zynq family cadence serial device.
- *
- * Before individual UART port can be used, uart_tccvcp_init() has to be
- * called to setup the port.
- *
- * - the following macro for the number of bytes between register addresses:
- *
- *  UART_REG_ADDR_INTERVAL
- */
 
 #include <errno.h>
 #include <zephyr/kernel.h>
@@ -37,10 +21,6 @@
 #ifdef CONFIG_PINCTRL
 #include <zephyr/drivers/pinctrl.h>
 #endif
-
-/* For all register offsets and bits / bit masks:
- * Comp. Xilinx Zynq-7000 Technical Reference Manual (ug585), chap. B.33
- */
 
 /* Register offsets within the UART device's register space */
 #define XUARTPS_CR_OFFSET	0x0000U  /**< Control Register [8:0] */
@@ -163,20 +143,6 @@ struct uart_tccvcp_dev_data_t {
 #endif
 };
 
-/**
- * @brief Disables the UART's RX and TX function.
- *
- * Writes 'Disable RX' and 'Disable TX' command bits into the respective
- * UART's Command Register, thus disabling the operation of the UART.
- *
- * While writing the disable command bits, the opposing enable command
- * bits, which are set when enabling the UART, are cleared.
- *
- * This function must be called before any configuration parameters
- * of the UART are modified at run-time.
- *
- * @param reg_base Base address of the respective UART's register space.
- */
 static void xlnx_ps_disable_uart(uintptr_t reg_base)
 {
 	uint32_t reg_val = sys_read32(reg_base + XUARTPS_CR_OFFSET);
@@ -187,20 +153,6 @@ static void xlnx_ps_disable_uart(uintptr_t reg_base)
 	sys_write32(reg_val, reg_base + XUARTPS_CR_OFFSET);
 }
 
-/**
- * @brief Enables the UART's RX and TX function.
- *
- * Writes 'Enable RX' and 'Enable TX' command bits into the respective
- * UART's Command Register, thus enabling the operation of the UART.
- *
- * While writing the enable command bits, the opposing disable command
- * bits, which are set when disabling the UART, are cleared.
- *
- * This function must not be called while any configuration parameters
- * of the UART are being modified at run-time.
- *
- * @param reg_base Base address of the respective UART's register space.
- */
 static void xlnx_ps_enable_uart(uintptr_t reg_base)
 {
 	uint32_t reg_val = sys_read32(reg_base + XUARTPS_CR_OFFSET);
@@ -211,20 +163,6 @@ static void xlnx_ps_enable_uart(uintptr_t reg_base)
 	sys_write32(reg_val, reg_base + XUARTPS_CR_OFFSET);
 }
 
-/**
- * @brief Calculates and sets the values of the BAUDDIV and BAUDGEN registers.
- *
- * Calculates and sets the values of the BAUDDIV and BAUDGEN registers, which
- * determine the prescaler applied to the clock driving the UART, based on
- * the target baud rate, which is provided as a decimal value.
- *
- * The calculation of the values to be written to the BAUDDIV and BAUDGEN
- * registers is described in the Zynq-7000 TRM, chapter 19.2.3 'Baud Rate
- * Generator'.
- *
- * @param dev UART device struct
- * @param baud_rate The desired baud rate as a decimal value
- */
 static void set_baudrate(const struct device *dev, uint32_t baud_rate)
 {
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
@@ -270,15 +208,6 @@ static void set_baudrate(const struct device *dev, uint32_t baud_rate)
 	}
 }
 
-/**
- * @brief Initialize individual UART port
- *
- * This routine is called to reset the chip in a quiescent state.
- *
- * @param dev UART device struct
- *
- * @return 0 if successful, failed otherwise
- */
 static int uart_tccvcp_init(const struct device *dev)
 {
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
@@ -332,14 +261,6 @@ static int uart_tccvcp_init(const struct device *dev)
 	return 0;
 }
 
-/**
- * @brief Poll the device for input.
- *
- * @param dev UART device struct
- * @param c Pointer to character
- *
- * @return 0 if a character arrived, -1 if the input buffer if empty.
- */
 static int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -353,20 +274,6 @@ static int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 	}
 }
 
-/**
- * @brief Output a character in polled mode.
- *
- * Checks if the transmitter is empty. If empty, a character is written to
- * the data register.
- *
- * If the hardware flow control is enabled then the handshake signal CTS has to
- * be asserted in order to send a character.
- *
- * @param dev UART device struct
- * @param c Character to send
- *
- * @return Sent character
- */
 static void uart_tccvcp_poll_out(const struct device *dev, unsigned char c)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -384,25 +291,6 @@ static void uart_tccvcp_poll_out(const struct device *dev, unsigned char c)
 	} while ((reg_val & XUARTPS_SR_TXEMPTY) == 0);
 }
 
-/**
- * @brief Converts a parity enum value to a Mode Register bit mask.
- *
- * Converts a value of an enumeration type provided by the driver
- * framework for the configuration of the UART's parity setting
- * into a bit mask within the Mode Register.
- *
- * It is assumed that the Mode Register contents that are being
- * modified within this function come with the bits modified by
- * this function already masked out by the caller.
- *
- * @param mode_reg Pointer to the Mode Register contents to which
- *                 the parity configuration shall be added.
- * @param parity   Enumeration value to be converted to a bit mask.
- *
- * @return Indication of success, always true for this function
- *         as all parity modes supported by the API are also supported
- *         by the hardware.
- */
 static inline bool uart_tccvcp_cfg2ll_parity(
 	uint32_t *mode_reg,
 	enum uart_config_parity parity)
@@ -439,24 +327,6 @@ static inline bool uart_tccvcp_cfg2ll_parity(
 	return true;
 }
 
-/**
- * @brief Converts a stop bit enum value to a Mode Register bit mask.
- *
- * Converts a value of an enumeration type provided by the driver
- * framework for the configuration of the UART's stop bit setting
- * into a bit mask within the Mode Register.
- *
- * It is assumed that the Mode Register contents that are being
- * modified within this function come with the bits modified by
- * this function already masked out by the caller.
- *
- * @param mode_reg Pointer to the Mode Register contents to which
- *                 the stop bit configuration shall be added.
- * @param stopbits Enumeration value to be converted to a bit mask.
- *
- * @return Indication of success or failure in case of an unsupported
- *         stop bit configuration being provided by the caller.
- */
 static inline bool uart_tccvcp_cfg2ll_stopbits(
 	uint32_t *mode_reg,
 	enum uart_config_stop_bits stopbits)
@@ -489,24 +359,6 @@ static inline bool uart_tccvcp_cfg2ll_stopbits(
 	return true;
 }
 
-/**
- * @brief Converts a data bit enum value to a Mode Register bit mask.
- *
- * Converts a value of an enumeration type provided by the driver
- * framework for the configuration of the UART's data bit setting
- * into a bit mask within the Mode Register.
- *
- * It is assumed that the Mode Register contents that are being
- * modified within this function come with the bits modified by
- * this function already masked out by the caller.
- *
- * @param mode_reg Pointer to the Mode Register contents to which
- *                 the data bit configuration shall be added.
- * @param databits Enumeration value to be converted to a bit mask.
- *
- * @return Indication of success or failure in case of an unsupported
- *         data bit configuration being provided by the caller.
- */
 static inline bool uart_tccvcp_cfg2ll_databits(
 	uint32_t *mode_reg,
 	enum uart_config_data_bits databits)
@@ -539,26 +391,6 @@ static inline bool uart_tccvcp_cfg2ll_databits(
 	return true;
 }
 
-/**
- * @brief Converts a flow control enum value to a Modem Control
- *        Register bit mask.
- *
- * Converts a value of an enumeration type provided by the driver
- * framework for the configuration of the UART's flow control
- * setting into a bit mask within the Modem Control Register.
- *
- * It is assumed that the Modem Control Register contents that are
- * being modified within this function come with the bits modified
- * by this function already masked out by the caller.
- *
- * @param modemcr_reg Pointer to the Modem Control Register contents
- *                    to which the flow control configuration shall
- *                    be added.
- * @param hwctrl Enumeration value to be converted to a bit mask.
- *
- * @return Indication of success or failure in case of an unsupported
- *         flow control configuration being provided by the caller.
- */
 static inline bool uart_tccvcp_cfg2ll_hwctrl(
 	uint32_t *modemcr_reg,
 	enum uart_config_flow_control hwctrl)
@@ -583,18 +415,6 @@ static inline bool uart_tccvcp_cfg2ll_hwctrl(
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
-/**
- * @brief Configures the UART device at run-time.
- *
- * Configures the UART device at run-time according to the
- * configuration data provided by the caller.
- *
- * @param dev UART device struct
- * @param cfg The configuration parameters to be applied.
- *
- * @return 0 if the configuration completed successfully, ENOTSUP
- *         error if an unsupported configuration parameter is detected.
- */
 static int uart_tccvcp_configure(const struct device *dev,
 				  const struct uart_config *cfg)
 {
@@ -641,20 +461,6 @@ static int uart_tccvcp_configure(const struct device *dev,
 };
 #endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
-/**
- * @brief Converts a Mode Register bit mask to a parity configuration
- *        enum value.
- *
- * Converts a bit mask representing the UART's parity setting within
- * the UART's Mode Register into a value of an enumeration type provided
- * by the UART driver API.
- *
- * @param mode_reg The current Mode Register contents from which the
- *                 parity setting shall be extracted.
- *
- * @return The current parity setting mapped to the UART driver API's
- *         enum type.
- */
 static inline enum uart_config_parity uart_tccvcp_ll2cfg_parity(
 	uint32_t mode_reg)
 {
@@ -683,20 +489,6 @@ static inline enum uart_config_parity uart_tccvcp_ll2cfg_parity(
 	}
 }
 
-/**
- * @brief Converts a Mode Register bit mask to a stop bit configuration
- *        enum value.
- *
- * Converts a bit mask representing the UART's stop bit setting within
- * the UART's Mode Register into a value of an enumeration type provided
- * by the UART driver API.
- *
- * @param mode_reg The current Mode Register contents from which the
- *                 stop bit setting shall be extracted.
- *
- * @return The current stop bit setting mapped to the UART driver API's
- *         enum type.
- */
 static inline enum uart_config_stop_bits uart_tccvcp_ll2cfg_stopbits(
 	uint32_t mode_reg)
 {
@@ -720,20 +512,6 @@ static inline enum uart_config_stop_bits uart_tccvcp_ll2cfg_stopbits(
 	}
 }
 
-/**
- * @brief Converts a Mode Register bit mask to a data bit configuration
- *        enum value.
- *
- * Converts a bit mask representing the UART's data bit setting within
- * the UART's Mode Register into a value of an enumeration type provided
- * by the UART driver API.
- *
- * @param mode_reg The current Mode Register contents from which the
- *                 data bit setting shall be extracted.
- *
- * @return The current data bit setting mapped to the UART driver API's
- *         enum type.
- */
 static inline enum uart_config_data_bits uart_tccvcp_ll2cfg_databits(
 	uint32_t mode_reg)
 {
@@ -756,20 +534,6 @@ static inline enum uart_config_data_bits uart_tccvcp_ll2cfg_databits(
 	}
 }
 
-/**
- * @brief Converts a Modem Control Register bit mask to a flow control
- *        configuration enum value.
- *
- * Converts a bit mask representing the UART's flow control setting within
- * the UART's Modem Control Register into a value of an enumeration type
- * provided by the UART driver API.
- *
- * @param modemcr_reg The current Modem Control Register contents from
- *                    which the parity setting shall be extracted.
- *
- * @return The current flow control setting mapped to the UART driver API's
- *         enum type.
- */
 static inline enum uart_config_flow_control uart_tccvcp_ll2cfg_hwctrl(
 	uint32_t modemcr_reg)
 {
@@ -789,19 +553,6 @@ static inline enum uart_config_flow_control uart_tccvcp_ll2cfg_hwctrl(
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
-/**
- * @brief Returns the current configuration of the UART at run-time.
- *
- * Returns the current configuration of the UART at run-time by obtaining
- * the current configuration from the UART's Mode and Modem Control Registers
- * (exception: baud rate).
- *
- * @param dev UART device struct
- * @param cfg Pointer to the data structure to which the current configuration
- *            shall be written.
- *
- * @return always 0.
- */
 static int uart_tccvcp_config_get(const struct device *dev,
 				   struct uart_config *cfg)
 {
@@ -829,15 +580,6 @@ static int uart_tccvcp_config_get(const struct device *dev,
 
 #if CONFIG_UART_INTERRUPT_DRIVEN
 
-/**
- * @brief Fill FIFO with data
- *
- * @param dev UART device struct
- * @param tx_data Data to transmit
- * @param size Number of bytes to send
- *
- * @return Number of bytes sent
- */
 static int uart_tccvcp_fifo_fill(const struct device *dev,
 				  const uint8_t *tx_data,
 				  int size)
@@ -856,15 +598,6 @@ static int uart_tccvcp_fifo_fill(const struct device *dev,
 	return data_iter;
 }
 
-/**
- * @brief Read data from FIFO
- *
- * @param dev UART device struct
- * @param rxData Data container
- * @param size Container size
- *
- * @return Number of bytes read
- */
 static int uart_tccvcp_fifo_read(const struct device *dev, uint8_t *rx_data,
 				  const int size)
 {
@@ -882,11 +615,6 @@ static int uart_tccvcp_fifo_read(const struct device *dev, uint8_t *rx_data,
 	return inum;
 }
 
-/**
- * @brief Enable TX interrupt in IER
- *
- * @param dev UART device struct
- */
 static void uart_tccvcp_irq_tx_enable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -896,11 +624,6 @@ static void uart_tccvcp_irq_tx_enable(const struct device *dev)
 		reg_base + XUARTPS_IER_OFFSET);
 }
 
-/**
- * @brief Disable TX interrupt in IER
- *
- * @param dev UART device struct
- */
 static void uart_tccvcp_irq_tx_disable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -910,13 +633,6 @@ static void uart_tccvcp_irq_tx_disable(const struct device *dev)
 		reg_base + XUARTPS_IDR_OFFSET);
 }
 
-/**
- * @brief Check if Tx IRQ has been raised
- *
- * @param dev UART device struct
- *
- * @return 1 if an IRQ is ready, 0 otherwise
- */
 static int uart_tccvcp_irq_tx_ready(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -929,13 +645,6 @@ static int uart_tccvcp_irq_tx_ready(const struct device *dev)
 	}
 }
 
-/**
- * @brief Check if nothing remains to be transmitted
- *
- * @param dev UART device struct
- *
- * @return 1 if nothing remains to be transmitted, 0 otherwise
- */
 static int uart_tccvcp_irq_tx_complete(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -948,11 +657,6 @@ static int uart_tccvcp_irq_tx_complete(const struct device *dev)
 	}
 }
 
-/**
- * @brief Enable RX interrupt in IER
- *
- * @param dev UART device struct
- */
 static void uart_tccvcp_irq_rx_enable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -960,11 +664,6 @@ static void uart_tccvcp_irq_rx_enable(const struct device *dev)
 	sys_write32(XUARTPS_IXR_RTRIG, reg_base + XUARTPS_IER_OFFSET);
 }
 
-/**
- * @brief Disable RX interrupt in IER
- *
- * @param dev UART device struct
- */
 static void uart_tccvcp_irq_rx_disable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -972,13 +671,6 @@ static void uart_tccvcp_irq_rx_disable(const struct device *dev)
 	sys_write32(XUARTPS_IXR_RTRIG, reg_base + XUARTPS_IDR_OFFSET);
 }
 
-/**
- * @brief Check if Rx IRQ has been raised
- *
- * @param dev UART device struct
- *
- * @return 1 if an IRQ is ready, 0 otherwise
- */
 static int uart_tccvcp_irq_rx_ready(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -992,11 +684,6 @@ static int uart_tccvcp_irq_rx_ready(const struct device *dev)
 	}
 }
 
-/**
- * @brief Enable error interrupt in IER
- *
- * @param dev UART device struct
- */
 static void uart_tccvcp_irq_err_enable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -1010,13 +697,6 @@ static void uart_tccvcp_irq_err_enable(const struct device *dev)
 	    reg_base + XUARTPS_IER_OFFSET);
 }
 
-/**
- * @brief Disable error interrupt in IER
- *
- * @param dev UART device struct
- *
- * @return 1 if an IRQ is ready, 0 otherwise
- */
 static void uart_tccvcp_irq_err_disable(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -1030,13 +710,6 @@ static void uart_tccvcp_irq_err_disable(const struct device *dev)
 	    reg_base + XUARTPS_IDR_OFFSET);
 }
 
-/**
- * @brief Check if any IRQ is pending
- *
- * @param dev UART device struct
- *
- * @return 1 if an IRQ is pending, 0 otherwise
- */
 static int uart_tccvcp_irq_is_pending(const struct device *dev)
 {
 	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
@@ -1050,25 +723,12 @@ static int uart_tccvcp_irq_is_pending(const struct device *dev)
 	}
 }
 
-/**
- * @brief Update cached contents of IIR
- *
- * @param dev UART device struct
- *
- * @return Always 1
- */
 static int uart_tccvcp_irq_update(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 	return 1;
 }
 
-/**
- * @brief Set the callback function pointer for IRQ.
- *
- * @param dev UART device struct
- * @param cb Callback function pointer.
- */
 static void uart_tccvcp_irq_callback_set(const struct device *dev,
 					    uart_irq_callback_user_data_t cb,
 					    void *cb_data)
@@ -1079,13 +739,6 @@ static void uart_tccvcp_irq_callback_set(const struct device *dev,
 	dev_data->user_data = cb_data;
 }
 
-/**
- * @brief Interrupt ce routine.
- *
- * This simply calls the callback function, if one exists.
- *
- * @param arg Argument to ISR.
- */
 static void uart_tccvcp_isr(const struct device *dev)
 {
 	const struct uart_tccvcp_dev_data_t *data = dev->data;
