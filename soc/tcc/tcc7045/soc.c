@@ -19,5 +19,4 @@ void z_arm_platform_init(void)
 
 	sctlr &= ~SCTLR_V_Msk;
 	__set_SCTLR(sctlr);
-
 }
