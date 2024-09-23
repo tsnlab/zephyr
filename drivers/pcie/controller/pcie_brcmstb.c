@@ -480,7 +480,8 @@ static bool pcie_brcmstb_region_get_allocate_base(const struct device *dev, pcie
 		return false;
 	}
 
-	if (mem && data->regions[PCIE_REGION_MEM64].size == 0 && data->regions[PCIE_REGION_MEM].size == 0) {
+	if (mem && data->regions[PCIE_REGION_MEM64].size == 0 &&
+	    data->regions[PCIE_REGION_MEM].size == 0) {
 		return false;
 	}
 
