@@ -662,10 +662,6 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	/* Set SCB Size */
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
 	tmp &= ~PCIE_MISC_MISC_CTRL_SCB0_SIZE_MASK;
-<<<<<<< HEAD
-
-=======
->>>>>>> c895b18dca3 (Fix bar assignments)
 	tmp |= (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
 
