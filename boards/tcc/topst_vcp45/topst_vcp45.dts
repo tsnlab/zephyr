@@ -37,22 +37,22 @@
 };
 
 &gio_aon {
-	status = "okay";
+	//status = "okay";
 };
 
 &ttc0 {
 	status = "okay";
-	clock-frequency = <5000000>;
+	clock-frequency = <200000000>;
 };
 
 &uart0 {
-	status = "okay";
+	//status = "okay";
 	current-speed = <115200>;
 	clock-frequency = <99999901>;
 };
 
 &uart1 {
-	status = "okay";
+	//status = "okay";
 	current-speed = <115200>;
 	clock-frequency = <99999901>;
 };

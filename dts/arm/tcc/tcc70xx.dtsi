@@ -33,21 +33,25 @@
 		};
 
 		uart0: uart@a0200000 {
+			//compatible = "arm,pl011";
 			compatible = "tcc,tccvcp-uart";
 			reg = <0xa0200000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_16";
+			//clocks = <&clk_uart>;
 		};
 
 		uart1: uart@a0210000 {
+			//compatible = "arm,pl011";
 			compatible = "tcc,tccvcp-uart";
 			reg = <0xa0210000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_17";
+			//clocks = <&clk_uart>;
 		};
 
 		ttc0: timer@a0f2a000 {
@@ -93,4 +97,14 @@
 		};
 
 	};
+
+#if 0
+	clocks {
+		clk_uart: clk_uart {
+			compatible = "fixed-clock";
+			clock-frequency = <200000000>;
+			#clock-cells = <0>;
+		};
+	};
+#endif
 };
