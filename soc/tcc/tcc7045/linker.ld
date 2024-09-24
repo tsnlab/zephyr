@@ -43,7 +43,8 @@ MEMORY
 	/*=====================================================
 	  Region for Executing at remap Flash area with cacheable
 	  =====================================================*/
-	  REMAP_FLASH			(rx)	: ORIGIN = 0x01043000, LENGTH = 0x00200000
+	/*  REMAP_FLASH			(rx)	: ORIGIN = 0x01043000, LENGTH = 0x00200000 */
+	  REMAP_FLASH			(rx)	: ORIGIN = 0x00080000, LENGTH = 0x00200000
 }
 
 /* Section Definitions */
@@ -53,7 +54,8 @@ SECTIONS
   .text :
   {
   	__TEXT_START__ = .;
-    *startup.o (.text)
+/*    *startup.o (.text) */
+    *reset.S.o (.text)
     *(.text)
     __TEXT_END__ = .;
     . = ALIGN(4);
@@ -78,7 +80,8 @@ SECTIONS
   {
   	__VECTOR_START_LOAD = LOADADDR (.vector);
   	__VECTOR_START__ = .;
-    *vector.o (.vector .text .rodata .rodata*)
+    /* *vector.S.o (.vector .text .rodata .rodata*) */
+    *vector_table.S.o (.vector .text .rodata .rodata*)
     . = ALIGN(0x20);
     __VECTOR_END__ = .;
   /* } > SRAM AT > REMAP_FLASH POOKY 20240911 Origin */
