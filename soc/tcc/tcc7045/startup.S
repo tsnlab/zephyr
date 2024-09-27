@@ -1,5 +1,3 @@
-//#include <pll_config.h>
-
 /* Init Stack Pointer */
 #define	USERMODE		0x10
 #define	FIQMODE			0x11
@@ -58,12 +56,13 @@ init:
 	orr	r0, r0, #0xd3
 	msr	cpsr, r0
 
-#ifdef PRELOAD_ONRAM
+    /* PRELOAD_ONRAM Start */
     bl PRELOAD_loadOnRam
     dsb
         isb
         bl PRELOAD_JOB
-#endif
+    /* PRELOAD_ONRAM End */
+
  /* Stack Setup for each ARM Excution Mode */
 stack_setup:
 	mrs	r0, cpsr
@@ -122,7 +121,7 @@ stack_setup:
 	isb
 
 	/* The default mpu table is not working in SRAM */
-	/* bl MPU_Init */  /* MPU Initialize */
+	/* bl MPU_Init */   /* MPU Initialize */
 
 branch_prefiction:
 	/* Enable Branch Predictions */
@@ -150,7 +149,7 @@ branch_prefiction:
         bic	r0, r0, #(0x1<<13)
         mcr p15, 0, r0, c1, c0, 0
 
-#ifdef PFLASH_STANDALONE
+    /* PFLASH_STANDALONE Start */
 /* Copy Vector Table to SRAM_0 */
 vector_copy:
 	ldr r0, =__VECTOR_START_LOAD
@@ -162,10 +161,10 @@ vcopy_loop:
 	strlt r3, [r1], #4
 	blt vcopy_loop
 
-#endif
+    /* PFLASH_STANDALONE End */
 
-/*	bl      vfp_init
-	bl      PMIO_EarlyWakeUp */
+	bl      vfp_init
+	bl      PMIO_EarlyWakeUp 
 	b       start_z_arm_reset /* z_arm_reset */
 	b       .
 

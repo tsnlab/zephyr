@@ -67,6 +67,15 @@ SECTIONS
   /* } > SRAM AT > REMAP_FLASH POOKY 20240911 Origin */
   } > SRAM
 
+  .codeonsram :
+  {
+    __PRECODE_START_LOAD = LOADADDR (.codeonsram);
+    __PRECODE_SIZE__ = SIZEOF (.codeonsram);
+    __PRECODE_RAM_START__ = .;
+    *preload.o (.text .rodata .rodata* .rwdata*)
+    . = ALIGN(0x20);
+  } > SRAM
+
   /* .data section which is used for initialized data */
   .data :
 	AT ( LOADADDR (.vector) + SIZEOF (.vector) )

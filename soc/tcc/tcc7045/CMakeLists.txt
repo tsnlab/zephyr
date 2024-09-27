@@ -4,6 +4,11 @@
 
 zephyr_sources(
 	startup.S
+	vfp_init.S
+	arm_a.S
+	pmio_dev.c
+	preload.c
+#	mpu.c
 	soc.c
 )
 
@@ -21,6 +26,5 @@ zephyr_ld_options(-fuse-ld=bfd)
 zephyr_linker_sources(ROM_START SORT_KEY 0x0 init.ld)
 
 if(CONFIG_SOC_TCC7045)
-  #set(SOC_LINKER_SCRIPT ${ZEPHYR_BASE}/include/zephyr/arch/arm/cortex_a_r/scripts/linker.ld CACHE INTERNAL "")
   set(SOC_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/linker.ld CACHE INTERNAL "")
 endif()
