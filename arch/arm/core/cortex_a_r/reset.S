@@ -34,7 +34,9 @@ GDATA(z_arm_undef_stack)
 GTEXT(z_arm_platform_init)
 #endif
 
+#if defined(CONFIG_SOC_TCC7045)
 GTEXT(start_z_arm_reset)
+#endif
 /**
  *
  * @brief Reset vector
@@ -49,15 +51,12 @@ GTEXT(start_z_arm_reset)
  */
 SECTION_SUBSEC_FUNC(TEXT, _reset_section, z_arm_reset)
 SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
-/** POOKY 20240925
- * /
-while_loop:
-    nop
-    b while_loop
- / *
- */
+
+#if defined(CONFIG_SOC_TCC7045)
 	b topst_reset  
 start_z_arm_reset:
+#endif
+
 #if defined(CONFIG_AARCH32_ARMV8_R)
     /* Check if we are starting in HYP mode */
     mrs r0, cpsr
