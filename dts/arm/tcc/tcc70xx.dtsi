@@ -22,36 +22,48 @@
 			reg = <0x20000000 DT_SIZE_M(2)>;
 		};
 
-		sram0: memory@0 {
+		ram_ilm: memory@0 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x80000>;
 		};
 
+		ram_dlm: memory@80000 {
+			compatible = "mmio-sram";
+		};
+
+#if 0
+		sram0: memory@0 {
+			compatible = "mmio-sram";
+			reg = <0x0 0x20000000>;
+		};
+#endif
+
+#if 0
 		sram1: memory@1000000 {
 			compatible = "mmio-sram";
 			reg = <0x01000000 0x400000>;
 		};
+#endif
 
 		uart0: uart@a0200000 {
-			//compatible = "arm,pl011";
-			compatible = "tcc,tccvcp-uart";
+			compatible = "arm,pl011";
+			//compatible = "tcc,tccvcp-uart";
 			reg = <0xa0200000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_16";
-			//clocks = <&clk_uart>;
+			clocks = <&clk_uart>;
 		};
 
 		uart1: uart@a0210000 {
-			//compatible = "arm,pl011";
-			compatible = "tcc,tccvcp-uart";
+			compatible = "arm,pl011";
+			//compatible = "tcc,tccvcp-uart";
 			reg = <0xa0210000 0x4c>;
 			status = "disabled";
 			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL
 						IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_17";
-			//clocks = <&clk_uart>;
+			clocks = <&clk_uart>;
 		};
 
 		ttc0: timer@a0f2a000 {
@@ -98,7 +110,7 @@
 
 	};
 
-#if 0
+#if 1
 	clocks {
 		clk_uart: clk_uart {
 			compatible = "fixed-clock";

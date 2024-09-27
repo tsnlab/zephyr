@@ -23,28 +23,7 @@ MEMORY
 	/*=========================================================
 	  Region for Executing at SRAM with cacheable : 256KB
 	  =========================================================*/
-	  SRAM					(rwx)	: ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE) 
-
-	/*=========================================================
-	  Region for ARM STACK area : 0x680Byte
-	  =========================================================*/
-	  SRAM_ARM_STACK (rwx)	: ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = ARM_STACK_SIZE
-
-	/*=========================================================
-	  Region for Executing at SRAM with non-cacheable for CAN : 32KB
-	  =========================================================*/
-	  CAN_NC_SRAM			(rwx)	: ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = CAN_NC_SIZE
-
-	/*=========================================================
-	  Region for Executing at SRAM with non-cacheable : 8KB, The dma address is valid only physical address(0x00000000), it can not use mirrored mem address(0x06000000)
-	  =========================================================*/
-	  NC_SRAM				(rwx)	: ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE), LENGTH = DMA_NC_SIZE
-
-	/*=====================================================
-	  Region for Executing at remap Flash area with cacheable
-	  =====================================================*/
-	/*  REMAP_FLASH			(rx)	: ORIGIN = 0x01043000, LENGTH = 0x00200000 */
-	  REMAP_FLASH			(rx)	: ORIGIN = 0x00080000, LENGTH = 0x00200000
+	  SRAM					(rwx)	: ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE) 
 }
 
 /* Section Definitions */
@@ -53,13 +32,14 @@ SECTIONS
   /* first section is .text which is used for code */
   .text :
   {
-  	__TEXT_START__ = .;
-/*    *startup.o (.text) */
-    *reset.S.o (.text)
+	__TEXT_START__ = .;
+	KEEP(*(__topst_reset))       /* Ensure __start is at the very beginning */
+/*    *startup.S.o (.text)  */
+/*    *reset.S.o (.text) */
     *(.text)
     __TEXT_END__ = .;
     . = ALIGN(4);
-  } > REMAP_FLASH
+  } > SRAM
 
   /* .rodata section which is used for read-only data (constants) */
   .rodata :
@@ -73,19 +53,19 @@ SECTIONS
     *(.const.*)
     . = ALIGN(0x20);
     __RODATA_END__ = .;
-  } > REMAP_FLASH
+  } > SRAM
 
   /* .vector section which is used for vector table */
   .vector :
   {
   	__VECTOR_START_LOAD = LOADADDR (.vector);
   	__VECTOR_START__ = .;
-    /* *vector.S.o (.vector .text .rodata .rodata*) */
-    *vector_table.S.o (.vector .text .rodata .rodata*)
+    *vector.S.o (.vector .text .rodata .rodata*) 
+    /* *vector_table.S.o (.vector .text .rodata .rodata*) */
     . = ALIGN(0x20);
     __VECTOR_END__ = .;
   /* } > SRAM AT > REMAP_FLASH POOKY 20240911 Origin */
-  } > REMAP_FLASH
+  } > SRAM
 
   /* .data section which is used for initialized data */
   .data :
@@ -109,32 +89,6 @@ SECTIONS
     . = ALIGN(0x20);
     __BSS_END__ = .;
   } > SRAM
-
-/* arm_stack */
- .arm_stack (NOLOAD):
- {
- 	  __stack_start = .;
- 	  . += 0x680;
-   	_stack_end = .;
- } > SRAM_ARM_STACK
-
-  /* .nc_dma section which is used for non-cachable can message buffer */
- .nc_can (NOLOAD):
-  AT ( ADDR (.bss) + SIZEOF (.bss) )
- {
- 	  __nc_canstart = .;
- 	  . += CAN_NC_SIZE;
-   	_end_of_nc_can = .;
- } > CAN_NC_SRAM
-
- /* .nc_dma section which is used for non-cachable dma buffer */
- .nc_dma (NOLOAD):
-  AT ( ADDR (.bss) + SIZEOF (.bss) )
- {
- 	  __nc_dmastart = .;
- 	  . += DMA_NC_SIZE;
-   	_end_of_nc_dma = .;
- } > NC_SRAM
 
   _end = .;
   __end = _end;

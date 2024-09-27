@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-zephyr_sources(soc.c)
+zephyr_sources(
+	startup.S
+	soc.c
+)
 
 zephyr_sources_ifdef(
   CONFIG_ARM_MPU
@@ -10,6 +13,12 @@ zephyr_sources_ifdef(
 )
 
 zephyr_include_directories(.)
+
+# Force using BFD-LD
+zephyr_ld_options(-fuse-ld=bfd)
+
+# Set compile options
+zephyr_linker_sources(ROM_START SORT_KEY 0x0 init.ld)
 
 if(CONFIG_SOC_TCC7045)
   #set(SOC_LINKER_SCRIPT ${ZEPHYR_BASE}/include/zephyr/arch/arm/cortex_a_r/scripts/linker.ld CACHE INTERNAL "")
