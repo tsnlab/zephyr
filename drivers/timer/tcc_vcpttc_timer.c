@@ -616,42 +616,6 @@ static signed long CLOCK_DevFindPclk(CLOCKPclkCtrl_t *psPclkCtrl, CLOCKPclkCtrlT
 	return 0;
 }
 
-static void CLOCK_DevResetClkSrc(signed long iId)
-{
-	if (iId >= (signed long)CLOCK_SRC_MAX_NUM) {
-		return;
-	}
-
-	if (iId < (signed long)CLOCK_PLL_MAX_NUM) {
-		stMicomClockSource[iId] = CLOCK_GetPllRate(iId);
-		stMicomClockSource[CLOCK_PLL_MAX_NUM + iId] =
-			stMicomClockSource[iId] / (CLOCK_DevGetPllDiv(iId) + 1UL);
-	}
-}
-
-void CLOCK_Init(void)
-{
-	static signed long iInitialized = 0;
-	signed long iIdx;
-
-	if (iInitialized == 1L) {
-		return;
-	}
-
-	iInitialized = 1;
-
-	for (iIdx = 0L; iIdx < ((signed long)CLOCK_PLL_MAX_NUM * 2L); iIdx++) {
-		stMicomClockSource[iIdx] = 0;
-	}
-
-	stMicomClockSource[CLOCK_PLL_MAX_NUM * 2] = (uint32_t)CLOCK_XIN_CLK_RATE;
-	stMicomClockSource[(CLOCK_PLL_MAX_NUM * 2) + 1] = 0UL;
-
-	for (iIdx = 0L; iIdx < (signed long)CLOCK_PLL_MAX_NUM; iIdx++) {
-		CLOCK_DevResetClkSrc(iIdx);
-	}
-}
-
 signed long CLOCK_SetPllDiv(signed long iId, uint32_t uiPllDiv)
 {
 	uint32_t uiReg;
@@ -704,25 +668,6 @@ signed long CLOCK_SetPllDiv(signed long iId, uint32_t uiPllDiv)
 	sys_write32(uiRegVa, uiReg);
 
 	return 0;
-}
-
-uint32_t CLOCK_GetPllRate(signed long iId)
-{
-	uint32_t uiReg;
-	CLOCKPll_t uiPllId;
-
-	uiReg = (uint32_t)0;
-	uiPllId = (CLOCKPll_t)iId;
-
-	if (uiPllId == CLOCK_PLL_MICOM_0) {
-		uiReg = (uint32_t)CLOCK_BASE_ADDR + (uint32_t)CLOCK_MCKC_PLL0PMS;
-	} else if (uiPllId == CLOCK_PLL_MICOM_1) {
-		uiReg = (uint32_t)CLOCK_BASE_ADDR + (uint32_t)CLOCK_MCKC_PLL1PMS;
-	} else {
-		return 0;
-	}
-
-	return CLOCK_DevGetPllRate(uiReg);
 }
 
 signed long CLOCK_SetPllRate(signed long iId, uint32_t uiRate)
@@ -1657,7 +1602,7 @@ static int sys_clock_driver_init(void)
 	SALRetCode_t ret;
 	uint32_t timer_channel;
 
-	CLOCK_Init();
+	//	CLOCK_Init();
 
 #ifdef CONFIG_TICKLESS_KERNEL
 	/* Initialise internal states */

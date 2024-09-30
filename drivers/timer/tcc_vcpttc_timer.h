@@ -41,15 +41,6 @@ typedef unsigned char boolean; /* for use with TRUE/FALSE        */
 #define CLOCK_SRC_MAX_NUM (6) //  ((CLOCK_PLL_MAX_NUM * 2 ) + 2)
 
 /*
- * Return Codes
- */
-typedef enum SALRetCode {
-	SAL_RET_SUCCESS = 0,
-	SAL_RET_FAILED = 1
-
-} SALRetCode_t;
-
-/*
  * Error Codes
  */
 typedef enum SALErrorCode {
@@ -74,21 +65,6 @@ typedef enum SALErrorCode {
 	SAL_ERR_NOT_USEFUL = 118         /**< The status is not available                    */
 
 } SALErrorCode_t;
-
-/* PLL channel index */
-typedef enum CLOCK_PLL {
-	CLOCK_PLL_MICOM_0 = 0,
-	CLOCK_PLL_MICOM_1 = 1
-} CLOCKPll_t;
-
-/* MICOM pll source channel index */
-typedef enum CLOCK_M_PLL {
-	CLOCK_MPLL_0 = 0,
-	CLOCK_MPLL_1 = 1,
-	CLOCK_MPLL_DIV_0 = 2,
-	CLOCK_MPLL_DIV_1 = 3,
-	CLOCK_MPLL_XIN = 4
-} CLOCKMpll_t;
 
 typedef enum CLOCK_PCLK_CTRL_SEL {
 	CLOCK_PCLKCTRL_SEL_PLL0 = 0,
@@ -340,15 +316,6 @@ typedef enum CLOCK_PCLK_CTRL_TYPE {
 	CLOCK_PCLKCTRL_TYPE_MAX = 2
 } CLOCKPclkCtrlType_t;
 
-typedef struct CLOCK_PMS {
-	uint32_t uiFpll;
-	uint32_t uiEn;
-	uint32_t uiP;
-	uint32_t uiM;
-	uint32_t uiS;
-	uint32_t uiSrc;
-} CLOCKPms_t;
-
 typedef struct CLOCK_CLK_CTRL {
 	uint32_t uiFreq;
 	uint32_t uiEn;
@@ -421,8 +388,6 @@ static uint32_t CLOCK_DevCalPclkDiv(const CLOCKPclkCtrl_t *psPclkCtrl, uint32_t 
 				    uint32_t uiDivMax);
 
 static signed long CLOCK_DevFindPclk(CLOCKPclkCtrl_t *psPclkCtrl, CLOCKPclkCtrlType_t eType);
-
-static void CLOCK_DevResetClkSrc(signed long iId);
 
 #define TIMER_INDEX CONFIG_TCC_VCPTTC_TIMER_INDEX
 
@@ -500,43 +465,6 @@ typedef struct TIMERCfgTable {
 	void *pArgs;
 
 } TIMERConfig_t;
-
-#if 0
-typedef enum SALDriverIdTable {
-	SAL_DRVID_SAL = 100,
-	SAL_DRVID_MPU = 300,
-	SAL_DRVID_GIC = 400,
-	SAL_DRVID_PEFALSH = 500,
-	SAL_DRVID_DEFALSH = 600,
-	SAL_DRVID_SFMC = 700,
-	SAL_DRVID_CAN = 800,
-	SAL_DRVID_GPSB = 900,
-	SAL_DRVID_UART = 1000,
-	SAL_DRVID_I2C = 1100,
-	SAL_DRVID_PDM = 1200,
-	SAL_DRVID_ICTC = 1300,
-	SAL_DRVID_GDMA = 1400,
-	SAL_DRVID_ADC = 1500,
-	SAL_DRVID_I2S = 1600,
-	SAL_DRVID_GMAC = 1700,
-	SAL_DRVID_HSM = 1800,
-	SAL_DRVID_TMR = 1900,
-	SAL_DRVID_WDT = 2000,
-	SAL_DRVID_CKC = 2100,
-	SAL_DRVID_CMU = 2200,
-	SAL_DRVID_GPIO = 2300,
-	SAL_DRVID_PMIO = 2400,
-	SAL_DRVID_PMU = 2500,
-	SAL_DRVID_FMU = 2600,
-	SAL_DRVID_RTC = 2700,
-	SAL_DRVID_STSCFG = 2800,
-	SAL_DRVID_DSE = 2900,
-	SAL_DRVID_SM = 3000,
-	SAL_DRVID_FWUD = 3100,
-	SAL_DRVID_LIN = 3200,
-
-} SALDriverId_t;
-#endif
 
 #define SAL_DRVID_TMR   (1900)
 #define SAL_MAX_INT_VAL (4294967295UL)

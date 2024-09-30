@@ -165,7 +165,7 @@ vcopy_loop:
 
 	bl      vfp_init
 	bl      PMIO_EarlyWakeUp 
-	b       start_z_arm_reset /* z_arm_reset */
+	b       BSP_PreInit
 	b       .
 
 /*

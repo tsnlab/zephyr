@@ -23,12 +23,6 @@
 #define DEV_CFG(dev)  ((const struct gpio_tccvcp_config *)(dev)->config)
 #define DEV_DATA(dev) ((struct gpio_tccvcp_data *)(dev)->data)
 
-typedef enum SALRetCode {
-	SAL_RET_SUCCESS = 0,
-	SAL_RET_FAILED = 1
-
-} SALRetCode_t;
-
 struct gpio_tccvcp_config {
 	struct gpio_driver_config common;
 
