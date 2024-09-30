@@ -30,6 +30,14 @@ static uint32_t stMicomClockSource[CLOCK_SRC_MAX_NUM];
  * sal_internal
  */
 
+static SALRetCode_t FR_CoreMB(void)
+{
+	__asm__("    DSB");
+	__asm__("    ISB");
+
+	return SAL_RET_SUCCESS;
+}
+
 static SALRetCode_t FR_CoreDiv64To32(unsigned long long *pullDividend, uint32_t uiDivisor,
 				     uint32_t *puiRem)
 {
@@ -220,13 +228,33 @@ void CLOCK_Init(void)
 }
 
 /*
- * clock_dev end
+ * gic start
  */
+
+void GIC_Init(void)
+{
+	unsigned long uiRegOffset;
+
+	uiRegOffset = 0;
+
+	GIC_DIST->dCTRL &= (unsigned long)(~ARM_BIT_GIC_DIST_ICDDCR_EN);
+	GIC_DIST->dCTRL |= (unsigned long)ARM_BIT_GIC_DIST_ICDDCR_EN;
+
+	for (; uiRegOffset <= ((unsigned long)(GIC_INT_SRC_CNT - 1UL) / 4UL); uiRegOffset++) {
+		GIC_DIST->dIPRIORITYRn[uiRegOffset] = 0xA0A0A0A0UL;
+	}
+
+	GIC_CPU->cPMR = 0xFFUL;
+	GIC_CPU->cCTLR |= GIC_CPUIF_CTRL_ENABLEGRP0;
+	(void)FR_CoreMB(); // Origin code 20240930 POOKY (void)SAL_CoreMB();
+
+	return;
+}
 
 void BSP_PreInit(void)
 {
 	CLOCK_Init();
-	//	GIC_Init();
+	GIC_Init();
 
 	//	PMU_Init();
 
