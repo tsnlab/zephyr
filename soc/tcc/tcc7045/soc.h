@@ -492,4 +492,82 @@ typedef enum {
 		 (((*(volatile unsigned long *)((unsigned long)a)) & (~((unsigned long)m))) |      \
 		  ((unsigned long)x << o)))
 
+typedef unsigned char boolean; /* for use with TRUE/FALSE        */
+
+#define MCU_BSP_PMIO_BASE (0xA0F28800UL)
+#define MCU_BSP_GPIO_BASE (0xA0F22000UL)
+
+#define GPIO_PMGPIO_BASE (MCU_BSP_PMIO_BASE)
+
+#define GPIO_REG_BASE(x)                                                                           \
+	(MCU_BSP_GPIO_BASE + ((((x)&GPIO_PORT_MASK) >> (unsigned long)GPIO_PORT_SHIFT) * 0x40UL))
+
+#define GPIO_IS_GPIOK(x) (boolean)((((x)&GPIO_PORT_MASK) == GPIO_PORT_K) ? 1 : 0)
+
+#define GPIO_REG_DATA(x)     (GPIO_REG_BASE(x) + 0x00UL)
+#define GPIO_REG_OUTEN(x)    (GPIO_REG_BASE(x) + 0x04UL)
+#define GPIO_REG_DATA_OR(x)  (GPIO_REG_BASE(x) + 0x08UL)
+#define GPIO_REG_DATA_BIC(x) (GPIO_REG_BASE(x) + 0x0CUL)
+#define GPIO_REG_PULLEN(x)                                                                         \
+	(GPIO_IS_GPIOK(x) ? (GPIO_PMGPIO_BASE + 0x10UL) : (GPIO_REG_BASE(x) + 0x1CUL))
+#define GPIO_REG_PULLSEL(x)                                                                        \
+	(GPIO_IS_GPIOK(x) ? (GPIO_PMGPIO_BASE + 0x14UL) : (GPIO_REG_BASE(x) + 0x20UL))
+#define GPIO_REG_CD(x, pin)                                                                        \
+	((GPIO_IS_GPIOK(x) ? (GPIO_PMGPIO_BASE + 0x18UL) : (GPIO_REG_BASE(x) + 0x14UL)) +          \
+	 (0x4UL * ((pin) / (unsigned long)16)))
+#define GPIO_REG_IEN(x)                                                                            \
+	(GPIO_IS_GPIOK(x) ? (GPIO_PMGPIO_BASE + 0x0CUL) : (GPIO_REG_BASE(x) + 0x24UL))
+//#define GPIO_REG_IS(x)                  (GPIO_REG_BASE(x) + 0x28UL)
+//#define GPIO_REG_SR(x)                  (GPIO_REG_BASE(x) + 0x2CUL)
+#define GPIO_REG_FN(x, pin) ((GPIO_REG_BASE(x) + 0x30UL) + (0x4UL * ((pin) / (unsigned long)8)))
+#define GPIO_MFIO_CFG       (MCU_BSP_GPIO_BASE + (0x2B4UL))
+#define GPIO_PERICH_SEL     (MCU_BSP_GPIO_BASE + (0x2B8UL))
+
+#define GPIO_PMGPIO_SEL (GPIO_PMGPIO_BASE + 0x8UL)
+
+#define GPIO_LIST_NUM (6)
+
+#define GPIO_INPUTBUF_SHIFT (10)
+#define GPIO_INPUTBUF_MASK  (0x3UL)
+#define GPIO_INPUTBUF_EN    ((2UL | 1UL) << (unsigned long)GPIO_INPUTBUF_SHIFT)
+#define GPIO_INPUTBUF_DIS   ((2UL | 0UL) << (unsigned long)GPIO_INPUTBUF_SHIFT)
+
+#define GPIO_OUTPUT_SHIFT (9)
+#define VCP_GPIO_OUTPUT   (1UL << (unsigned long)GPIO_OUTPUT_SHIFT)
+//#define GPIO_INPUT        (0UL << (unsigned long)GPIO_OUTPUT_SHIFT)
+
+#define GPIO_DS_SHIFT (6)
+#define GPIO_DS_MASK  (0x7UL)
+#define GPIO_DS(x)    ((((x) & (unsigned long)GPIO_DS_MASK) | 0x4UL) << (unsigned long)GPIO_DS_SHIFT)
+
+#define GPIO_PULL_SHIFT (4)
+#define GPIO_PULL_MASK  (0x3UL)
+#define GPIO_NOPULL     (0UL << (unsigned long)GPIO_PULL_SHIFT)
+#define GPIO_PULLUP     (1UL << (unsigned long)GPIO_PULL_SHIFT)
+#define GPIO_PULLDN     (2UL << (unsigned long)GPIO_PULL_SHIFT)
+
+#define GPIO_FUNC_MASK (0xFUL)
+#define GPIO_FUNC(x)   ((x) & (unsigned long)GPIO_FUNC_MASK)
+
+#define GPIO_PIN_MASK     (0x1FUL)
+#define GPIO_PIN_NUM_MASK (0x3FUL) // original 1FUL , avoid code sonar warning
+
+#define GPIO_PORT_SHIFT (5)
+#define GPIO_PORT_MASK  ((unsigned long)0x1F << (unsigned long)GPIO_PORT_SHIFT)
+
+//(n<<GPIO_PORT_SHIFT)                  n = ofset/0x40
+#define GPIO_PORT_A ((unsigned long)0 << (unsigned long)GPIO_PORT_SHIFT) // offset: 0x000
+#define GPIO_PORT_B ((unsigned long)1 << (unsigned long)GPIO_PORT_SHIFT) // offset: 0x040
+#define GPIO_PORT_C ((unsigned long)2 << (unsigned long)GPIO_PORT_SHIFT) // offset: 0x080
+#define GPIO_PORT_K ((unsigned long)3 << (unsigned long)GPIO_PORT_SHIFT) // offset: 0x0c0
+
+#define GPIO_GPA(x) (GPIO_PORT_A | ((x) & (unsigned long)0x1F))
+#define GPIO_GPB(x) (GPIO_PORT_B | ((x) & (unsigned long)0x1F))
+#define GPIO_GPC(x) (GPIO_PORT_C | ((x) & (unsigned long)0x1F))
+#define GPIO_GPK(x) (GPIO_PORT_K | ((x) & (unsigned long)0x1F))
+
+#define GPIO_GP_MAX GPIO_GPK((unsigned long)0x1f)
+
+#define SYS_PWR_EN (GPIO_GPC(2UL))
+
 #endif /* _BOARD__H_ */

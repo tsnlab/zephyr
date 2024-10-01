@@ -349,6 +349,197 @@ void PMU_Init(void)
 	PMU_FmuCtrl(PMU_FMU_PWR_PVT_LEVEL);
 }
 
+SALRetCode_t GPIO_Set(unsigned long uiPort, unsigned long uiData)
+{
+	unsigned long bit;
+	unsigned long data_or;
+	unsigned long data_bic;
+	SALRetCode_t ret;
+
+	ret = SAL_RET_SUCCESS;
+
+	bit = (unsigned long)1 << (uiPort & GPIO_PIN_MASK);
+
+	if (uiData > 1UL) {
+		ret = SAL_RET_FAILED;
+	} else {
+		/* set data */
+		if (uiData != 0UL) {
+			data_or = GPIO_REG_DATA_OR(uiPort);
+			sys_write32(bit, data_or);
+		} else {
+			data_bic = GPIO_REG_DATA_BIC(uiPort);
+			sys_write32(bit, data_bic);
+		}
+	}
+
+	return ret;
+}
+
+static void GPIO_SetRegister(unsigned long addr, unsigned long bit, unsigned long enable)
+{
+	unsigned long base_val;
+	unsigned long set_val;
+
+	base_val = sys_read32(addr);
+	set_val = 0UL;
+
+	if (enable == 1UL) {
+		set_val = (base_val | bit);
+	} else if (enable == 0UL) {
+		set_val = (base_val & ~bit);
+	} else {
+		// Do nothing.
+	}
+
+	sys_write32(set_val, addr);
+}
+
+SALRetCode_t GPIO_Config(unsigned long uiPort, unsigned long uiConfig)
+{
+	unsigned long pin;
+	unsigned long bit;
+	unsigned long func;
+	unsigned long pull;
+	unsigned long ds;
+	unsigned long ien;
+	unsigned long base_val;
+	unsigned long comp_val;
+	unsigned long set_val;
+	unsigned long reg_fn;
+	unsigned long pullen_addr;
+	unsigned long pullsel_addr;
+	unsigned long cd_addr;
+	unsigned long outen_addr;
+	unsigned long ien_addr;
+	SALRetCode_t ret;
+
+	ret = SAL_RET_SUCCESS;
+	pin = uiPort & (unsigned long)GPIO_PIN_MASK;
+	bit = (unsigned long)1 << pin;
+	func = uiConfig & (unsigned long)GPIO_FUNC_MASK;
+	pull = uiConfig & ((unsigned long)GPIO_PULL_MASK << (unsigned long)GPIO_PULL_SHIFT);
+	ds = uiConfig & ((unsigned long)GPIO_DS_MASK << (unsigned long)GPIO_DS_SHIFT);
+	ien = uiConfig & ((unsigned long)GPIO_INPUTBUF_MASK << (unsigned long)GPIO_INPUTBUF_SHIFT);
+
+	/* function */
+	reg_fn = GPIO_REG_FN(uiPort, pin);
+	base_val = sys_read32(reg_fn) &
+		   (~((unsigned long)0xF << ((pin % (unsigned long)8) * (unsigned long)4)));
+	set_val = base_val | (func << ((pin % (unsigned long)8) * (unsigned long)4));
+	sys_write32(set_val, reg_fn);
+	/* configuration check */
+	comp_val = sys_read32(reg_fn);
+
+	if (comp_val != set_val) {
+		ret = SAL_RET_FAILED;
+	} else {
+		/* pull-up/down */
+		if (pull == GPIO_PULLUP) {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				pullen_addr = (GPIO_PMGPIO_BASE + 0x10UL);
+			} else {
+				pullen_addr = (GPIO_REG_BASE(uiPort) + 0x1CUL);
+			}
+
+			GPIO_SetRegister(pullen_addr, bit, (unsigned long)TRUE);
+
+			if (GPIO_IS_GPIOK(uiPort)) {
+				pullsel_addr = (GPIO_PMGPIO_BASE + 0x14UL);
+			} else {
+				pullsel_addr = (GPIO_REG_BASE(uiPort) + 0x20UL);
+			}
+
+			GPIO_SetRegister(pullsel_addr, bit, (unsigned long)TRUE);
+		} else if (pull == GPIO_PULLDN) {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				pullen_addr = (GPIO_PMGPIO_BASE + 0x10UL);
+			} else {
+				pullen_addr = (GPIO_REG_BASE(uiPort) + 0x1CUL);
+			}
+
+			GPIO_SetRegister(pullen_addr, bit, (unsigned long)TRUE);
+
+			if (GPIO_IS_GPIOK(uiPort)) {
+				pullsel_addr = (GPIO_PMGPIO_BASE + 0x14UL);
+			} else {
+				pullsel_addr = (GPIO_REG_BASE(uiPort) + 0x20UL);
+			}
+
+			GPIO_SetRegister(pullsel_addr, bit, (unsigned long)FALSE);
+		} else {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				pullen_addr = (GPIO_PMGPIO_BASE + 0x10UL);
+			} else {
+				pullen_addr = (GPIO_REG_BASE(uiPort) + 0x1CUL);
+			}
+
+			GPIO_SetRegister(pullen_addr, bit, (unsigned long)FALSE);
+		}
+
+		/* drive strength */
+		if (ds != 0UL) {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				cd_addr = (GPIO_PMGPIO_BASE + 0x18UL) +
+					  (0x4UL * ((pin) / (unsigned long)16));
+			} else {
+				cd_addr = (GPIO_REG_BASE(uiPort) + 0x14UL) +
+					  (0x4UL * ((pin) / (unsigned long)16));
+			}
+
+			ds = ds >> (unsigned long)GPIO_DS_SHIFT;
+			base_val = sys_read32(cd_addr) &
+				   ~((unsigned long)3
+				     << ((pin % (unsigned long)16) * (unsigned long)2));
+			set_val = base_val | ((ds & (unsigned long)0x3)
+					      << ((pin % (unsigned long)16) * (unsigned long)2));
+			sys_write32(set_val, cd_addr);
+		}
+
+		/* direction */
+		if ((uiConfig & VCP_GPIO_OUTPUT) != 0UL) {
+			outen_addr = GPIO_REG_OUTEN(uiPort);
+
+			GPIO_SetRegister(outen_addr, bit, (unsigned long)TRUE);
+		} else {
+			outen_addr = GPIO_REG_OUTEN(uiPort);
+
+			GPIO_SetRegister(outen_addr, bit, (unsigned long)FALSE);
+		}
+
+		/* input buffer enable */
+		if (ien == GPIO_INPUTBUF_EN) {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				ien_addr = (GPIO_PMGPIO_BASE + 0x0CUL);
+			} else {
+				ien_addr = (GPIO_REG_BASE(uiPort) + 0x24UL);
+			}
+
+			GPIO_SetRegister(ien_addr, bit, (unsigned long)TRUE);
+		} else if (ien == GPIO_INPUTBUF_DIS) {
+			if (GPIO_IS_GPIOK(uiPort)) {
+				ien_addr = (GPIO_PMGPIO_BASE + 0x0CUL);
+			} else {
+				ien_addr = (GPIO_REG_BASE(uiPort) + 0x24UL);
+			}
+
+			GPIO_SetRegister(ien_addr, bit, (unsigned long)FALSE);
+		} else // QAC
+		{
+			; // no statement
+		}
+	}
+
+	return ret;
+}
+
+void BSP_EnableSYSPower(void)
+{
+	/* Enable SYS_3P3 */
+	(void)GPIO_Config(SYS_PWR_EN, (unsigned long)(GPIO_FUNC(0U) | VCP_GPIO_OUTPUT));
+	(void)GPIO_Set(SYS_PWR_EN, 1UL);
+}
+
 void BSP_PreInit(void)
 {
 	CLOCK_Init();
@@ -356,5 +547,5 @@ void BSP_PreInit(void)
 
 	PMU_Init();
 
-	//	BSP_EnableSYSPower();
+	BSP_EnableSYSPower();
 }
