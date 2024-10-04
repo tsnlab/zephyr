@@ -149,7 +149,6 @@ branch_prefiction:
         bic	r0, r0, #(0x1<<13)
         mcr p15, 0, r0, c1, c0, 0
 
-	b       BSP_PreInit
     /* PFLASH_STANDALONE Start */
 /* Copy Vector Table to SRAM_0 */
 vector_copy:
