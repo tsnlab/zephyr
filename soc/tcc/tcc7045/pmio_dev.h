@@ -1,3 +1,8 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ */
+
 #ifndef MCU_BSP_PMIO_DEV_HEADER
 #define MCU_BSP_PMIO_DEV_HEADER
 

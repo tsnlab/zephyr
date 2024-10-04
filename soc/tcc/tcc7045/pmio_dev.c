@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ */
 
 #include <pmio.h>
 #include <pmio_dev.h>

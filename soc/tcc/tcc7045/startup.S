@@ -1,3 +1,8 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ */
+
 /* Init Stack Pointer */
 #define	USERMODE		0x10
 #define	FIQMODE			0x11

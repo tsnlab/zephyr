@@ -294,6 +294,9 @@ static void PMU_FmuCtrl(PMUFmu_t tFmu)
 			uiEn = 3UL;
 			break;
 		}
+		default: {
+			break;
+		}
 		}
 
 		PMU_REG_SET(PMU_VA_WR_PASS, PMU_ADDR_PMU_WR_PW_FIELD_PMU_WR_PW,

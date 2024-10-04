@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ */
 
 //#include <debug.h>
 //#include <zephyr/arch/common/sys_bitops.h>
@@ -13,7 +17,6 @@ extern unsigned long __PRECODE_START_LOAD;
 extern unsigned long __PRECODE_RAM_START__;
 extern unsigned long __PRECODE_SIZE__;
 
-#if 1
 void PRELOAD_loadOnRam(void)
 {
 	unsigned long rompos = (unsigned long)&__PRECODE_START_LOAD;
@@ -34,7 +37,6 @@ void PRELOAD_loadOnRam(void)
 
 	return;
 }
-#endif
 
 void PRELOAD_JOB(void)
 {
