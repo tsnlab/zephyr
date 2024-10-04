@@ -1220,7 +1220,7 @@ static void ttc_isr(TIMERChannel_t uiChannel, const void *arg)
 	ARG_UNUSED(arg);
 
 	/* Acknowledge interrupt */
-	TIMER_InterruptClear(uiChannel);
+	(void)TIMER_InterruptClear(uiChannel);
 
 	/* Read counter value */
 	cycles = read_count();

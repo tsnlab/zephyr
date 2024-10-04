@@ -99,6 +99,16 @@ SECTIONS
     __BSS_END__ = .;
   } > SRAM
 
+ /* .nc_dma section which is used for non-cachable dma buffer */
+ .nc_dma (NOLOAD):
+  AT ( ADDR (.bss) + SIZEOF (.bss) )
+ {
+      __nc_dmastart = .;
+      . += DMA_NC_SIZE;
+    _end_of_nc_dma = .;
+ } > SRAM
+
+
   _end = .;
   __end = _end;
   PROVIDE(end = .);

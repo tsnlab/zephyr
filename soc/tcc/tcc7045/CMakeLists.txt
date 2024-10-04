@@ -8,7 +8,7 @@ zephyr_sources(
 	arm_a.S
 	pmio_dev.c
 	preload.c
-#	mpu.c
+	mpu.c
 	soc.c
 )
 

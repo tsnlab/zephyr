@@ -121,7 +121,7 @@ stack_setup:
 	isb
 
 	/* The default mpu table is not working in SRAM */
-	/* bl MPU_Init */   /* MPU Initialize */
+	bl MPU_Init    /* MPU Initialize */
 
 branch_prefiction:
 	/* Enable Branch Predictions */
@@ -149,6 +149,7 @@ branch_prefiction:
         bic	r0, r0, #(0x1<<13)
         mcr p15, 0, r0, c1, c0, 0
 
+	b       BSP_PreInit
     /* PFLASH_STANDALONE Start */
 /* Copy Vector Table to SRAM_0 */
 vector_copy:
@@ -209,8 +210,8 @@ wfi_loop:
     b wfi_loop
 
 .word 0x564C4C50 		/* PLLV */
-.word 0x2 /* MICOM_MAIN_PLL_SEL*/  	/* reference from pll_config.h header */
-.word 0x00014dc4 /*MICOM_MAIN_PLL_VAL */ 	/* reference from pll_config.h header */
+.word 0x2               /* MICOM_MAIN_PLL_SEL*/  	/* reference from pll_config.h header */
+.word 0x00014dc4        /*MICOM_MAIN_PLL_VAL */ 	/* reference from pll_config.h header */
 .word 0x00000000 		/* 0x2C : reserved */
 
 .word __TEXT_START__    /* 0x30 : image length for secure boot */

@@ -237,6 +237,7 @@ void GIC_Init(void)
 
 	uiRegOffset = 0;
 
+    /* Global GIC disable -> enable. */
 	GIC_DIST->dCTRL &= (unsigned long)(~ARM_BIT_GIC_DIST_ICDDCR_EN);
 	GIC_DIST->dCTRL |= (unsigned long)ARM_BIT_GIC_DIST_ICDDCR_EN;
 
@@ -291,9 +292,6 @@ static void PMU_FmuCtrl(PMUFmu_t tFmu)
 		case PMU_FMU_PWR_PVT_LEVEL: {
 			uiFieldOffset = PMU_ADDR_PVT_SM_CFG_FIELD_POWER_PERIODIC_EN;
 			uiEn = 3UL;
-			break;
-		}
-		default: {
 			break;
 		}
 		}
@@ -388,8 +386,6 @@ static void GPIO_SetRegister(unsigned long addr, unsigned long bit, unsigned lon
 		set_val = (base_val | bit);
 	} else if (enable == 0UL) {
 		set_val = (base_val & ~bit);
-	} else {
-		// Do nothing.
 	}
 
 	sys_write32(set_val, addr);
@@ -524,9 +520,6 @@ SALRetCode_t GPIO_Config(unsigned long uiPort, unsigned long uiConfig)
 			}
 
 			GPIO_SetRegister(ien_addr, bit, (unsigned long)FALSE);
-		} else // QAC
-		{
-			; // no statement
 		}
 	}
 
@@ -538,6 +531,10 @@ void BSP_EnableSYSPower(void)
 	/* Enable SYS_3P3 */
 	(void)GPIO_Config(SYS_PWR_EN, (unsigned long)(GPIO_FUNC(0U) | VCP_GPIO_OUTPUT));
 	(void)GPIO_Set(SYS_PWR_EN, 1UL);
+
+	/* TEST_LED_BLINK */
+	(void)GPIO_Config(TEST_LED_BLINK, (unsigned long)(GPIO_FUNC(0U) | VCP_GPIO_OUTPUT));
+	(void)GPIO_Set(TEST_LED_BLINK, 1UL);
 }
 
 void BSP_PreInit(void)
@@ -548,4 +545,5 @@ void BSP_PreInit(void)
 	PMU_Init();
 
 	BSP_EnableSYSPower();
+
 }

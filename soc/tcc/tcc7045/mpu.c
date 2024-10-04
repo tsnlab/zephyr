@@ -1,7 +1,4 @@
-//#include <cache.h>
-//#include <bsp.h>
 #include <mpu.h>
-//#include <reg_phys.h>
 
 /*****************************************************************************/
 /*                               USER SETTING                                */
@@ -65,16 +62,17 @@ static void MPU_EnableRegion(unsigned long uiRegionNumber, unsigned long uiAddr,
 		uiRegionsize = uiSize;
 		uiRegionsize <<= 1;
 		uiRegionsize |= MPU_REGION_EN;
-		ARM_DSB();
+		__asm__("DSB"); /* ARM_DSB() */
+		__asm__("ISB"); /* ARM_DSB() */
+
 
 		MPU_WriteControlRegisterConfigurationData(MPU_ARM_CP15_MPU_REG_BASEADDR, uiAddress);
 		MPU_WriteControlRegisterConfigurationData(MPU_ARM_CP15_MPU_REG_ACCESS_CTRL, uiAttr);
 		MPU_WriteControlRegisterConfigurationData(MPU_ARM_CP15_MPU_REG_SIZE_EN,
 							  uiRegionsize);
 
-		ARM_DSB();
-	} else {
-		// Error Print
+		__asm__("DSB"); /* ARM_DSB() */
+		__asm__("ISB"); /* ARM_DSB() */
 	}
 }
 
@@ -86,10 +84,6 @@ static unsigned long MPU_GetSizeOfRegion(unsigned char ucRegionIdx)
 
 	if (ucRegionIdx == MPU_DMA_INDEX) {
 		uiSize = ((unsigned long)(&_end_of_nc_dma) - (unsigned long)(&__nc_dmastart));
-	} else if (ucRegionIdx == MPU_CAN_INDEX) {
-		uiSize = ((unsigned long)(&_end_of_nc_can) - (unsigned long)(&__nc_canstart));
-	} else {
-		;
 	}
 
 	for (uiI = 18u;; uiI--) /* check from 256k */
@@ -143,9 +137,6 @@ void MPU_Init(void)
 	};
 	unsigned long uiIndex;
 
-	sMPUTable[MPU_CAN_INDEX].uiRegionBase = (unsigned long)&__nc_canstart;
-	sMPUTable[MPU_CAN_INDEX].uiRegionSize = MPU_GetSizeOfRegion(MPU_CAN_INDEX);
-
 	sMPUTable[MPU_DMA_INDEX].uiRegionBase = (unsigned long)&__nc_dmastart;
 	sMPUTable[MPU_DMA_INDEX].uiRegionSize = MPU_GetSizeOfRegion(MPU_DMA_INDEX);
 
@@ -155,31 +146,3 @@ void MPU_Init(void)
 	}
 }
 
-#if 0
-unsigned long MPU_GetDMABaseAddress
-(
-    void
-)
-{
-    // 1. Ths "__nc_dmastart" value already contains the physical base(0xC0000000). Please reference the linker(your) script file(.ld)
-    // 2. The dma address is valid only physical address(memory and peripheral point of view).
-
-    unsigned long  uiDMAStart;
-
-    uiDMAStart  = ( unsigned long )( &__nc_dmastart ); // Physical Offset for 512KB SRAM for execution zero base
-
-    return uiDMAStart;
-}
-
-unsigned long MPU_GetCANBaseAddress
-(
-    void
-)
-{
-    unsigned long  uiCANStart;
-
-    uiCANStart  = ( unsigned long )( &__nc_canstart ); // Physical Offset for 512KB SRAM for execution zero base
-
-    return uiCANStart;
-}
-#endif

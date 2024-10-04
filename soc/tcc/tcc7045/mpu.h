@@ -1,8 +1,6 @@
 #ifndef MCU_BSP_MPU_HEADER
 #define MCU_BSP_MPU_HEADER
 
-// #include <sal_api.h>
-
 #define MPU_REGION_32B   (0x00000004U)
 #define MPU_REGION_64B   (0x00000005U)
 #define MPU_REGION_128B  (0x00000006U)
@@ -150,7 +148,6 @@
 
 /* CP15 defines */
 /* C0 Register defines */
-#ifdef __GNU_C__
 #define MPU_ARM_CP15_MAIN_ID             "p15, 0, %0,  c0,  c0, 0"
 #define MPU_ARM_CP15_CACHE_TYPE          "p15, 0, %0,  c0,  c0, 1"
 #define MPU_ARM_CP15_TCM_TYPE            "p15, 0, %0,  c0,  c0, 2"
@@ -169,33 +166,6 @@
 #define MPU_ARM_CP15_SYS_CONTROL       "p15, 0, %0,  c1,  c0, 0"
 #define MPU_ARM_CP15_AUX_CONTROL       "p15, 0, %0,  c1,  c0, 1"
 #define MPU_ARM_CP15_CP_ACCESS_CONTROL "p15, 0, %0,  c1,  c0, 2"
-#else
-//#include <arm_ghs.h> //QAC modify
-extern unsigned long __MRC(signed long coproc, signed long opcode1, signed long CRn,
-			   signed long CRm, signed long opcode2);
-
-extern void __MCR(signed long coproc, signed long opcode1, unsigned long Rd, signed long CRn,
-		  signed long CRm, signed long opcode2);
-
-#define MPU_ARM_CP15_MAIN_ID             15, 0, 0, 0, 0
-#define MPU_ARM_CP15_CACHE_TYPE          15, 0, 0, 0, 1
-#define MPU_ARM_CP15_TCM_TYPE            15, 0, 0, 0, 2
-#define MPU_ARM_CP15_TLB_TYPE            15, 0, 0, 0, 3
-#define MPU_ARM_CP15_MPU_TYPE            15, 0, 0, 0, 4
-#define MPU_ARM_CP15_MULTI_PROC_AFFINITY 15, 0, 0, 0, 5
-#define MPU_ARM_CP15_PROC_FEATURE_0      15, 0, 0, 1, 0
-#define MPU_ARM_CP15_PROC_FEATURE_1      15, 0, 0, 1, 1
-#define MPU_ARM_CP15_DEBUG_FEATURE_0     15, 0, 0, 1, 2
-#define MPU_ARM_CP15_CACHE_SIZE_ID       15, 1, 0, 0, 0
-#define MPU_ARM_CP15_CACHE_LEVEL_ID      15, 1, 0, 0, 1
-#define MPU_ARM_CP15_AUXILARY_ID         15, 1, 0, 0, 7
-#define MPU_ARM_CP15_CACHE_SIZE_SEL      15, 2, 0, 0, 0
-
-/* C1 Register Defines */
-#define MPU_ARM_CP15_SYS_CONTROL         15, 0, 1, 0, 0
-#define MPU_ARM_CP15_AUX_CONTROL         15, 0, 1, 0, 1
-#define MPU_ARM_CP15_CP_ACCESS_CONTROL   15, 0, 1, 0, 2
-#endif
 
 /* ARM_CP15_CONTROL bit defines */
 #define MPU_ARM_CP15_CONTROL_TE   (0x40000000U) // Thumb Execution
@@ -211,7 +181,6 @@ extern void __MCR(signed long coproc, signed long opcode1, unsigned long Rd, sig
 #define MPU_ARM_CP15_CONTROL_A    (0x00000002U) // Strict Alignment
 #define MPU_ARM_CP15_CONTROL_M    (0x00000001U) // MPU enable
 
-#ifdef __GNU_C__
 /* C5 */
 #define MPU_ARM_CP15_DATA_FAULT_STATUS     "p15, 0, %0,  c5,  c0, 0"
 #define MPU_ARM_CP15_INST_FAULT_STATUS     "p15, 0, %0,  c5,  c0, 1"
@@ -251,83 +220,25 @@ extern void __MCR(signed long coproc, signed long opcode1, unsigned long Rd, sig
 
 /* C15 */
 #define MPU_ARM_CP15_SEC_AUX_CTRL "p15, 0, %0, c15,  c0, 0"
-#else
-/* C5 */
-#define MPU_ARM_CP15_DATA_FAULT_STATUS     15, 0, 5, 0, 0
-#define MPU_ARM_CP15_INST_FAULT_STATUS     15, 0, 5, 0, 1
-#define MPU_ARM_CP15_AUX_DATA_FAULT_STATUS 15, 0, 5, 1, 0
-#define MPU_ARM_CP15_AUX_INST_FAULT_STATUS 15, 0, 5, 1, 1
-
-/* C6 */
-#define MPU_ARM_CP15_DATA_FAULT_ADDRESS    15, 0, 6, 0, 0
-#define MPU_ARM_CP15_INST_FAULT_ADDRESS    15, 0, 6, 0, 2
-#define MPU_ARM_CP15_MPU_REG_BASEADDR      15, 0, 6, 1, 0
-#define MPU_ARM_CP15_MPU_REG_SIZE_EN       15, 0, 6, 1, 2
-#define MPU_ARM_CP15_MPU_REG_ACCESS_CTRL   15, 0, 6, 1, 4
-#define MPU_ARM_CP15_MPU_MEMORY_REG_NUMBER 15, 0, 6, 2, 0
-
-/* C7 */
-#define MPU_ARM_CP15_NOP                   15, 0, 7, 0, 4
-#define MPU_ARM_CP15_INVAL_IC_POU          15, 0, 7, 5, 0
-#define MPU_ARM_CP15_INVAL_IC_LINE_MVA_POU 15, 0, 7, 5, 1
-#define MPU_ARM_CP15_INVAL_BTAC            15, 0, 7, 5, 6
-
-/* C9 */
-#define MPU_ARM_CP15_ATCM_REG_SIZE_ADDR    15, 0, 9, 1, 1
-#define MPU_ARM_CP15_BTCM_REG_SIZE_ADDR    15, 0, 9, 1, 0
-#define MPU_ARM_CP15_TCM_SELECTION         15, 0, 9, 2, 0
-#define MPU_ARM_CP15_PERF_MONITOR_CTRL     15, 0, 9, 12,
-#define MPU_ARM_CP15_COUNT_ENABLE_SET      15, 0, 9, 12,
-#define MPU_ARM_CP15_COUNT_ENABLE_CLR      15, 0, 9, 12,
-#define MPU_ARM_CP15_V_FLAG_STATUS         15, 0, 9, 12,
-#define MPU_ARM_CP15_SW_INC                15, 0, 9, 12,
-#define MPU_ARM_CP15_EVENT_CNTR_SEL        15, 0, 9, 12,
-#define MPU_ARM_CP15_PERF_CYCLE_COUNTER    15, 0, 9, 13,
-#define MPU_ARM_CP15_EVENT_TYPE_SEL        15, 0, 9, 13,
-#define MPU_ARM_CP15_PERF_MONITOR_COUNT    15, 0, 9, 13,
-#define MPU_ARM_CP15_USER_ENABLE           15, 0, 9, 14,
-#define MPU_ARM_CP15_INTR_ENABLE_SET       15, 0, 9, 14,
-#define MPU_ARM_CP15_INTR_ENABLE_CLR       15, 0, 9, 14,
-
-/* C15 */
-#define MPU_ARM_CP15_SEC_AUX_CTRL          15, 0, 15, 0, 0
-#endif
 
 /* CP15 operations */
 // Write Control Register configuration data
-#ifdef __GNU_C__
 #define MPU_WriteControlRegisterConfigurationData(rn, v) __asm__ __volatile__("mcr " rn : : "r"(v));
-#else
-#define _MCR(coproc, opc1, CRn, CRm, opc2, value)                                                  \
-	do {                                                                                       \
-		__MCR(coproc, opc1, value, CRn, CRm, opc2);                                        \
-	} while (0)
-
-#define MPU_WriteControlRegisterConfigurationData(reg, value) _MCR(reg, value)
-#endif
 
 // Read Control Register configuration data
-#ifdef __GNU_C__
 #define MPU_ReadControlRegisterConfigurationData(rn, v) __asm__ __volatile__("mrc " rn : "=r"(v));
-#else
-#define MPU_ReadControlRegisterConfigurationData(rn, v)                                            \
-	do {                                                                                       \
-		(v) = __MRC(rn);                                                                   \
-	} while (0)
-#endif
 
 /* DMA */
 extern unsigned long __nc_dmastart;
 extern unsigned long _end_of_nc_dma;
 
 /* CAN */
-extern unsigned long __nc_canstart;
-extern unsigned long _end_of_nc_can;
+//extern unsigned long __nc_canstart;
+//extern unsigned long _end_of_nc_can;
 
 // MPU DEFAULT DEFINES
 #define MPU_MAX_REGION (15U) // SYSTEEM DEFINED // 16U(MAX)
-#define MPU_CAN_INDEX  (1u)
-#define MPU_DMA_INDEX  (2u)
+#define MPU_DMA_INDEX  (1u)
 
 // MPU DEFINES
 #define MPU_REGION_ENABLE  (1U)

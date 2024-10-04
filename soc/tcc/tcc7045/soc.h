@@ -570,4 +570,7 @@ typedef unsigned char boolean; /* for use with TRUE/FALSE        */
 
 #define SYS_PWR_EN (GPIO_GPC(2UL))
 
+//#define TEST_LED_BLINK (GPIO_GPK(16UL))
+#define TEST_LED_BLINK (GPIO_GPB(4UL))
+
 #endif /* _BOARD__H_ */
