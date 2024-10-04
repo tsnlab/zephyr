@@ -1,0 +1,9 @@
+# Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_TCC7045
+	select ARM
+	select CPU_CORTEX_R5
+	select PLATFORM_SPECIFIC_INIT
+	select CPU_HAS_ARM_MPU
+	select VFP_DP_D16
