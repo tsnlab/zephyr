@@ -61,13 +61,6 @@ init:
 	orr	r0, r0, #0xd3
 	msr	cpsr, r0
 
-    /* PRELOAD_ONRAM Start */
-    bl PRELOAD_loadOnRam
-    dsb
-        isb
-        bl PRELOAD_JOB
-    /* PRELOAD_ONRAM End */
-
  /* Stack Setup for each ARM Excution Mode */
 stack_setup:
 	mrs	r0, cpsr
@@ -145,8 +138,12 @@ branch_prefiction:
 	orr r1, r1, #(0x1<<12)          // Enable I-Cache
 	DSB
 	mcr p15, 0, r1, c1, c0, 0       // Enable Cache
-	ISB
 
+//	bl      vfp_init
+//	bl      PMIO_EarlyWakeUp 
+//	b       BSP_PreInit
+
+	ISB
         bl InitCVar
 
         /* Set Vector Table to high Vector */
