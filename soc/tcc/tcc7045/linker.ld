@@ -5,35 +5,12 @@
  */
 
 
+/*
 OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 ENTRY(_vector_table)
+*/
 
-/* Memory Definitions */
-__VECTOR_START = 0x00000000;
-
-DMA_NC_SIZE = 0x4000;
-CAN_NC_SIZE = 0x2000;
-SRAM_TOTAL_SIZE = 0x80000; /* 512KB */
-ARM_STACK_SIZE = 0x680;
-STACK_BASE_ADDR = __VECTOR_START + SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE;
-
-MEMORY
-{
-	/*=========================================================
-	  Region for Executing at SRAM with cacheable : 256KB
-	  =========================================================*/
-	  SRAM					(rwx)	: ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE) 
-
-	/*=========================================================
-	  Region for ARM STACK area : 0x680Byte
-	  =========================================================*/
-	/*=====================================================
-	  Region for Executing at remap Flash area with cacheable
-	  =====================================================*/
-	  REMAP_FLASH			(rx)	: ORIGIN = 0x01043000, LENGTH = 0x00200000 
-	  /* REMAP_FLASH			(rx)	: ORIGIN = 0x00043000, LENGTH = 0x00200000 */ 
-}
 
 
 
@@ -119,18 +96,28 @@ _region_min_align = 4;
 
 #define MMU_ALIGN    . = ALIGN(_region_min_align)
 
+/* Memory Definitions */
+__VECTOR_START = 0x00000000;
+
+DMA_NC_SIZE = 0x4000;
+CAN_NC_SIZE = 0x2000;
+SRAM_TOTAL_SIZE = 0x80000; /* 512KB */
+ARM_STACK_SIZE = 0x680;
+STACK_BASE_ADDR = __VECTOR_START + SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE;
+
 MEMORY
 {
-    /* FLASH    (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE */
-    /* RAM      (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE */
-    FLASH    (rx) : ORIGIN = 0x01043000, LENGTH = 0x00200000
-    RAM      (wx) : ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE)
-	SRAM_ARM_STACK (rwx)  : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = ARM_STACK_SIZE
-	CAN_NC_SRAM           (rwx)   : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = CAN_NC_SIZE
-	NC_SRAM               (rwx)   : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE), LENGTH = DMA_NC_SIZE
+    RAM            (rwx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE 
+    /*RAM            (rwx) : ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE) */
+	SRAM_ARM_STACK (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = ARM_STACK_SIZE
+	CAN_NC_SRAM    (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = CAN_NC_SIZE
+	NC_SRAM        (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE), LENGTH = DMA_NC_SIZE
+	REMAP_FLASH	   (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000 
+    FLASH          (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000 
+    /* FLASH    (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE */ 
     LINKER_DT_REGIONS()
     /* Used by and documented in include/linker/intlist.ld */
-    IDT_LIST (wx) : ORIGIN = 0xFFFF8000, LENGTH = 32K
+    IDT_LIST       (wx)  : ORIGIN = 0xFFFF8000, LENGTH = 32K
 }
 
 ENTRY(CONFIG_KERNEL_ENTRY)
@@ -142,36 +129,6 @@ SECTIONS
 #ifdef CONFIG_LLEXT
 #include <zephyr/linker/llext-sections.ld>
 #endif
-
-
-    SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
-    {
-		__TEXT_START__ = .;
-        . = ALIGN(_region_min_align);
-        __text_region_start = .;
-#ifndef CONFIG_XIP
-        z_mapped_start = .;
-#endif
-
-/*	KEEP(*(__topst_reset))     */  /* Ensure __start is at the very beginning */
-/*	KEEP(*(.isr_vector)) */
-        *startup.S.o (.text)  
-#include <zephyr/linker/kobject-text.ld>
-
-        *(.text)
-        *(".text.*")
-        *(.gnu.linkonce.t.*)
-
-        /*
-         * These are here according to 'arm-zephyr-elf-ld --verbose',
-         * after .gnu.linkonce.t.*
-         */
-        *(.glue_7t) *(.glue_7) *(.vfp11_veneer) *(.v4_bx)
-
-        __text_region_end = .;
-		__TEXT_END__ = .;
-        . = ALIGN(_region_min_align);
-    } GROUP_LINK_IN(ROMABLE_REGION)
 
     /*
      * .plt and .iplt are here according to 'arm-zephyr-elf-ld --verbose',
@@ -195,6 +152,35 @@ SECTIONS
     __rom_region_start = RAM_ADDR;
 #endif
 
+    SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
+    {
+		__TEXT_START__ = .;
+        . = ALIGN(_region_min_align);
+        __text_region_start = .;
+#ifndef CONFIG_XIP
+        z_mapped_start = .;
+#endif
+
+/*	KEEP(*(__topst_reset))     */  /* Ensure __start is at the very beginning */
+/*	KEEP(*(.isr_vector)) */
+        *startup.S.obj (.text)  
+#include <zephyr/linker/kobject-text.ld>
+
+        *(.text)
+        *(".text.*")
+        *(.gnu.linkonce.t.*)
+
+        /*
+         * These are here according to 'arm-zephyr-elf-ld --verbose',
+         * after .gnu.linkonce.t.*
+         */
+        *(.glue_7t) *(.glue_7) *(.vfp11_veneer) *(.v4_bx)
+
+        __text_region_end = .;
+		__TEXT_END__ = .;
+        . = ALIGN(_region_min_align);
+    } GROUP_LINK_IN(ROMABLE_REGION)
+
     SECTION_PROLOGUE(rom_start,,)
     {
 		__VECTOR_START_LOAD = LOADADDR (rom_start);
@@ -208,7 +194,8 @@ SECTIONS
 
 		. = ALIGN(0x20);
 		__VECTOR_END__ = .;
-    } GROUP_LINK_IN(ROMABLE_REGION)
+    /* } GROUP_LINK_IN(ROMABLE_REGION) */
+    } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 
 #ifdef CONFIG_CODE_DATA_RELOCATION
 
@@ -386,7 +373,8 @@ SECTIONS
         __data_end = .;
 		__DATA_END__ = .;
 
-    } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+    /*} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION) */
+    } GROUP_DATA_LINK_IN(RAMABLE_REGION, RAMABLE_REGION)
     __data_size = __data_end - __data_start;
     __data_load_start = LOADADDR(_DATA_SECTION_NAME);
 
