@@ -28,7 +28,7 @@ ENTRY(_vector_table)
 #ifdef CONFIG_XIP
   #define ROMABLE_REGION FLASH
 #else
-  #define ROMABLE_REGION RAM
+  #define ROMABLE_REGION RAM 
 /* POOKY 20241007 Here */
 #endif
 #define RAMABLE_REGION RAM
@@ -144,12 +144,12 @@ SECTIONS
         *(.iplt)
     }
 
-    GROUP_START(ROMABLE_REGION)
+    GROUP_START(ROMABLE_REGION) 
 
 #if defined(CONFIG_XIP)
     __rom_region_start = ROM_ADDR;
 #else
-    __rom_region_start = RAM_ADDR;
+    __rom_region_start = RAM_ADDR; 
 #endif
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
@@ -161,8 +161,6 @@ SECTIONS
         z_mapped_start = .;
 #endif
 
-/*	KEEP(*(__topst_reset))     */  /* Ensure __start is at the very beginning */
-/*	KEEP(*(.isr_vector)) */
         *startup.S.obj (.text)  
 #include <zephyr/linker/kobject-text.ld>
 
@@ -179,7 +177,7 @@ SECTIONS
         __text_region_end = .;
 		__TEXT_END__ = .;
         . = ALIGN(_region_min_align);
-    } GROUP_LINK_IN(ROMABLE_REGION)
+   } GROUP_LINK_IN(ROMABLE_REGION)
 
     SECTION_PROLOGUE(rom_start,,)
     {
@@ -191,6 +189,7 @@ SECTIONS
  * table and debug information.
  */
 #include <snippets-rom-start.ld>
+        *vector.S.obj (.vector .text .rodata .rodata*)
 
 		. = ALIGN(0x20);
 		__VECTOR_END__ = .;
@@ -247,6 +246,8 @@ SECTIONS
     {
         *(.rodata)
         *(".rodata.*")
+		*(.const)
+		*(.const.*)
         *(.gnu.linkonce.r.*)
 
 /* Located in generated directory. This file is populated by the
