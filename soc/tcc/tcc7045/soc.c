@@ -16,7 +16,7 @@ void z_arm_platform_init(void)
 	/*
 	 * Use normal exception vectors address range (0x0-0x1C).
 	 */
-#if 0
+#if 1
 	unsigned int sctlr = __get_SCTLR();
 
 	sctlr &= ~SCTLR_V_Msk;
@@ -30,7 +30,7 @@ static uint32_t stMicomClockSource[CLOCK_SRC_MAX_NUM];
  * sal_internal
  */
 
-static SALRetCode_t FR_CoreMB(void)
+SALRetCode_t FR_CoreMB(void)
 {
 	__asm__("    DSB");
 	__asm__("    ISB");
