@@ -24,155 +24,9 @@
 
 #include <string.h>
 
-#define GIC_PRIORITY_NO_MEAN (16UL)
-
-#define UART_POLLING_MODE (0U)
-#define UART_INTR_MODE    (1U)
-#define UART_DMA_MODE     (2U)
-
-#define UART_CTSRTS_ON  (1U)
-#define UART_CTSRTS_OFF (0U)
-
-#define ENABLE_FIFO  (1U)
-#define DISABLE_FIFO (0U)
-
-#define TWO_STOP_BIT_ON  (1U)
-#define TWO_STOP_BIT_OFF (0U)
-
-#ifndef NULL_PTR
-#define NULL_PTR ((void *)0)
-#endif
-
-#define UART_DEBUG_CH  (UART_CH1)
-#define UART_DEBUG_CLK (48000000UL) // 48MHz
-
-typedef enum uart_word_len {
-	WORD_LEN_5 = 0,
-	WORD_LEN_6,
-	WORD_LEN_7,
-	WORD_LEN_8
-} uart_word_len_t;
-
-typedef enum uart_parity {
-	PARITY_SPACE = 0,
-	PARITY_EVEN,
-	PARITY_ODD,
-	PARITY_MARK
-} uart_parity_t;
-
-typedef struct uart_board_port {
-	uint32_t bPortCfg; // Config port ID
-	uint32_t bPortTx;  // UT_TXD GPIO
-	uint32_t bPortRx;  // UT_RXD GPIO
-	uint32_t bPortRts; // UT_RTS GPIO
-	uint32_t bPortCts; // UT_CTS GPIO
-	uint32_t bPortFs;  // UART function select
-	uint32_t bPortCH;  // Channel
-} uart_board_port_t;
-
-typedef void (*gdma_isr_callback_fn)(void *pArg);
-
-typedef struct gdma_information {
-	uint32_t iCon;
-	uint32_t iCh;
-	uint8_t *iSrcAddr;
-	uint8_t *iDestAddr;
-	uint32_t iBufSize;
-	uint32_t iTransSize;
-	gdma_isr_callback_fn fpIsrCallbackForComplete;
-} gdma_information_t;
-
-#define GDMA_CON_MAX (8UL)
-#define GDMA_CH_MAX  (2UL)
-
-typedef struct GDMA_CONTROLLER {
-	uint32_t cController;
-	gdma_information_t *cCh[GDMA_CH_MAX];
-} GDMAController_t;
-
-typedef struct uart_interrupt_data {
-	int8_t *iXmitBuf;
-	int32_t iHead;
-	int32_t iTail;
-	int32_t iSize;
-} uart_interrupt_data_t;
-
-typedef void (*gic_isr_fn)(void *pArg);
-
-typedef struct uart_param {
-	uint8_t channel;
-	uint32_t priority;           // Interrupt priority
-	uint32_t baud_rate;          // Baudrate
-	uint8_t mode;                // polling or interrupt or dma
-	uint8_t cts_rts;             // on/off
-	uint8_t port_cfg;            // port selection
-	uint8_t fifo;                // on/off
-	uint8_t stop_bit;            // on/off
-	uart_word_len_t word_length; // 5~8 bits
-	uart_parity_t parity;        // space, even, odd, mark
-	gic_isr_fn callback_fn;      // callback function
-} uart_param_t;
-
-// UART Channels
-#define UART_CH0    (0U)
-#define UART_CH1    (1U)
-#define UART_CH2    (2U)
-#define UART_CH3    (3U)
-#define UART_CH4    (4U)
-#define UART_CH5    (5U)
-#define UART_CH_MAX (6U)
-
-typedef struct uart_status {
-	unsigned char sIsProbed;
-	uint32_t sBase;                // UART Controller base address
-	uint8_t sCh;                   // UART Channel
-	uint8_t sOpMode;               // Operation Mode
-	uint8_t sCtsRts;               // CTS and RTS
-	uint8_t s2StopBit;             // 1: two stop bits are transmitted
-	uart_parity_t sParity;         // 0:disable, 1:enable
-	uart_word_len_t sWordLength;   // Word Length
-	uart_board_port_t sPort;       // GPIO Port Infomation
-	gdma_information_t sRxDma;     // Rx DMA
-	gdma_information_t sTxDma;     // Tx DMA
-	uart_interrupt_data_t sRxIntr; // Rx Interrupt
-	uart_interrupt_data_t sTxIntr; // Tx Interrupt
-} uart_status_t;
+#include "uart_tccvcp.h"
 
 static uart_status_t uart[UART_CH_MAX];
-
-/** Device configuration structure */
-struct uart_tccvcp_dev_config {
-	DEVICE_MMIO_ROM;
-	uint8_t channel;
-	uint32_t sys_clk_freq;
-	uart_param_t uart_pars;
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	uart_irq_config_func_t irq_config_func;
-#endif
-#ifdef CONFIG_PINCTRL
-	const struct pinctrl_dev_config *pincfg;
-#endif
-	uint32_t baud_rate;
-};
-
-/** Device data structure */
-struct uart_tccvcp_dev_data_t {
-	DEVICE_MMIO_RAM;
-	uint32_t parity;
-	uint32_t stopbits;
-	uint32_t databits;
-	uint32_t flowctrl;
-
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	uart_irq_callback_user_data_t user_cb;
-	void *user_data;
-#endif
-};
-
-#define UART_BUFF_SIZE (0x100UL)
-
-#define UART_MODE_TX (0UL)
-#define UART_MODE_RX (1UL)
 
 static uint8_t uart_buff0[2][UART_BUFF_SIZE];
 static uint8_t uart_buff1[2][UART_BUFF_SIZE];
@@ -186,107 +40,13 @@ static uint8_t *uart_buff[UART_CH_MAX][2] = {
 	{uart_buff2[0], uart_buff2[1]}, {uart_buff3[0], uart_buff3[1]},
 	{uart_buff4[0], uart_buff4[1]}, {uart_buff5[0], uart_buff5[1]}};
 
-static void xlnx_ps_disable_uart(uintptr_t reg_base)
-{
-#if 1
-	return;
-#else
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_CR_OFFSET);
-
-	reg_val &= (~XUARTPS_CR_EN_DIS_MASK);
-	/* Set control register bits [5]: TX_DIS and [3]: RX_DIS */
-	reg_val |= XUARTPS_CR_TX_DIS | XUARTPS_CR_RX_DIS;
-	sys_write32(reg_val, reg_base + XUARTPS_CR_OFFSET);
-#endif
-}
-
-static void xlnx_ps_enable_uart(uintptr_t reg_base)
-{
-#if 1
-	return;
-#else
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_CR_OFFSET);
-
-	reg_val &= (~XUARTPS_CR_EN_DIS_MASK);
-	/* Set control register bits [4]: TX_EN and [2]: RX_EN */
-	reg_val |= XUARTPS_CR_TX_EN | XUARTPS_CR_RX_EN;
-	sys_write32(reg_val, reg_base + XUARTPS_CR_OFFSET);
-#endif
-}
-
-static void set_baudrate(const struct device *dev, uint32_t baud_rate)
-{
-#if 1
-	return;
-#else
-	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
-	uint32_t baud = dev_cfg->baud_rate;
-	uint32_t clk_freq = dev_cfg->sys_clk_freq;
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t divisor, generator;
-
-	/* Calculate divisor and baud rate generator value */
-	if ((baud != 0) && (clk_freq != 0)) {
-		/* Covering case where input clock is so slow */
-		if (clk_freq < 1000000U && baud > 4800U) {
-			baud = 4800;
-		}
-
-		for (divisor = 4; divisor < 255; divisor++) {
-			uint32_t tmpbaud, bauderr;
-
-			generator = clk_freq / (baud * (divisor + 1));
-			if (generator < 2 || generator > 65535) {
-				continue;
-			}
-			tmpbaud = clk_freq / (generator * (divisor + 1));
-
-			if (baud > tmpbaud) {
-				bauderr = baud - tmpbaud;
-			} else {
-				bauderr = tmpbaud - baud;
-			}
-			if (((bauderr * 100) / baud) < 3) {
-				break;
-			}
-		}
-
-		/*
-		 * Set baud rate divisor and generator.
-		 * -> This function is always called from a context in which
-		 * the receiver/transmitter is disabled, the baud rate can
-		 * be changed safely at this time.
-		 */
-		sys_write32(divisor, reg_base + XUARTPS_BAUDDIV_OFFSET);
-		sys_write32(generator, reg_base + XUARTPS_BAUDGEN_OFFSET);
-	}
-#endif
-}
-
-#define GIC_PPI_START (16UL)
-#define GIC_SPI_START (32UL)
-
-#define GIC_INT_TYPE_LEVEL_HIGH   (0x1U)
-#define GIC_INT_TYPE_LEVEL_LOW    (0x2U)
-#define GIC_INT_TYPE_EDGE_RISING  (0x4U)
-#define GIC_INT_TYPE_EDGE_FALLING (0x8U)
-#define GIC_INT_TYPE_EDGE_BOTH    (GIC_INT_TYPE_EDGE_RISING | GIC_INT_TYPE_EDGE_FALLING)
-
-#define GIC_EINT_START_INT (GIC_EXT0)
-#define GIC_EINT_END_INT   (GIC_EXT9)
-#define GIC_EINT_NUM       ((uint32_t)GIC_EXTn0 - (uint32_t)GIC_EXT0)
-
-typedef void (*GICIsrFunc)(void *pArg);
-
-typedef struct GICIntFuncPtr {
-	GICIsrFunc ifpFunc;
-	uint8_t ifpIsBothEdge;
-	void *ifpArg;
-} GICIntFuncPtr_t;
-
 static GICIntFuncPtr_t GICIsrTable[GIC_INT_SRC_CNT]; /* Interrupt vector table. */
 
-static uint32_t gCPU_SR = 0;
+/* static uint32_t gCPU_SR = 0; */
+
+int mfio_ch_cfg_flag[3] = {
+	0,
+};
 
 static SALRetCode_t FR_CoreCriticalEnter(void)
 {
@@ -375,7 +135,6 @@ static SALRetCode_t GIC_IntConfigSet(uint32_t uiIntId, uint8_t ucIntType)
 SALRetCode_t GIC_IntVectSet(uint32_t uiIntId, uint32_t uiPrio, uint8_t ucIntType,
 			    GICIsrFunc fnIntFunc, void *pIntArg)
 {
-#if 1
 	uint32_t uiRevIntId;
 	SALRetCode_t ucRet;
 
@@ -413,14 +172,10 @@ SALRetCode_t GIC_IntVectSet(uint32_t uiIntId, uint32_t uiPrio, uint8_t ucIntType
 	}
 
 	return ucRet;
-#else
-	return 0;
-#endif
 }
 
 SALRetCode_t GIC_IntSrcDis(uint32_t uiIntId)
 {
-#if 1
 	SALRetCode_t ucRet;
 	uint32_t uiRegOffset;
 	uint32_t uiBit;
@@ -446,134 +201,7 @@ SALRetCode_t GIC_IntSrcDis(uint32_t uiIntId)
 	}
 
 	return ucRet;
-#else
-	return 0;
-#endif
 }
-
-#define MCU_BSP_UART_BASE (0xA0200000UL)
-
-// UART Base address
-#define UART_GET_BASE(n) (MCU_BSP_UART_BASE + (0x10000UL * (n)))
-
-// UART Register (BASE Address + Offset)
-#define UART_REG_DR    (0x00U) // Data register
-#define UART_REG_RSR   (0x04U) // Receive Status register
-#define UART_REG_ECR   (0x04U) // Error Clear register
-#define UART_REG_FR    (0x18U) // Flag register
-#define UART_REG_IBRD  (0x24U) // Integer Baud rate register
-#define UART_REG_FBRD  (0x28U) // Fractional Baud rate register
-#define UART_REG_LCRH  (0x2cU) // Line Control register
-#define UART_REG_CR    (0x30U) // Control register
-#define UART_REG_IFLS  (0x34U) // Interrupt FIFO Level status register
-#define UART_REG_IMSC  (0x38U) // Interrupt Mask Set/Clear register
-#define UART_REG_RIS   (0x3cU) // Raw Interrupt Status register
-#define UART_REG_MIS   (0x40U) // Masked Interrupt Status register
-#define UART_REG_ICR   (0x44U) // Interrupt Clear register
-#define UART_REG_DMACR (0x48U) // DMA Control register
-
-#define GIC_INT_TYPE_LEVEL_HIGH   (0x1U)
-#define GIC_INT_TYPE_LEVEL_LOW    (0x2U)
-#define GIC_INT_TYPE_EDGE_RISING  (0x4U)
-#define GIC_INT_TYPE_EDGE_FALLING (0x8U)
-#define GIC_INT_TYPE_EDGE_BOTH    (GIC_INT_TYPE_EDGE_RISING | GIC_INT_TYPE_EDGE_FALLING)
-
-/* I/O Bus pwdn/swreset */
-typedef enum CLOCK_IO_BUS {
-	CLOCK_IOBUS_SFMC = 0,
-	CLOCK_IOBUS_IMC = 1,
-	CLOCK_IOBUS_PFLASH = 2,
-	CLOCK_IOBUS_DFLASH = 3,
-	CLOCK_IOBUS_GIC = 4,
-	CLOCK_IOBUS_SOC400 = 5,
-	CLOCK_IOBUS_DMA_CON0 = 6,
-	CLOCK_IOBUS_DMA_CON1 = 7,
-	CLOCK_IOBUS_DMA_CON2 = 8,
-	CLOCK_IOBUS_DMA_CON3 = 9,
-	CLOCK_IOBUS_DMA_CON4 = 10,
-	CLOCK_IOBUS_DMA_CON5 = 11,
-	CLOCK_IOBUS_DMA_CON6 = 12,
-	CLOCK_IOBUS_DMA_CON7 = 13,
-	CLOCK_IOBUS_CAN0 = 14,
-	CLOCK_IOBUS_CAN1 = 15,
-	CLOCK_IOBUS_CAN2 = 16,
-	CLOCK_IOBUS_CAN_CONF = 17,
-	CLOCK_IOBUS_UART0 = 18,
-	CLOCK_IOBUS_UART1 = 19,
-	CLOCK_IOBUS_UART2 = 20,
-	CLOCK_IOBUS_UART3 = 21,
-	CLOCK_IOBUS_UART4 = 22,
-	CLOCK_IOBUS_UART5 = 23,
-	CLOCK_IOBUS_CONF = 24,
-	CLOCK_IOBUS_I2C0 = 25,
-	CLOCK_IOBUS_I2C1 = 26,
-	CLOCK_IOBUS_I2C2 = 27,
-	CLOCK_IOBUS_I2C3 = 28,
-	CLOCK_IOBUS_I2C4 = 29,
-	CLOCK_IOBUS_I2C5 = 30,
-	CLOCK_IOBUS_I2C_M_PORTCFG = 31,
-	CLOCK_IOBUS_PWM0 = 32,      /* HCLK_MASK1[0] */
-	CLOCK_IOBUS_PWM1 = 33,      /* HCLK_MASK1[1] */
-	CLOCK_IOBUS_PWM2 = 34,      /* HCLK_MASK1[2] */
-	CLOCK_IOBUS_PWM_CONF = 35,  /* HCLK_MASK1[3] */
-	CLOCK_IOBUS_ICTC0 = 36,     /* HCLK_MASK1[4] */
-	CLOCK_IOBUS_ICTC1 = 37,     /* HCLK_MASK1[5] */
-	CLOCK_IOBUS_ICTC2 = 38,     /* HCLK_MASK1[6] */
-	CLOCK_IOBUS_ICTC3 = 39,     /* HCLK_MASK1[7] */
-	CLOCK_IOBUS_ICTC4 = 40,     /* HCLK_MASK1[8] */
-	CLOCK_IOBUS_ICTC5 = 41,     /* HCLK_MASK1[9] */
-	CLOCK_IOBUS_ADC0 = 42,      /* HCLK_MASK1[10] */
-	CLOCK_IOBUS_ADC1 = 43,      /* HCLK_MASK1[11] */
-	CLOCK_IOBUS_TIMER0 = 44,    /* HCLK_MASK1[12] */
-	CLOCK_IOBUS_TIMER1 = 45,    /* HCLK_MASK1[13] */
-	CLOCK_IOBUS_TIMER2 = 46,    /* HCLK_MASK1[14] */
-	CLOCK_IOBUS_TIMER3 = 47,    /* HCLK_MASK1[15] */
-	CLOCK_IOBUS_TIMER4 = 48,    /* HCLK_MASK1[16] */
-	CLOCK_IOBUS_TIMER5 = 49,    /* HCLK_MASK1[17] */
-	CLOCK_IOBUS_TIMER6 = 50,    /* HCLK_MASK1[18] */
-	CLOCK_IOBUS_TIMER7 = 51,    /* HCLK_MASK1[19] */
-	CLOCK_IOBUS_TIMER8 = 52,    /* HCLK_MASK1[20] */
-	CLOCK_IOBUS_TIMER9 = 53,    /* HCLK_MASK1[21] */
-	CLOCK_IOBUS_GPSB0 = 54,     /* HCLK_MASK1[22] */
-	CLOCK_IOBUS_GPSB1 = 55,     /* HCLK_MASK1[23] */
-	CLOCK_IOBUS_GPSB2 = 56,     /* HCLK_MASK1[24] */
-	CLOCK_IOBUS_GPSB3 = 57,     /* HCLK_MASK1[25] */
-	CLOCK_IOBUS_GPSB4 = 58,     /* HCLK_MASK1[26] */
-	CLOCK_IOBUS_GPSB_CONF = 59, /* HCLK_MASK1[27] */
-	CLOCK_IOBUS_GPSB_SM = 60,   /* HCLK_MASK1[28] */
-	CLOCK_IOBUS_I2S = 61,       /* HCLK_MASK1[29] */
-	CLOCK_IOBUS_GMAC = 62,      /* HCLK_MASK1[30] */
-	CLOCK_IOBUS_RESERVED = 63,  /* HCLK_MASK1[31] */
-	CLOCK_IOBUS_WDT = 64,       /* HCLK_MASK2[0] */
-	CLOCK_IOBUS_GPIO = 65,      /* HCLK_MASK2[1] */
-	CLOCK_IOBUS_CMU = 66,       /* HCLK_MASK2[2] */
-	CLOCK_IOBUS_SYSSM = 67,     /* HCLK_MASK2[3] */
-	CLOCK_IOBUS_MAX = 68
-} CLOCKIobus_t;
-
-// MICOM Subsystem Register Offsets
-#define CLOCK_MCKC_HCLK0    (0x000)
-#define CLOCK_MCKC_HCLK1    (0x004)
-#define CLOCK_MCKC_HCLK2    (0x008)
-#define CLOCK_MCKC_HCLKSWR0 (0x00C)
-#define CLOCK_MCKC_HCLKSWR1 (0x010)
-#define CLOCK_MCKC_HCLKSWR2 (0x014)
-
-#ifndef FALSE
-#define FALSE (0U)
-#endif
-
-#ifndef TRUE
-#define TRUE (1U)
-#endif
-
-#ifndef ON
-#define ON  (TRUE)
-#define OFF (FALSE)
-#endif
-
-#define SALDisabled (FALSE)
-#define SALEnabled  (TRUE)
 
 static void UART_RegWrite(uint8_t ucCh, uint32_t uiAddr, uint32_t uiSetValue)
 {
@@ -601,79 +229,6 @@ static void UART_DisableInterrupt(uint8_t ucCh)
 	}
 }
 
-int32_t CLOCK_SetIobusPwdn(int32_t iId, unsigned char bEn);
-
-#define GPIO_INPUTBUF_SHIFT (10)
-#define GPIO_INPUTBUF_MASK  (0x3UL)
-#define GPIO_INPUTBUF_EN    ((2UL | 1UL) << (uint32_t)GPIO_INPUTBUF_SHIFT)
-#define GPIO_INPUTBUF_DIS   ((2UL | 0UL) << (uint32_t)GPIO_INPUTBUF_SHIFT)
-
-#define GPIO_OUTPUT_SHIFT (9)
-#define GPIO_OUTPUT       (1UL << (uint32_t)GPIO_OUTPUT_SHIFT)
-#define GPIO_INPUT        (0UL << (uint32_t)GPIO_OUTPUT_SHIFT)
-
-#define GPIO_DS_SHIFT (6)
-#define GPIO_DS_MASK  (0x7UL)
-#define GPIO_DS(x)    ((((x) & (uint32_t)GPIO_DS_MASK) | 0x4UL) << (uint32_t)GPIO_DS_SHIFT)
-
-#define GPIO_PULL_SHIFT (4)
-#define GPIO_PULL_MASK  (0x3UL)
-#define GPIO_NOPULL     (0UL << (uint32_t)GPIO_PULL_SHIFT)
-#define GPIO_PULLUP     (1UL << (uint32_t)GPIO_PULL_SHIFT)
-#define GPIO_PULLDN     (2UL << (uint32_t)GPIO_PULL_SHIFT)
-
-#define GPIO_FUNC_MASK (0xFUL)
-#define GPIO_FUNC(x)   ((x) & (uint32_t)GPIO_FUNC_MASK)
-
-#define GPIO_MFIO_CFG_CH_SEL0     (0)
-#define GPIO_MFIO_CFG_PERI_SEL0   (4)
-#define GPIO_MFIO_CFG_CH_SEL1     (8)
-#define GPIO_MFIO_CFG_PERI_SEL1   (12)
-#define GPIO_MFIO_CFG_CH_SEL2     (16)
-#define GPIO_MFIO_CFG_PERI_SEL2   (20)
-#define GPIO_MFIO_DISABLE         (0)
-#define GPIO_MFIO_SPI2            (1)
-#define GPIO_MFIO_UART3           (2)
-#define GPIO_MFIO_I2C3            (3)
-#define GPIO_MFIO_SPI3            (1)
-#define GPIO_MFIO_UART4           (2)
-#define GPIO_MFIO_I2C4            (3)
-#define GPIO_MFIO_SPI4            (1)
-#define GPIO_MFIO_UART5           (2)
-#define GPIO_MFIO_I2C5            (3)
-#define GPIO_MFIO_CH0             (0)
-#define GPIO_MFIO_CH1             (1)
-#define GPIO_MFIO_CH2             (2)
-#define GPIO_MFIO_CH3             (3)
-#define GPIO_PERICH_SEL_UARTSEL_0 (0)
-#define GPIO_PERICH_SEL_UARTSEL_1 (1)
-#define GPIO_PERICH_SEL_UARTSEL_2 (2)
-#define GPIO_PERICH_SEL_I2CSEL_0  (3)
-#define GPIO_PERICH_SEL_I2CSEL_1  (4)
-#define GPIO_PERICH_SEL_I2CSEL_2  (5)
-#define GPIO_PERICH_SEL_SPISEL_0  (6)
-#define GPIO_PERICH_SEL_SPISEL_1  (7)
-#define GPIO_PERICH_SEL_I2SSEL_0  (8)
-#define GPIO_PERICH_SEL_PWMSEL_0  (10)
-#define GPIO_PERICH_SEL_PWMSEL_1  (12)
-#define GPIO_PERICH_SEL_PWMSEL_2  (14)
-#define GPIO_PERICH_SEL_PWMSEL_3  (16)
-#define GPIO_PERICH_SEL_PWMSEL_4  (18)
-#define GPIO_PERICH_SEL_PWMSEL_5  (20)
-#define GPIO_PERICH_SEL_PWMSEL_6  (22)
-#define GPIO_PERICH_SEL_PWMSEL_7  (24)
-#define GPIO_PERICH_SEL_PWMSEL_8  (26)
-#define GPIO_PERICH_CH0           (0)
-#define GPIO_PERICH_CH1           (1)
-#define GPIO_PERICH_CH2           (2)
-#define GPIO_PERICH_CH3           (3)
-
-SALRetCode_t GPIO_Config(uint32_t uiPort, uint32_t uiConfig);
-
-int mfio_ch_cfg_flag[3] = {
-	0,
-};
-
 SALRetCode_t GPIO_MfioCfg(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiChSel,
 			  uint32_t uiChNum)
 {
@@ -685,7 +240,7 @@ SALRetCode_t GPIO_MfioCfg(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiCh
 	if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL0) {
 		if (uiChSel == GPIO_MFIO_CFG_CH_SEL0) {
 			if (mfio_ch_cfg_flag[0] == 0) {
-				// clear bit
+				/* clear bit */
 				base_val = sys_read32(GPIO_MFIO_CFG);
 				clear_bit = base_val &
 					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL0) &
@@ -713,7 +268,7 @@ SALRetCode_t GPIO_MfioCfg(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiCh
 	} else if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL1) {
 		if (uiChSel == GPIO_MFIO_CFG_CH_SEL1) {
 			if (mfio_ch_cfg_flag[1] == 0) {
-				// clear bit
+				/* clear bit */
 				base_val = sys_read32(GPIO_MFIO_CFG);
 				clear_bit = base_val &
 					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL1) &
@@ -742,7 +297,7 @@ SALRetCode_t GPIO_MfioCfg(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiCh
 	} else if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL2) {
 		if (uiChSel == GPIO_MFIO_CFG_CH_SEL2) {
 			if (mfio_ch_cfg_flag[2] == 0) {
-				// clear bit
+				/* clear bit */
 				base_val = sys_read32(GPIO_MFIO_CFG);
 				clear_bit = base_val &
 					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL2) &
@@ -830,36 +385,6 @@ static SALRetCode_t UART_ClearGpio(uint8_t ucCh)
 	return ret;
 }
 
-#ifndef NULL
-#define NULL (0)
-#endif
-
-// UART DMA Register offsets
-#define GDMA_INTSR  (0x00UL) // Interrupt Status Register
-#define GDMA_ITCSR  (0x04UL) // Interrupt Terminal Count Status Register
-#define GDMA_ITCCR  (0x08UL) // Interrupt Terminal Count Clear Register
-#define GDMA_IESR   (0x0CUL) // Interrupt Error Status Register
-#define GDMA_IECR   (0x10UL) // Interrupt Error Clear Register
-#define GDMA_RITCSR (0x14UL) // Raw Interrupt Terminal Count Status Register
-#define GDMA_REISR  (0x18UL) // Raw Error Interrupt Status Register
-#define GDMA_ECR    (0x1CUL) // Enabled Channel Register
-#define GDMA_SBRR   (0x20UL) // Software Burst Request Register
-#define GDMA_SSRR   (0x24UL) // Software Single Request Register
-#define GDMA_SLBRR  (0x28UL) // Software Last Burst Request Register
-#define GDMA_SLSRR  (0x2CUL) // Software Last Single Request Register
-#define GDMA_CR     (0x30UL) // Configuration Register
-#define GDMA_SR     (0x34UL) // Reserved
-
-#define MCU_BSP_GDMA_BASE (0xA0800000UL)
-
-#define GDMA_CON_BASE(x) ((uint32_t)MCU_BSP_GDMA_BASE + ((x)*0x10000UL))
-
-#define GDMA_CH_SRC_ADDR(x) (((uint32_t)0x100UL + ((x)*0x20UL)))
-#define GDMA_CH_DST_ADDR(x) (((uint32_t)0x104UL + ((x)*0x20UL)))
-#define GDMA_CH_LLI(x)      (((uint32_t)0x108UL + ((x)*0x20UL)))
-#define GDMA_CH_CON(x)      (((uint32_t)0x10CUL + ((x)*0x20UL)))
-#define GDMA_CH_CONFIG(x)   (((uint32_t)0x110UL + ((x)*0x20UL)))
-
 void GDMA_ChannelDisable(gdma_information_t *sDmacon)
 {
 	uint32_t uiAddr;
@@ -867,30 +392,30 @@ void GDMA_ChannelDisable(gdma_information_t *sDmacon)
 	uint32_t uiMaxCount = 0U;
 
 	if (sDmacon != NULL_PTR) {
-		// checking channel enabled status
-		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_ECR; // Enabled Channel Register
+		/* checking channel enabled status */
+		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_ECR; /* Enabled Channel Register */
 		uiValue = sys_read32(uiAddr);
 		if ((uiValue & ((uint32_t)1UL << sDmacon->iCh)) !=
-		    0UL) // Currently the channel is enabled
+		    0UL) /* Currently the channel is enabled */
 		{
 			uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CONFIG(sDmacon->iCh);
 			uiValue = sys_read32(uiAddr);
-			uiValue |= (1UL << 18UL); // ignore subsequent source DMA requests
-			uiValue &= ~(1UL << 0UL); // channel disabled
+			uiValue |= (1UL << 18UL); /* ignore subsequent source DMA requests */
+			uiValue &= ~(1UL << 0UL); /* channel disabled */
 			sys_write32(uiValue, uiAddr);
 
-			// break loop if the FIFO is not empty after 2ms. time out.
-			// 6250 loops for 1ms can be changed depending on Cortex-R5 Single Core
-			// clock speed. 6250 loops for 1ms is based on 600MHz which is max clock
-			// speed for Cortex-R5 clock speed lower than 600MHz is okay because 1ms is
-			// guaranteed for 6250 loop to have enough time that isr is complete after
-			// FIFO is empty. if it is higher than 600MHz, isr can be complete too fast
-			// before FIFO is empty.
+			/* break loop if the FIFO is not empty after 2ms. time out.
+			 * 6250 loops for 1ms can be changed depending on Cortex-R5 Single Core
+			 * clock speed. 6250 loops for 1ms is based on 600MHz which is max clock
+			 * speed for Cortex-R5 clock speed lower than 600MHz is okay because 1ms is
+			 * guaranteed for 6250 loop to have enough time that isr is complete after
+			 * FIFO is empty. if it is higher than 600MHz, isr can be complete too fast
+			 * before FIFO is empty. */
 
-			while (uiMaxCount <= 12500UL) // 12500 : 2ms, 6250 : 1ms
+			while (uiMaxCount <= 12500UL) /* 12500 : 2ms, 6250 : 1ms */
 			{
-				// check the Active flag
-				// 0 = there is no data in the FIFO of the channel
+				/* check the Active flag
+				 * 0 = there is no data in the FIFO of the channel */
 				uiAddr =
 					GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CONFIG(sDmacon->iCh);
 
@@ -902,12 +427,6 @@ void GDMA_ChannelDisable(gdma_information_t *sDmacon)
 		}
 	}
 }
-
-int32_t CLOCK_SetSwReset(int32_t iId, unsigned char bReset);
-uint32_t CLOCK_GetPeriRate(int32_t iId);
-int32_t CLOCK_SetPeriRate(int32_t iId, uint32_t uiRate);
-int32_t CLOCK_EnablePeri(int32_t iId);
-int32_t CLOCK_EnableIobus(int32_t iId, unsigned char bEn);
 
 static SALRetCode_t UART_Reset(uint8_t ucCh)
 {
@@ -976,11 +495,6 @@ void uart_close(uint8_t channel)
 	}
 }
 
-#define UART_PORT_CFG_MAX  (16U)
-#define UART_PORT_TBL_SIZE (UART_PORT_CFG_MAX)
-
-#define GDMA_BUFF_SIZE (0x3ffUL)
-
 static void UART_StatusInit(uint8_t ucCh)
 {
 	uart[ucCh].sIsProbed = OFF;
@@ -1017,16 +531,6 @@ static void UART_StatusInit(uint8_t ucCh)
 	uart[ucCh].sRxDma.iTransSize = 0;
 }
 
-#define TCC_GPNONE   (0xFFFFUL)
-#define TCC_GPSD0(x) (TCC_GPNONE)
-#define TCC_GPSD1(x) (TCC_GPNONE)
-#define TCC_GPSD2(x) (TCC_GPNONE)
-
-#define GPIO_PERICH_CH0 (0)
-#define GPIO_PERICH_CH1 (1)
-#define GPIO_PERICH_CH2 (2)
-#define GPIO_PERICH_CH3 (3)
-
 SALRetCode_t GPIO_PerichSel(uint32_t uiPerichSel, uint32_t uiCh)
 {
 	uint32_t peri_sel_addr;
@@ -1040,10 +544,10 @@ SALRetCode_t GPIO_PerichSel(uint32_t uiPerichSel, uint32_t uiCh)
 
 	if (uiPerichSel < GPIO_PERICH_SEL_I2SSEL_0) {
 		if (uiCh < 2) {
-			// clear bit
+			/* clear bit */
 			clear_bit = base_val & ~((0x1UL) << uiPerichSel);
 			sys_write32(clear_bit, peri_sel_addr);
-			// set bit
+			/* set bit */
 			base_val = sys_read32(peri_sel_addr);
 			set_bit = base_val | ((uiCh & 0x1UL) << uiPerichSel);
 			sys_write32(set_bit, peri_sel_addr);
@@ -1057,10 +561,10 @@ SALRetCode_t GPIO_PerichSel(uint32_t uiPerichSel, uint32_t uiCh)
 		}
 	} else {
 		if (uiCh < 4) {
-			// clear bit
+			/* clear bit */
 			clear_bit = base_val & ~((0x3UL) << uiPerichSel);
 			sys_write32(clear_bit, peri_sel_addr);
-			// set bit
+			/* set bit */
 			base_val = sys_read32(peri_sel_addr);
 			set_bit = base_val | ((uiCh & 0x3UL) << uiPerichSel);
 			sys_write32(set_bit, peri_sel_addr);
@@ -1120,9 +624,9 @@ static int32_t UART_SetGpio(uint8_t ucCh, const uart_board_port_t *psInfo)
 
 		if (retCfg != SAL_RET_FAILED) {
 			/* set debug port */
-			ret1 = GPIO_Config(psInfo->bPortTx, (psInfo->bPortFs)); // TX
-			ret2 = GPIO_Config(psInfo->bPortRx,
-					   (psInfo->bPortFs | GPIO_INPUT | GPIO_INPUTBUF_EN)); // RX
+			ret1 = GPIO_Config(psInfo->bPortTx, (psInfo->bPortFs)); /* TX */
+			ret2 = GPIO_Config(psInfo->bPortRx, (psInfo->bPortFs | GPIO_INPUT |
+							     GPIO_INPUTBUF_EN)); /* RX */
 
 			uart[ucCh].sPort.bPortCfg = psInfo->bPortCfg;
 			uart[ucCh].sPort.bPortTx = psInfo->bPortTx;
@@ -1130,8 +634,8 @@ static int32_t UART_SetGpio(uint8_t ucCh, const uart_board_port_t *psInfo)
 			uart[ucCh].sPort.bPortFs = psInfo->bPortFs;
 
 			if (uart[ucCh].sCtsRts != 0UL) {
-				ret3 = GPIO_Config(psInfo->bPortRts, psInfo->bPortFs); // RTS
-				ret4 = GPIO_Config(psInfo->bPortCts, psInfo->bPortFs); // CTS
+				ret3 = GPIO_Config(psInfo->bPortRts, psInfo->bPortFs); /* RTS */
+				ret4 = GPIO_Config(psInfo->bPortCts, psInfo->bPortFs); /* CTS */
 
 				if ((ret1 != SAL_RET_SUCCESS) || (ret2 != SAL_RET_SUCCESS) ||
 				    (ret3 != SAL_RET_SUCCESS) || (ret4 != SAL_RET_SUCCESS)) {
@@ -1159,42 +663,42 @@ static int32_t UART_SetPortConfig(uint8_t ucCh, uint32_t uiPort)
 	int32_t ret = 0;
 	static const uart_board_port_t board_serial[UART_PORT_TBL_SIZE] = {
 		{0UL, GPIO_GPA(28UL), GPIO_GPA(29UL), TCC_GPNONE, TCC_GPNONE, GPIO_FUNC(1UL),
-		 GPIO_PERICH_CH0}, // CTL_0, CH_0
+		 GPIO_PERICH_CH0}, /* CTL_0, CH_0 */
 		{1UL, GPIO_GPC(16UL), GPIO_GPC(17UL), GPIO_GPC(18UL), GPIO_GPC(19UL),
-		 GPIO_FUNC(2UL), GPIO_PERICH_CH1}, // CTL_0, CH_1
+		 GPIO_FUNC(2UL), GPIO_PERICH_CH1}, /* CTL_0, CH_1 */
 
 		{2UL, GPIO_GPB(8UL), GPIO_GPB(9UL), GPIO_GPB(10UL), GPIO_GPB(11UL), GPIO_FUNC(1UL),
-		 GPIO_PERICH_CH0}, // CTL_1, CH_0
+		 GPIO_PERICH_CH0}, /* CTL_1, CH_0 */
 		{3UL, GPIO_GPA(6UL), GPIO_GPA(7UL), GPIO_GPA(8UL), GPIO_GPA(9UL), GPIO_FUNC(2UL),
-		 GPIO_PERICH_CH1}, // CTL_1, CH_1
+		 GPIO_PERICH_CH1}, /* CTL_1, CH_1 */
 
 		{4UL, GPIO_GPB(25UL), GPIO_GPB(26UL), GPIO_GPB(27UL), GPIO_GPB(28UL),
-		 GPIO_FUNC(1UL), GPIO_PERICH_CH0}, // CTL_2, CH_0
+		 GPIO_FUNC(1UL), GPIO_PERICH_CH0}, /* CTL_2, CH_0 */
 		{5UL, GPIO_GPC(0UL), GPIO_GPC(1UL), GPIO_GPC(2UL), GPIO_GPC(3UL), GPIO_FUNC(2UL),
-		 GPIO_PERICH_CH1}, // CTL_2, CH_1
+		 GPIO_PERICH_CH1}, /* CTL_2, CH_1 */
 
 		{6UL, GPIO_GPA(16UL), GPIO_GPA(17UL), GPIO_GPA(18UL), GPIO_GPA(19UL),
-		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, // CTL_3, CH_0
+		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, /* CTL_3, CH_0 */
 		{7UL, GPIO_GPB(0UL), GPIO_GPB(1UL), GPIO_GPB(2UL), GPIO_GPB(3UL), GPIO_FUNC(3UL),
-		 GPIO_MFIO_CH1}, // CTL_3, CH_1
+		 GPIO_MFIO_CH1}, /* CTL_3, CH_1 */
 		{8UL, GPIO_GPC(4UL), GPIO_GPC(5UL), GPIO_GPC(6UL), GPIO_GPC(7UL), GPIO_FUNC(3UL),
-		 GPIO_MFIO_CH2}, // CTL_3, CH_2
+		 GPIO_MFIO_CH2}, /* CTL_3, CH_2 */
 		{9UL, GPIO_GPK(11UL), GPIO_GPK(12UL), GPIO_GPK(13UL), GPIO_GPK(14UL),
-		 GPIO_FUNC(3UL), GPIO_MFIO_CH3}, // CTL_3, CH_3
+		 GPIO_FUNC(3UL), GPIO_MFIO_CH3}, /* CTL_3, CH_3 */
 
 		{10UL, GPIO_GPA(20UL), GPIO_GPA(21UL), GPIO_GPA(22UL), GPIO_GPA(23UL),
-		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, // CTL_4, CH_0
+		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, /* CTL_4, CH_0 */
 		{11UL, GPIO_GPB(4UL), GPIO_GPB(5UL), GPIO_GPB(6UL), GPIO_GPB(7UL), GPIO_FUNC(3UL),
-		 GPIO_MFIO_CH1}, // CTL_4, CH_1
+		 GPIO_MFIO_CH1}, /* CTL_4, CH_1 */
 		{12UL, GPIO_GPC(8UL), GPIO_GPC(9UL), GPIO_GPC(10UL), GPIO_GPC(11UL), GPIO_FUNC(3UL),
-		 GPIO_MFIO_CH2}, // CTL_4, CH_2
+		 GPIO_MFIO_CH2}, /* CTL_4, CH_2 */
 
 		{13UL, GPIO_GPA(24UL), GPIO_GPA(25UL), GPIO_GPA(26UL), GPIO_GPA(27UL),
-		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, // CTL_5, CH_0
+		 GPIO_FUNC(3UL), GPIO_MFIO_CH0}, /* CTL_5, CH_0 */
 		{14UL, GPIO_GPB(8UL), GPIO_GPB(9UL), GPIO_GPB(10UL), GPIO_GPB(11UL), GPIO_FUNC(3UL),
-		 GPIO_MFIO_CH1}, // CTL_5, CH_1
+		 GPIO_MFIO_CH1}, /* CTL_5, CH_1 */
 		{15UL, GPIO_GPC(12UL), GPIO_GPC(13UL), GPIO_GPC(14UL), GPIO_GPC(15UL),
-		 GPIO_FUNC(3UL), GPIO_MFIO_CH2}, // CTL_5, CH_2
+		 GPIO_FUNC(3UL), GPIO_MFIO_CH2}, /* CTL_5, CH_2 */
 	};
 
 	if ((uiPort < UART_PORT_CFG_MAX) && (ucCh < UART_CH_MAX)) {
@@ -1209,85 +713,8 @@ static int32_t UART_SetPortConfig(uint8_t ucCh, uint32_t uiPort)
 	return ret;
 }
 
-typedef enum CLOCK_PERI { /* Peri. Name */
-	// MICOM Peri
-	CLOCK_PERI_SFMC = 0,
-	CLOCK_PERI_CAN0 = 1,
-	CLOCK_PERI_CAN1 = 2,
-	CLOCK_PERI_CAN2 = 3,
-	CLOCK_PERI_GPSB0 = 4,
-	CLOCK_PERI_GPSB1 = 5,
-	CLOCK_PERI_GPSB2 = 6,
-	CLOCK_PERI_GPSB3 = 7,
-	CLOCK_PERI_GPSB4 = 8,
-	CLOCK_PERI_UART0 = 9,
-	CLOCK_PERI_UART1 = 10,
-	CLOCK_PERI_UART2 = 11,
-	CLOCK_PERI_UART3 = 12,
-	CLOCK_PERI_UART4 = 13,
-	CLOCK_PERI_UART5 = 14,
-	CLOCK_PERI_I2C0 = 15,
-	CLOCK_PERI_I2C1 = 16,
-	CLOCK_PERI_I2C2 = 17,
-	CLOCK_PERI_I2C3 = 18,
-	CLOCK_PERI_I2C4 = 19,
-	CLOCK_PERI_I2C5 = 20,
-	CLOCK_PERI_PWM0 = 21,
-	CLOCK_PERI_PWM1 = 22,
-	CLOCK_PERI_PWM2 = 23,
-	CLOCK_PERI_ICTC0 = 24,
-	CLOCK_PERI_ICTC1 = 25,
-	CLOCK_PERI_ICTC2 = 26,
-	CLOCK_PERI_ICTC3 = 27,
-	CLOCK_PERI_ICTC4 = 28,
-	CLOCK_PERI_ICTC5 = 29,
-	CLOCK_PERI_ADC0 = 30,
-	CLOCK_PERI_ADC1 = 31,
-	CLOCK_PERI_TIMER0 = 32,
-	CLOCK_PERI_TIMER1 = 33,
-	CLOCK_PERI_TIMER2 = 34,
-	CLOCK_PERI_TIMER3 = 35,
-	CLOCK_PERI_TIMER4 = 36,
-	CLOCK_PERI_TIMER5 = 37,
-	CLOCK_PERI_TIMER6 = 38,
-	CLOCK_PERI_TIMER7 = 39,
-	CLOCK_PERI_TIMER8 = 40,
-	CLOCK_PERI_TIMER9 = 41,
-	CLOCK_PERI_I2S0 = 42,
-	CLOCK_PERI_I2S1 = 43,
-	CLOCK_PERI_GMAC0 = 44,
-	CLOCK_PERI_GMAC1 = 45,
-	CLOCK_PERI_MAX = 46
-} CLOCKPeri_t;
-
-// UART Flag Register(FR) Fields
-#define UART_FR_TXFE (1UL << 7U) // Transmit FIFO empty
-#define UART_FR_RXFF (1UL << 6U) // Receive FIFO full
-#define UART_FR_TXFF (1UL << 5U) // Transmit FIFO full
-#define UART_FR_RXFE (1UL << 4U) // Receive FIFO empty
-#define UART_FR_BUSY (1UL << 3U) // UART busy
-#define UART_FR_CTS  (1UL << 0U) // Clear to send
-
-// UART Line Control Register (LCR_H) Fields
-#define UART_LCRH_SPS     (1UL << 7U) // Stick parity select
-#define UART_LCRH_WLEN(x) ((x) << 5U) // Word length
-#define UART_LCRH_FEN     (1UL << 4U) // Enable FIFOs
-#define UART_LCRH_STP2    (1UL << 3U) // Two stop bits select
-#define UART_LCRH_EPS     (1UL << 2U) // Even parity select
-#define UART_LCRH_PEN     (1UL << 1U) // Parity enable
-#define UART_LCRH_BRK     (1UL << 0U) // Send break
-
-// UART Control Register (CR) Fields
-#define UART_CR_CTSEN (1UL << 15U) // CTS hardware flow control enable
-#define UART_CR_RTSEN (1UL << 14U) // RTS hardware flow control enable
-#define UART_CR_RTS   (1UL << 11U) // Request to send
-#define UART_CR_RXE   (1UL << 9U)  // Receive enable
-#define UART_CR_TXE   (1UL << 8U)  // Transmit enable
-#define UART_CR_LBE   (1UL << 7U)  // Loopback enable
-#define UART_CR_EN    (1UL << 0U)  // UART enable
-
 static int32_t UART_SetBaudRate(uint8_t ucCh,
-				uint32_t uiBaud) // (uint32_t => int32_t)return type mismatched
+				uint32_t uiBaud) /* (uint32_t => int32_t)return type mismatched */
 {
 	uint32_t u32_div;
 	uint32_t mod;
@@ -1299,19 +726,19 @@ static int32_t UART_SetBaudRate(uint8_t ucCh,
 	if (ucCh >= UART_CH_MAX) {
 		ret = -1;
 	} else {
-		// Read the peri clock
+		/* Read the peri clock */
 		pclk = CLOCK_GetPeriRate((int32_t)CLOCK_PERI_UART0 + (int32_t)ucCh);
 
 		if (pclk == 0UL) {
 			ret = -1;
 		} else {
-			// calculate integer baud rate divisor
+			/* calculate integer baud rate divisor */
 			u32_div = 16UL * uiBaud;
 			brd_i = pclk / u32_div;
 			UART_RegWrite(ucCh, UART_REG_IBRD, brd_i);
 
-			// calculate faction baud rate divisor
-			// NOTICE : fraction maybe need sampling
+			/* calculate faction baud rate divisor */
+			/* NOTICE : fraction maybe need sampling */
 			uiBaud &= 0xFFFFFFU;
 			mod = (pclk % (16UL * uiBaud)) & 0xFFFFFFU;
 			u32_div = ((((1UL << 3UL) * 16UL) * mod) / (16UL * uiBaud));
@@ -1344,23 +771,23 @@ static int32_t UART_SetChannelConfig(uart_param_t *pUartCfg)
 	if (ret == 0) {
 		(void)UART_SetBaudRate(ucCh, pUartCfg->baud_rate);
 
-		// line control setting
-		// Word Length
+		/* line control setting */
+		/* Word Length */
 		ucWordLength &= 0x3U;
 		pUartCfg->word_length = (uart_word_len_t)ucWordLength;
 		lcr_data |= UART_LCRH_WLEN((uint32_t)pUartCfg->word_length);
 
-		// Enables FIFOs
+		/* Enables FIFOs */
 		if (pUartCfg->fifo == ENABLE_FIFO) {
 			lcr_data |= UART_LCRH_FEN;
 		}
 
-		// Two Stop Bits
+		/* Two Stop Bits */
 		if (pUartCfg->stop_bit == ON) {
 			lcr_data |= UART_LCRH_STP2;
 		}
 
-		// Parity Enable
+		/* Parity Enable */
 		switch (pUartCfg->parity) {
 		case PARITY_SPACE:
 			lcr_data &= ~(UART_LCRH_PEN);
@@ -1380,12 +807,12 @@ static int32_t UART_SetChannelConfig(uart_param_t *pUartCfg)
 
 		UART_RegWrite(ucCh, UART_REG_LCRH, lcr_data);
 
-		// control register setting
+		/* control register setting */
 		cr_data = UART_CR_EN;
 		cr_data |= UART_CR_TXE;
 		cr_data |= UART_CR_RXE;
 
-		if (uart[ucCh].sCtsRts != 0UL) { // brace
+		if (uart[ucCh].sCtsRts != 0UL) { /* brace */
 			cr_data |= (UART_CR_RTSEN | UART_CR_CTSEN);
 		}
 
@@ -1421,19 +848,6 @@ static void UART_InterruptProbe(uint8_t ucCh)
 	UART_InterruptRxProbe(ucCh);
 }
 
-#define UART_TX_FIFO_SIZE (8UL)
-#define UART_RX_FIFO_SIZE (12UL)
-
-#define UART_INT_OEIS (1UL << 10U) // Overrun error interrupt
-#define UART_INT_BEIS (1UL << 9U)  // Break error interrupt
-#define UART_INT_PEIS (1UL << 8U)  // Parity error interrupt
-#define UART_INT_FEIS (1UL << 7U)  // Framing error interrupt
-#define UART_INT_RTIS (1UL << 6U)  // Receive timeout interrupt
-#define UART_INT_TXIS (1UL << 5U)  // Transmit interrupt
-#define UART_INT_RXIS (1UL << 4U)  // Receive interrupt
-
-SALRetCode_t FR_CoreMB(void);
-
 SALRetCode_t GIC_IntSrcEn(uint32_t uiIntId)
 {
 	SALRetCode_t ucRet;
@@ -1458,11 +872,7 @@ SALRetCode_t GIC_IntSrcEn(uint32_t uiIntId)
 			GIC_DIST->dISENABLERn[uiRegOffset] = ((uint32_t)1UL << uiBit);
 		}
 
-#if 1
 		FR_CoreMB();
-#else
-		(void)SAL_CoreMB();
-#endif
 		ucRet = (SALRetCode_t)SAL_RET_SUCCESS;
 	}
 
@@ -1520,99 +930,20 @@ static void UART_EnableInterrupt(uint8_t ucCh, uint32_t uiPriority, uint8_t ucFI
 	}
 }
 
-extern uint32_t __nc_dmastart;
 uint32_t MPU_GetDMABaseAddress(void)
 {
-	// 1. Ths "__nc_dmastart" value already contains the physical base(0xC0000000). Please
-	// reference the linker(your) script file(.ld)
-	// 2. The dma address is valid only physical address(memory and peripheral point of view).
+	/* 1. Ths "__nc_dmastart" value already contains the physical base(0xC0000000). Please
+	 * reference the linker(your) script file(.ld)
+	 * 2. The dma address is valid only physical address(memory and peripheral point of view).
+	 */
 
 	uint32_t uiDMAStart;
 
-	uiDMAStart = (uint32_t)(&__nc_dmastart); // Physical Offset for 512KB SRAM for execution
-						 // zero base
+	uiDMAStart = (uint32_t)(&__nc_dmastart); /* Physical Offset for 512KB SRAM for execution */
+						 /* zero base */
 
 	return uiDMAStart;
 }
-
-#define GDMA_BUFF_SIZE   (0x3ffUL) // 1023.
-#define GDMA_BUFF_MARGIN (0x0UL)
-
-// UART Settings
-#define UART_BUFF_SIZE (0x100UL) // 256
-
-#define UART_MODE_TX (0UL)
-#define UART_MODE_RX (1UL)
-
-#define UART_PORT_CFG_MAX  (16U)
-#define UART_PORT_TBL_SIZE (UART_PORT_CFG_MAX)
-
-// DMA Control Register (DMACR) Fields
-#define UART_DMACR_DMAONERR (1UL << 2U) // DMA on error
-#define UART_DMACR_TXDMAE   (1UL << 1U) // Transmit DMA enable
-#define UART_DMACR_RXDMAE   (1UL << 0U) // Receive DMA enable
-
-#define GDMA_BUFF_SIZE   (0x3ffUL) // 1023.
-#define GDMA_BUFF_MARGIN (0x0UL)
-
-#define GDMA_CH0 (0UL)
-#define GDMA_CH1 (1UL)
-
-#define GDMA_INC    (1U)
-#define GDMA_NO_INC (0U)
-
-#define GDMA_TRANSFER_SIZE_BYTE (0U)
-#define GDMA_TRANSFER_SIZE_HALF (1U)
-#define GDMA_TRANSFER_SIZE_WORD (2U)
-
-#define GDMA_BURST_SIZE_1   (0U)
-#define GDMA_BURST_SIZE_4   (1U)
-#define GDMA_BURST_SIZE_8   (2U)
-#define GDMA_BURST_SIZE_16  (3U)
-#define GDMA_BURST_SIZE_32  (4U)
-#define GDMA_BURST_SIZE_64  (5U)
-#define GDMA_BURST_SIZE_128 (6U)
-#define GDMA_BURST_SIZE_256 (7U)
-
-// GDMA Address
-#define GDMA_ADDRESS_OFFSET (0UL)
-#define GDMA_ADDRESS_UNIT   (GDMA_BUFF_SIZE + GDMA_BUFF_MARGIN)
-#define GDMA_ADDRESS_UNIT_CH_RX(ch)                                                                \
-	((uint32_t)GDMA_ADDRESS_OFFSET + ((GDMA_ADDRESS_UNIT * 2UL) * (ch)))
-#define GDMA_ADDRESS_UNIT_CH_TX(ch)                                                                \
-	(((uint32_t)GDMA_ADDRESS_OFFSET + ((GDMA_ADDRESS_UNIT * 2UL) * (ch))) + GDMA_ADDRESS_UNIT)
-
-#define GDMA_FLOW_TYPE_M2M       (0UL)
-#define GDMA_FLOW_TYPE_M2P       (1UL)
-#define GDMA_FLOW_TYPE_P2M       (2UL)
-#define GDMA_FLOW_TYPE_P2P       (3UL)
-#define GDMA_FLOW_TYPE_P2P_BY_DP (4UL)
-#define GDMA_FLOW_TYPE_M2P_BY_P  (5UL)
-#define GDMA_FLOW_TYPE_P2M_BY_P  (6UL)
-#define GDMA_FLOW_TYPE_P2P_BY_SP (7UL)
-
-#define GDMA_PERI_REQ_PORT_UART0_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART0_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART1_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART1_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART2_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART2_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART3_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART3_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART4_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART4_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART5_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART5_TX (1UL)
-
-enum {
-	GDMA_PERI_RX = 0,
-	GDMA_PERI_TX = 1
-};
 
 void GDMA_SetFlowControl(gdma_information_t *sDmacon, uint32_t uiFlow)
 {
@@ -1637,7 +968,7 @@ void GDMA_SetAddrIncrement(gdma_information_t *sDmacon, uint8_t ucDestInc, uint3
 	if (sDmacon != NULL_PTR) {
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CON(sDmacon->iCh);
 		uiValue = sys_read32(uiAddr);
-		// clear desc, src increment
+		/* clear desc, src increment */
 		uiValue &= ~(0x3UL << 26UL);
 
 		inc = (((uint32_t)ucDestInc & 0x1UL) << 1UL) | (uiSrcInc & 0x1UL);
@@ -1656,7 +987,7 @@ void GDMA_SetBurstSize(gdma_information_t *sDmacon, uint8_t ucDestBurst, uint32_
 	if (sDmacon != NULL_PTR) {
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CON(sDmacon->iCh);
 		uiValue = sys_read32(uiAddr);
-		// clear desc, src burst size
+		/* clear desc, src burst size */
 		uiValue &= ~(0x3FUL << 12UL);
 		burst_size = (((uint32_t)ucDestBurst & 0x7UL) << 3UL) | (uiSrcBurst & 0x7UL);
 		uiValue |= (burst_size << 12UL);
@@ -1709,7 +1040,7 @@ void GDMA_SetTransferWidth(gdma_information_t *sDmacon, uint8_t ucDestWidth, uin
 	if (sDmacon != NULL_PTR) {
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CON(sDmacon->iCh);
 		uiValue = sys_read32(uiAddr);
-		// clear desc, src transfer width
+		/* clear desc, src transfer width */
 		uiValue &= ~(0x3FUL << 18UL);
 		transfer_width = (((uint32_t)ucDestWidth & 0x7UL) << 3UL) | (uiSrcWidth & 0x7UL);
 		uiValue |= (transfer_width << 18UL);
@@ -1726,7 +1057,7 @@ void GDMA_SetTransferSize(gdma_information_t *sDmacon, uint32_t uiTransferSize)
 	if (sDmacon != NULL_PTR) {
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CON(sDmacon->iCh);
 		uiValue = sys_read32(uiAddr);
-		// clear transfer size
+		/* clear transfer size */
 		uiValue &= ~(0xFFFUL);
 		uiValue |= (uiTransferSize & 0xFFFUL);
 		sys_write32(uiValue, uiAddr);
@@ -1739,13 +1070,13 @@ void GDMA_InterruptEnable(gdma_information_t *sDmacon)
 	uint32_t uiValue;
 
 	if (sDmacon != NULL_PTR) {
-		// Enable terminal count interrupt
+		/* Enable terminal count interrupt */
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CON(sDmacon->iCh);
 		uiValue = (uint32_t)sys_read32(uiAddr) | ((uint32_t)1UL << 31UL);
 
 		sys_write32(uiValue, uiAddr);
 
-		// Mask terminal count interrupt
+		/* Mask terminal count interrupt */
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CONFIG(sDmacon->iCh);
 		uiValue = (uint32_t)sys_read32(uiAddr) | ((uint32_t)1UL << 15UL);
 		sys_write32(uiValue, uiAddr);
@@ -1794,15 +1125,15 @@ static void GDMA_ISR(void *pArg)
 		uiAddr = GDMA_CON_BASE(pConTable->cController) + GDMA_IESR;
 		uiErrIntStatus = sys_read32(uiAddr);
 		for (uiIndex = 0; uiIndex < GDMA_CH_MAX; uiIndex++) {
-			// check interrupt status
+			/* check interrupt status */
 			if ((uiIntStatus & ((uint32_t)1UL << uiIndex)) != 0UL) {
-				// check terminal count interrupt status.
+				/* check terminal count interrupt status. */
 				if ((uiTCIntStatus & ((uint32_t)1UL << uiIndex)) != 0UL) {
 					dmacon = (gdma_information_t *)pConTable->cCh[uiIndex];
 					if (dmacon !=
-					    NULL_PTR) // Codesonar : Null Test After Dereference
+					    NULL_PTR) /* Codesonar : Null Test After Dereference */
 					{
-						// Clear terminal count interrupt
+						/* Clear terminal count interrupt */
 						uiAddr = GDMA_CON_BASE(dmacon->iCon) + GDMA_ITCCR;
 						sys_write32(((uint32_t)1UL << uiIndex), uiAddr);
 						if (dmacon->fpIsrCallbackForComplete != NULL_PTR) {
@@ -1811,13 +1142,13 @@ static void GDMA_ISR(void *pArg)
 						}
 					}
 				}
-				// check error interrupt status.
+				/* check error interrupt status. */
 				if ((uiErrIntStatus & ((uint32_t)1UL << uiIndex)) != 0UL) {
 					dmacon = (gdma_information_t *)pConTable->cCh[uiIndex];
 					if (dmacon !=
-					    NULL_PTR) // Codesonar : Null Test After Dereference
+					    NULL_PTR) /* Codesonar : Null Test After Dereference */
 					{
-						// Clear error interrupt
+						/* Clear error interrupt */
 						uiAddr = GDMA_CON_BASE(dmacon->iCon) + GDMA_IECR;
 						sys_write32(((uint32_t)1UL << uiIndex), uiAddr);
 					}
@@ -1849,11 +1180,11 @@ int32_t GDMA_Init(gdma_information_t *sDmacon, uint32_t uiIntPrio)
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CR;
 
 		if ((sys_read32(uiAddr) & 0x1UL) == 0UL) {
-			// Disable DMA Contorller
+			/* Disable DMA Contorller */
 			uiValue = sys_read32(uiAddr);
 			sys_write32(uiValue & ~(0x1UL), uiAddr);
 
-			// Clear Interrupt
+			/* Clear Interrupt */
 			uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_ITCCR;
 			sys_write32(0xFFUL, uiAddr);
 			uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_IECR;
@@ -1864,11 +1195,11 @@ int32_t GDMA_Init(gdma_information_t *sDmacon, uint32_t uiIntPrio)
 					     (void *)&gdma_con_table[sDmacon->iCon]);
 			(void)GIC_IntSrcEn((uint32_t)GIC_DMA0 + sDmacon->iCon);
 
-			// Enable DMA Controller
+			/* Enable DMA Controller */
 			uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CR;
 			sys_write32(0x1UL, uiAddr);
-			// ret = (int32_t)SAL_RET_SUCCESS;
-			// uiGDMAEnabled = 1UL; // 2 ch per 8 controller
+			/* ret = (int32_t)SAL_RET_SUCCESS; */
+			/* uiGDMAEnabled = 1UL;  */ /* 2 ch per 8 controller */
 		}
 		ret = (int32_t)SAL_RET_SUCCESS;
 	}
@@ -1890,7 +1221,7 @@ static void UART_DmaTxProbe(uint8_t ucCh, uint32_t *puiAddr)
 
 		(void)GDMA_Init(&uart[ucCh].sTxDma, GIC_PRIORITY_NO_MEAN);
 
-		// Enable Transmit DMA
+		/* Enable Transmit DMA */
 		regData = (UART_RegRead(ucCh, UART_REG_DMACR) | UART_DMACR_DMAONERR |
 			   UART_DMACR_TXDMAE);
 		UART_RegWrite(ucCh, UART_REG_DMACR, regData);
@@ -1914,8 +1245,8 @@ void GDMA_ChannelEnable(gdma_information_t *sDmacon)
 	if (sDmacon != NULL_PTR) {
 		uiAddr = GDMA_CON_BASE(sDmacon->iCon) + GDMA_CH_CONFIG(sDmacon->iCh);
 		uiValue = sys_read32(uiAddr);
-		uiValue &= ~(1UL << 18UL); // enable DMA requests
-		uiValue |= (1UL << 0UL);   // channel enabled
+		uiValue &= ~(1UL << 18UL); /* enable DMA requests */
+		uiValue |= (1UL << 0UL);   /* channel enabled */
 
 		sys_write32(uiValue, uiAddr);
 	}
@@ -1953,7 +1284,7 @@ static int32_t UART_DmaRxEnable(uint8_t ucCh, uint32_t uiSize, const gdma_inform
 				      GDMA_TRANSFER_SIZE_BYTE);
 		GDMA_SetTransferSize(&uart[ucCh].sRxDma, uiSize);
 
-		// Run DMA
+		/* Run DMA */
 		GDMA_ChannelEnable(&uart[ucCh].sRxDma);
 		ret = (int32_t)SAL_RET_SUCCESS;
 	}
@@ -1976,7 +1307,7 @@ static void UART_DmaRxProbe(uint8_t ucCh, uint32_t *puiAddr)
 
 		(void)GDMA_Init(&uart[ucCh].sRxDma, GIC_PRIORITY_NO_MEAN);
 
-		// Enable Receive DMA
+		/* Enable Receive DMA */
 		regData = (UART_RegRead(ucCh, UART_REG_DMACR) | UART_DMACR_DMAONERR |
 			   UART_DMACR_RXDMAE);
 		UART_RegWrite(ucCh, UART_REG_DMACR, regData);
@@ -2027,7 +1358,7 @@ static int32_t UART_Probe(uart_param_t *pUartCfg)
 		uart[ucCh].sOpMode = pUartCfg->mode;
 		uart[ucCh].sCtsRts = pUartCfg->cts_rts;
 
-		// Set port config
+		/* Set port config */
 		ret = UART_SetPortConfig(ucCh, pUartCfg->port_cfg);
 
 		if (ret != -1) {
@@ -2035,13 +1366,13 @@ static int32_t UART_Probe(uart_param_t *pUartCfg)
 
 			if (ret != -1) {
 				if (uart[ucCh].sOpMode ==
-				    UART_INTR_MODE) // Configure for interrupt mode
+				    UART_INTR_MODE) /* Configure for interrupt mode */
 				{
 					UART_InterruptProbe(ucCh);
 					UART_EnableInterrupt(ucCh, pUartCfg->priority,
 							     pUartCfg->fifo, pUartCfg->callback_fn);
 				} else if (uart[ucCh].sOpMode ==
-					   UART_DMA_MODE) // Configure for DMA mode
+					   UART_DMA_MODE) /* Configure for DMA mode */
 				{
 					UART_DmaProbe(ucCh);
 					UART_EnableInterrupt(ucCh, pUartCfg->priority,
@@ -2096,19 +1427,19 @@ static int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 {
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
 	uint8_t ucCh = dev_cfg->channel;
-    uint32_t  status;
-    uint32_t  data;
+	uint32_t status;
+	uint32_t data;
 
-    if (ucCh >= UART_CH_MAX) {
+	if (ucCh >= UART_CH_MAX) {
 		return -1;
-    } else {
+	} else {
 		status = UART_RegRead(ucCh, UART_REG_FR);
 
 		if ((status & UART_FR_RXFE) == 0UL) {
 			data = UART_RegRead(ucCh, UART_REG_DR);
 			*c = (unsigned char)(data & 0xFFUL);
 		}
-    }
+	}
 
 	return 0;
 }
@@ -2118,13 +1449,13 @@ static void uart_tccvcp_poll_out(const struct device *dev, unsigned char c)
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
 	uint8_t ucCh = dev_cfg->channel;
 
-    if (ucCh >= UART_CH_MAX) {
+	if (ucCh >= UART_CH_MAX) {
 		return;
-    } else {
-        if ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_TXFF) == 0UL) {
-            UART_RegWrite(ucCh, UART_REG_DR, c);
-        } 
-    }
+	} else {
+		if ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_TXFF) == 0UL) {
+			UART_RegWrite(ucCh, UART_REG_DR, c);
+		}
+	}
 }
 
 static inline bool uart_tccvcp_cfg2ll_parity(uint32_t *mode_reg, enum uart_config_parity parity)
@@ -2212,75 +1543,85 @@ static int uart_tccvcp_configure(const struct device *dev, const struct uart_con
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
 	uint8_t ucCh = dev_cfg->channel;
 	uart_param_t uart_cfg;
+	int32_t ret;
 
-	uart_cfg.channel     = dev_cfg->channel;
-    uart_cfg.priority    = GIC_PRIORITY_NO_MEAN;
-    uart_cfg.baud_rate   = cfg->baudrate;
-    uart_cfg.mode        = UART_POLLING_MODE;
-    switch (cfg->flow_ctrl) {
-    case UART_CFG_FLOW_CTRL_NONE:
-	    uart_cfg.cts_rts = UART_CTSRTS_OFF;
-        break;
-    case UART_CFG_FLOW_CTRL_RTS_CTS:
-	    uart_cfg.cts_rts = UART_CTSRTS_ON;
-        break;
-	default:
-	    uart_cfg.cts_rts = UART_CTSRTS_OFF;
+	uart_cfg.channel = dev_cfg->channel;
+	uart_cfg.priority = GIC_PRIORITY_NO_MEAN;
+	uart_cfg.baud_rate = cfg->baudrate;
+	uart_cfg.mode = UART_POLLING_MODE;
+	switch (cfg->flow_ctrl) {
+	case UART_CFG_FLOW_CTRL_NONE:
+		uart_cfg.cts_rts = UART_CTSRTS_OFF;
 		break;
-    }
-
-	uart_cfg.port_cfg   = (uint8_t)(4U + dev_cfg->channel);
-
-    switch (cfg->data_bits) {
-    case UART_CFG_DATA_BITS_8:
-	    uart_cfg.word_length = WORD_LEN_8;
-        break;
-    case UART_CFG_DATA_BITS_7:
-	    uart_cfg.word_length = WORD_LEN_7;
-        break;
-    case UART_CFG_DATA_BITS_6:
-	    uart_cfg.word_length = WORD_LEN_6;
-        break;
-    case UART_CFG_DATA_BITS_5:
-	    uart_cfg.word_length = WORD_LEN_5;
-        break;
-	default:
-	    uart_cfg.word_length = WORD_LEN_8 + 1;
+	case UART_CFG_FLOW_CTRL_RTS_CTS:
+		uart_cfg.cts_rts = UART_CTSRTS_ON;
 		break;
-    }
+	default:
+		uart_cfg.cts_rts = UART_CTSRTS_OFF;
+		break;
+	}
 
-    uart_cfg.fifo        = DISABLE_FIFO;
+	uart_cfg.port_cfg = (uint8_t)(4U + dev_cfg->channel);
+
+	switch (cfg->data_bits) {
+	case UART_CFG_DATA_BITS_8:
+		uart_cfg.word_length = WORD_LEN_8;
+		break;
+	case UART_CFG_DATA_BITS_7:
+		uart_cfg.word_length = WORD_LEN_7;
+		break;
+	case UART_CFG_DATA_BITS_6:
+		uart_cfg.word_length = WORD_LEN_6;
+		break;
+	case UART_CFG_DATA_BITS_5:
+		uart_cfg.word_length = WORD_LEN_5;
+		break;
+	default:
+		uart_cfg.word_length = WORD_LEN_8 + 1;
+		break;
+	}
+
+	uart_cfg.fifo = DISABLE_FIFO;
 
 	switch (cfg->stop_bits) {
-    case UART_CFG_STOP_BITS_2:
+	case UART_CFG_STOP_BITS_2:
 		uart_cfg.stop_bit = TWO_STOP_BIT_ON;
-        break;
+		break;
 	default:
 		uart_cfg.stop_bit = TWO_STOP_BIT_OFF;
 		break;
-    }
+	}
 
 	switch (cfg->parity) {
-    case UART_CFG_PARITY_EVEN:
-        uart_cfg.parity = PARITY_EVEN;
-        break;
-    case UART_CFG_PARITY_ODD:
-        uart_cfg.parity = PARITY_ODD;
-        break;
-    case UART_CFG_PARITY_SPACE:
-        uart_cfg.parity = PARITY_SPACE;
-        break;
-    case UART_CFG_PARITY_MARK:
-        uart_cfg.parity = PARITY_MARK;
-        break;
-	default:
-	    uart_cfg.parity = PARITY_MARK + 1;
+	case UART_CFG_PARITY_EVEN:
+		uart_cfg.parity = PARITY_EVEN;
 		break;
-    }
+	case UART_CFG_PARITY_ODD:
+		uart_cfg.parity = PARITY_ODD;
+		break;
+	case UART_CFG_PARITY_SPACE:
+		uart_cfg.parity = PARITY_SPACE;
+		break;
+	case UART_CFG_PARITY_MARK:
+		uart_cfg.parity = PARITY_MARK;
+		break;
+	default:
+		uart_cfg.parity = PARITY_MARK + 1;
+		break;
+	}
 
-    uart_cfg.callback_fn = NULL_PTR;
+	uart_cfg.callback_fn = NULL_PTR;
 
-	return UART_SetChannelConfig(&uart_cfg);
+	ret = UART_SetChannelConfig(&uart_cfg);
+	if (ret == 0) {
+		uart[ucCh].sCtsRts = uart_cfg.cts_rts;
+		uart[ucCh].s2StopBit = uart_cfg.stop_bit;
+		uart[ucCh].sParity = uart_cfg.parity;
+		uart[ucCh].sWordLength = uart_cfg.word_length;
+		uart[ucCh].baudrate = uart_cfg.baud_rate;
+	}
+
+	return ret;
 };
 #endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
@@ -2311,271 +1652,73 @@ static inline enum uart_config_stop_bits uart_tccvcp_ll2cfg_stopbits(uint32_t mo
 	}
 }
 
-static inline enum uart_config_data_bits uart_tccvcp_ll2cfg_databits(uint32_t mode_reg)
-{
-#if 1
-	return 0;
-#else
-	/*
-	 * Obtain the current data bit configuration from the mode register's
-	 * bits [2..1] (CHRL):
-	 *  0xb : 8 data bits -> reset value
-	 *  10b : 7 data bits
-	 *  11b : 6 data bits
-	 */
-
-	switch ((mode_reg & XUARTPS_MR_CHARLEN_MASK)) {
-	case XUARTPS_MR_CHARLEN_8_BIT:
-	default:
-		return UART_CFG_DATA_BITS_8;
-	case XUARTPS_MR_CHARLEN_7_BIT:
-		return UART_CFG_DATA_BITS_7;
-	case XUARTPS_MR_CHARLEN_6_BIT:
-		return UART_CFG_DATA_BITS_6;
-	}
-#endif
-}
-
-static inline enum uart_config_flow_control uart_tccvcp_ll2cfg_hwctrl(uint32_t modemcr_reg)
-{
-#if 1
-	return 0;
-#else
-	/*
-	 * Obtain the current flow control configuration from the modem
-	 * control register's bit [5] (FCM):
-	 *  0b : no flow control -> reset value
-	 *  1b : RTS/CTS
-	 */
-
-	if ((modemcr_reg & XUARTPS_MODEMCR_FCM_MASK) == XUARTPS_MODEMCR_FCM_RTS_CTS) {
-		return UART_CFG_FLOW_CTRL_RTS_CTS;
-	}
-
-	return UART_CFG_FLOW_CTRL_NONE;
-#endif
-}
-
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_tccvcp_config_get(const struct device *dev, struct uart_config *cfg)
 {
-#if 1
-	return 0;
-#else
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
+	uint8_t ucCh = dev_cfg->channel;
 
-	/*
-	 * Read the Mode & Modem control registers - they contain
-	 * the current data / stop bit and parity settings (Mode
-	 * Register) and the current flow control setting (Modem
-	 * Control register).
-	 */
-	uint32_t mode_reg = sys_read32(reg_base + XUARTPS_MR_OFFSET);
-	uint32_t modemcr_reg = sys_read32(reg_base + XUARTPS_MODEMCR_OFFSET);
+	/* cfg->baudrate = dev_cfg->baud_rate; */
+	cfg->baudrate = uart[ucCh].baudrate;
 
-	cfg->baudrate = dev_cfg->baud_rate;
-	cfg->parity = uart_tccvcp_ll2cfg_parity(mode_reg);
-	cfg->stop_bits = uart_tccvcp_ll2cfg_stopbits(mode_reg);
-	cfg->data_bits = uart_tccvcp_ll2cfg_databits(mode_reg);
-	cfg->flow_ctrl = uart_tccvcp_ll2cfg_hwctrl(modemcr_reg);
+	switch (uart[ucCh].sCtsRts) {
+	case UART_CTSRTS_ON:
+		cfg->flow_ctrl = UART_CFG_FLOW_CTRL_RTS_CTS;
+		break;
+	case UART_CTSRTS_OFF:
+	default:
+		cfg->flow_ctrl = UART_CFG_FLOW_CTRL_NONE;
+		break;
+	}
+
+	switch (uart[ucCh].sWordLength) {
+	case WORD_LEN_8:
+		cfg->data_bits = UART_CFG_DATA_BITS_8;
+		break;
+	case WORD_LEN_7:
+		cfg->data_bits = UART_CFG_DATA_BITS_7;
+		break;
+	case WORD_LEN_6:
+		cfg->data_bits = UART_CFG_DATA_BITS_6;
+		break;
+	case WORD_LEN_5:
+		cfg->data_bits = UART_CFG_DATA_BITS_5;
+		break;
+	default:
+		cfg->data_bits = UART_CFG_DATA_BITS_9;
+		break;
+	}
+
+	switch (uart[ucCh].s2StopBit) {
+	case TWO_STOP_BIT_ON:
+		cfg->stop_bits = UART_CFG_STOP_BITS_2;
+		break;
+	default:
+		cfg->stop_bits = UART_CFG_STOP_BITS_0_5;
+		break;
+	}
+
+	switch (uart[ucCh].sParity) {
+	case PARITY_EVEN:
+		cfg->parity = UART_CFG_PARITY_EVEN;
+		break;
+	case PARITY_ODD:
+		cfg->parity = UART_CFG_PARITY_ODD;
+		break;
+	case PARITY_SPACE:
+		cfg->parity = UART_CFG_PARITY_SPACE;
+		break;
+	case PARITY_MARK:
+		cfg->parity = UART_CFG_PARITY_MARK;
+		break;
+	default:
+		cfg->parity = UART_CFG_PARITY_NONE;
+		break;
+	}
 
 	return 0;
-#endif
 }
 #endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
-
-#if CONFIG_UART_INTERRUPT_DRIVEN
-
-static int uart_tccvcp_fifo_fill(const struct device *dev, const uint8_t *tx_data, int size)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t data_iter = 0;
-
-	sys_write32(XUARTPS_IXR_TXEMPTY, reg_base + XUARTPS_IDR_OFFSET);
-	while (size--) {
-		while ((sys_read32(reg_base + XUARTPS_SR_OFFSET) & XUARTPS_SR_TXFULL) != 0) {
-		}
-		sys_write32((uint32_t)tx_data[data_iter++], reg_base + XUARTPS_FIFO_OFFSET);
-	}
-	sys_write32(XUARTPS_IXR_TXEMPTY, reg_base + XUARTPS_IER_OFFSET);
-
-	return data_iter;
-#endif
-}
-
-static int uart_tccvcp_fifo_read(const struct device *dev, uint8_t *rx_data, const int size)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_SR_OFFSET);
-	int inum = 0;
-
-	while (inum < size && (reg_val & XUARTPS_SR_RXEMPTY) == 0) {
-		rx_data[inum] = (uint8_t)sys_read32(reg_base + XUARTPS_FIFO_OFFSET);
-		inum++;
-		reg_val = sys_read32(reg_base + XUARTPS_SR_OFFSET);
-	}
-
-	return inum;
-#endif
-}
-
-static void uart_tccvcp_irq_tx_enable(const struct device *dev)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32((XUARTPS_IXR_TTRIG | XUARTPS_IXR_TXEMPTY), reg_base + XUARTPS_IER_OFFSET);
-#endif
-}
-
-static void uart_tccvcp_irq_tx_disable(const struct device *dev)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32((XUARTPS_IXR_TTRIG | XUARTPS_IXR_TXEMPTY), reg_base + XUARTPS_IDR_OFFSET);
-#endif
-}
-
-static int uart_tccvcp_irq_tx_ready(const struct device *dev)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_SR_OFFSET);
-
-	if ((reg_val & (XUARTPS_SR_TTRIG | XUARTPS_SR_TXEMPTY)) == 0) {
-		return 0;
-	} else {
-		return 1;
-	}
-#endif
-}
-
-static int uart_tccvcp_irq_tx_complete(const struct device *dev)
-{
-#if 1
-	return 0;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_SR_OFFSET);
-
-	if ((reg_val & XUARTPS_SR_TXEMPTY) == 0) {
-		return 0;
-	} else {
-		return 1;
-	}
-#endif
-}
-
-static void uart_tccvcp_irq_rx_enable(const struct device *dev)
-{
-#if 1
-	return;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32(XUARTPS_IXR_RTRIG, reg_base + XUARTPS_IER_OFFSET);
-#endif
-}
-
-static void uart_tccvcp_irq_rx_disable(const struct device *dev)
-{
-#if 1
-	return;
-#else
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32(XUARTPS_IXR_RTRIG, reg_base + XUARTPS_IDR_OFFSET);
-#endif
-}
-
-static int uart_tccvcp_irq_rx_ready(const struct device *dev)
-{
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t reg_val = sys_read32(reg_base + XUARTPS_ISR_OFFSET);
-
-	if ((reg_val & XUARTPS_IXR_RTRIG) == 0) {
-		return 0;
-	} else {
-		sys_write32(XUARTPS_IXR_RTRIG, reg_base + XUARTPS_ISR_OFFSET);
-		return 1;
-	}
-}
-
-static void uart_tccvcp_irq_err_enable(const struct device *dev)
-{
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32(XUARTPS_IXR_TOVR              /* [12] Transmitter FIFO Overflow */
-			    | XUARTPS_IXR_TOUT    /* [8]  Receiver Timerout */
-			    | XUARTPS_IXR_PARITY  /* [7]  Parity Error */
-			    | XUARTPS_IXR_FRAMING /* [6]  Receiver Framing Error */
-			    | XUARTPS_IXR_RXOVR,  /* [5]  Receiver Overflow Error */
-		    reg_base + XUARTPS_IER_OFFSET);
-}
-
-static void uart_tccvcp_irq_err_disable(const struct device *dev)
-{
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-
-	sys_write32(XUARTPS_IXR_TOVR              /* [12] Transmitter FIFO Overflow */
-			    | XUARTPS_IXR_TOUT    /* [8]  Receiver Timerout */
-			    | XUARTPS_IXR_PARITY  /* [7]  Parity Error */
-			    | XUARTPS_IXR_FRAMING /* [6]  Receiver Framing Error */
-			    | XUARTPS_IXR_RXOVR,  /* [5]  Receiver Overflow Error */
-		    reg_base + XUARTPS_IDR_OFFSET);
-}
-
-static int uart_tccvcp_irq_is_pending(const struct device *dev)
-{
-	uintptr_t reg_base = DEVICE_MMIO_GET(dev);
-	uint32_t reg_imr = sys_read32(reg_base + XUARTPS_IMR_OFFSET);
-	uint32_t reg_isr = sys_read32(reg_base + XUARTPS_ISR_OFFSET);
-
-	if ((reg_imr & reg_isr) != 0) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-static int uart_tccvcp_irq_update(const struct device *dev)
-{
-	ARG_UNUSED(dev);
-	return 1;
-}
-
-static void uart_tccvcp_irq_callback_set(const struct device *dev, uart_irq_callback_user_data_t cb,
-					 void *cb_data)
-{
-	struct uart_tccvcp_dev_data_t *dev_data = dev->data;
-
-	dev_data->user_cb = cb;
-	dev_data->user_data = cb_data;
-}
-
-static void uart_tccvcp_isr(const struct device *dev)
-{
-	const struct uart_tccvcp_dev_data_t *data = dev->data;
-
-	if (data->user_cb) {
-		data->user_cb(dev, data->user_data);
-	}
-}
-#endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
 static const struct uart_driver_api uart_tccvcp_driver_api = {
 	.poll_in = uart_tccvcp_poll_in,
@@ -2583,22 +1726,6 @@ static const struct uart_driver_api uart_tccvcp_driver_api = {
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 	.configure = uart_tccvcp_configure,
 	.config_get = uart_tccvcp_config_get,
-#endif
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-	.fifo_fill = uart_tccvcp_fifo_fill,
-	.fifo_read = uart_tccvcp_fifo_read,
-	.irq_tx_enable = uart_tccvcp_irq_tx_enable,
-	.irq_tx_disable = uart_tccvcp_irq_tx_disable,
-	.irq_tx_ready = uart_tccvcp_irq_tx_ready,
-	.irq_tx_complete = uart_tccvcp_irq_tx_complete,
-	.irq_rx_enable = uart_tccvcp_irq_rx_enable,
-	.irq_rx_disable = uart_tccvcp_irq_rx_disable,
-	.irq_rx_ready = uart_tccvcp_irq_rx_ready,
-	.irq_err_enable = uart_tccvcp_irq_err_enable,
-	.irq_err_disable = uart_tccvcp_irq_err_disable,
-	.irq_is_pending = uart_tccvcp_irq_is_pending,
-	.irq_update = uart_tccvcp_irq_update,
-	.irq_callback_set = uart_tccvcp_irq_callback_set,
 #endif
 };
 
