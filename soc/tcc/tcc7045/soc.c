@@ -16,12 +16,10 @@ void z_arm_platform_init(void)
 	/*
 	 * Use normal exception vectors address range (0x0-0x1C).
 	 */
-#if 0
 	unsigned int sctlr = __get_SCTLR();
 
 	sctlr &= ~SCTLR_V_Msk;
 	__set_SCTLR(sctlr);
-#endif
 }
 
 static uint32_t stMicomClockSource[CLOCK_SRC_MAX_NUM];
@@ -30,7 +28,7 @@ static uint32_t stMicomClockSource[CLOCK_SRC_MAX_NUM];
  * sal_internal
  */
 
-static SALRetCode_t FR_CoreMB(void)
+SALRetCode_t FR_CoreMB(void)
 {
 	__asm__("    DSB");
 	__asm__("    ISB");
@@ -57,8 +55,8 @@ static SALRetCode_t FR_CoreDiv64To32(unsigned long long *pullDividend, uint32_t 
 			high /= uiDivisor;
 			res = ((unsigned long long)high) << 32ULL;
 
-			// CERT-C Integers (CERT INT30-C) : Ensure that unsigned integer operations
-			// do not wrap
+			/* CERT-C Integers (CERT INT30-C) : Ensure that unsigned integer operations
+			   do not wrap */
 			if ((uiDivisor > 0UL) &&
 			    ((rem / (unsigned long long)uiDivisor) >= (unsigned long long)high)) {
 				retVal = SAL_RET_FAILED;
@@ -247,7 +245,7 @@ void GIC_Init(void)
 
 	GIC_CPU->cPMR = 0xFFUL;
 	GIC_CPU->cCTLR |= GIC_CPUIF_CTRL_ENABLEGRP0;
-	(void)FR_CoreMB(); // Origin code 20240930 POOKY (void)SAL_CoreMB();
+	(void)FR_CoreMB();
 
 	return;
 }
@@ -304,9 +302,7 @@ static void PMU_FmuCtrl(PMUFmu_t tFmu)
 
 		PMU_REG_APPEND(uiEn, uiFieldOffset, PMU_VA_MASK_2 << uiFieldOffset,
 			       PMU_ADDR_PVT_SM_CFG);
-	} else {
-		// PMU_E("Unknown reset type %d\n", (unsigned long)tFmu);
-	}
+	} 
 }
 
 void PMU_Init(void)

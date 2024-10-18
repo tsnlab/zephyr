@@ -34,8 +34,8 @@ topst_reset:
 .word 0x4855434D		/* 0x04 : MCUH */
 .word __TEXT_START__ 	/* 0x08 : micom f/w load base */
 
-// Don't delete below 3 words.
-// This is to apply the 2oo3 voting method.
+/* Don't delete below 3 words.
+   This is to apply the 2oo3 voting method. */
 .word (0x56010000) 
 .word (0x56010000)
 .word (0x56010000)
@@ -60,13 +60,6 @@ init:
 	bic	r0, r0, #0x3f
 	orr	r0, r0, #0xd3
 	msr	cpsr, r0
-
-    /* PRELOAD_ONRAM Start */
-    bl PRELOAD_loadOnRam
-    dsb
-        isb
-        bl PRELOAD_JOB
-    /* PRELOAD_ONRAM End */
 
  /* Stack Setup for each ARM Excution Mode */
 stack_setup:
@@ -100,29 +93,29 @@ stack_setup:
 	/* Cache, and MPU Setup */
 
 	/* Disable MPU, I-Cache, D-CAche */
-	mrc p15, 0, r0, c1, c0, 0       // Read CP15 SCTLR
-	bic r0, r0, #(0x1<<0)           // Disable MPU
-	bic r0, r0, #(0x1<<2)           // Disable D-Cache
-	bic r0, r0, #(0x1<<12)          // Disable I-Cache
+	mrc p15, 0, r0, c1, c0, 0       /* Read CP15 SCTLR */
+	bic r0, r0, #(0x1<<0)           /* Disable MPU */
+	bic r0, r0, #(0x1<<2)           /* Disable D-Cache */
+	bic r0, r0, #(0x1<<12)          /* Disable I-Cache */
 	dsb
-	mcr p15, 0, r0, c1, c0, 0       // Write CP15 SCTLR
+	mcr p15, 0, r0, c1, c0, 0       /* Write CP15 SCTLR */
 	isb
 
-	mrc p15, 0, r0, c1, c0, 1       // Read CP15, ACTLR
-	orr r0, r0, #(0x1 << 17)        // Clear RSDIS bit 17 to enable return stack
-	orr r0, r0, #(0x1 << 16)        // Clear BP bit 15 and set BP bit 16:
-	bic r0, r0, #(0x1 << 15)        // Branch always not taken and history table updates disabled
-	bic r0, r0, #(0x1 << 5)         // Generate abort on parity errors, with [5:3]=b 000
+	mrc p15, 0, r0, c1, c0, 1       /* Read CP15, ACTLR */
+	orr r0, r0, #(0x1 << 17)        /* Clear RSDIS bit 17 to enable return stack */
+	orr r0, r0, #(0x1 << 16)        /* Clear BP bit 15 and set BP bit 16: */
+	bic r0, r0, #(0x1 << 15)        /* Branch always not taken and history table updates disabled */
+	bic r0, r0, #(0x1 << 5)         /* Generate abort on parity errors, with [5:3]=b 000 */
 	bic r0, r0, #(0x1 << 4)
 	bic r0, r0, #(0x1 << 3)
-	mcr p15, 0, r0, c1, c0, 1       // Write ACTLR
-	dsb                             // Complete all outstanding explicit memory operations
+	mcr p15, 0, r0, c1, c0, 1       /* Write ACTLR */
+	dsb                             /* Complete all outstanding explicit memory operations */
 
 	/* Invalidate Caches */
 	mov r0, #0
 	dsb
-	mcr p15, 0, r0, c7, c5, 0       // Invalidate I-Cache All
-	mcr p15, 0, r0, c15, c5, 0      // Incalidate D-Cache All
+	mcr p15, 0, r0, c7, c5, 0       /* Invalidate I-Cache All */
+	mcr p15, 0, r0, c15, c5, 0      /* Incalidate D-Cache All */
 	isb
 
 	/* The default mpu table is not working in SRAM */
@@ -130,23 +123,31 @@ stack_setup:
 
 branch_prefiction:
 	/* Enable Branch Predictions */
-	mrc p15, 0, r0, c1, c0, 1       // Read ACTLR
-	bic r0, r0, #(0x1<<17)          // Clear RSDIS bit 17 to enable returen stack
-	bic r0, r0, #(0x1<<16)          // Clear BP bit 15 and BP bit 16
-	bic r0, r0, #(0x1<<15)          // Normal operation BP is taken from the global history table
-	mcr p15, 0, r0, c1, c0, 1       // Write ACTLR
+	mrc p15, 0, r0, c1, c0, 1       /* Read ACTLR */
+	bic r0, r0, #(0x1<<17)          /* Clear RSDIS bit 17 to enable returen stack */
+	bic r0, r0, #(0x1<<16)          /* Clear BP bit 15 and BP bit 16 */
+	bic r0, r0, #(0x1<<15)          /* Normal operation BP is taken from the global history table */
+	mcr p15, 0, r0, c1, c0, 1       /* Write ACTLR */
 
 	/* Enable I-Cache , D-Cache */
 	mrc p15, 0, r1, c1, c0, 0
 
-	orr r1, r1, #(0x1<<0)           // Enable MPU
+	orr r1, r1, #(0x1<<0)           /* Enable MPU */
 
-	orr r1, r1, #(0x1<<2)           // Enable D-Cache
-	orr r1, r1, #(0x1<<12)          // Enable I-Cache
+	orr r1, r1, #(0x1<<2)           /* Enable D-Cache */
+	orr r1, r1, #(0x1<<12)          /* Enable I-Cache */
 	DSB
-	mcr p15, 0, r1, c1, c0, 0       // Enable Cache
-	ISB
+	mcr p15, 0, r1, c1, c0, 0       /* Enable Cache */
 
+
+	/* Temporary code I put in to see if turning on the LED will execute the code. */
+	/*
+	bl      vfp_init
+	bl      PMIO_EarlyWakeUp
+	b       BSP_PreInit
+    */
+
+	ISB
         bl InitCVar
 
         /* Set Vector Table to high Vector */
