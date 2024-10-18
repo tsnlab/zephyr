@@ -10,10 +10,6 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_ERR);
 
-#include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <zephyr/net/ethernet.h>
-
 #include <zephyr/arch/common/sys_bitops.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/device.h>
@@ -21,157 +17,30 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_ERR);
 #include <zephyr/sys/device_mmio.h>
 #include <zephyr/sys/byteorder.h>
 
+#include <zephyr/net/ethernet.h>
+#include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/pcie/pcie.h>
 #include <zephyr/drivers/pcie/controller.h>
-#include <zephyr/drivers/dma.h>
 
 #include <zephyr/posix/posix_types.h>
 #include <zephyr/posix/pthread.h>
+#include <zephyr/posix/time.h>
 
 #include "eth.h"
-
-#define ETH_ALEN 6
-
-/* TODO: use sizeof() after implementing tx/rx */
-#define BUFFER_SIZE (1500 + 60) /* Ethernet MTU + TSN Metadata */
-
-#define DESC_MAGIC 0xAD4B0000UL
-
-#define DESC_STOPPED   (1UL << 0)
-#define DESC_COMPLETED (1UL << 1)
-#define DESC_EOP       (1UL << 4)
-
-#define LS_BYTE_MASK 0x000000FFUL
-
-#define PCI_DMA_H(addr) ((addr >> 16) >> 16)
-#define PCI_DMA_L(addr) (addr & 0xffffffffUL)
-
-#define DMA_ENGINE_START 16268831
-#define DMA_ENGINE_STOP  16268830
-
-#define TX_METADATA_SIZE (sizeof(struct tx_metadata))
-#define RX_METADATA_SIZE (sizeof(struct rx_metadata))
-#define CRC_LEN          4
-
-#define ETH_ZLEN 60
-
-#define NS_IN_1S 1000000000
-
-/* Temporary macros: need to be deleted later */
-#define RX_ENGINE_REG_ADDR 0x1b08001000
-#define RX_SGDMA_REG_ADDR  0x1b08005000
-#define RX_REGS_SIZE       0x1000
-
-enum tsn_timestamp_id {
-	TSN_TIMESTAMP_ID_NONE = 0,
-	TSN_TIMESTAMP_ID_GPTP = 1,
-	TSN_TIMESTAMP_ID_NORMAL = 2,
-	TSN_TIMESTAMP_ID_RESERVED1 = 3,
-	TSN_TIMESTAMP_ID_RESERVED2 = 4,
-
-	TSN_TIMESTAMP_ID_MAX,
-};
-
-enum tsn_fail_policy {
-	TSN_FAIL_POLICY_DROP = 0,
-	TSN_FAIL_POLICY_RETRY = 1,
-};
-
-struct dma_tsn_nic_engine_regs {
-	uint32_t identifier;
-	uint32_t control;
-	uint32_t control_w1s;
-	uint32_t control_w1c;
-	uint32_t reserved_1[12]; /* padding */
-
-	uint32_t status;
-	uint32_t status_rc;
-	uint32_t completed_desc_count;
-	uint32_t alignments;
-	uint32_t reserved_2[14]; /* padding */
-
-	uint32_t poll_mode_wb_lo;
-	uint32_t poll_mode_wb_hi;
-	uint32_t interrupt_enable_mask;
-	uint32_t interrupt_enable_mask_w1s;
-	uint32_t interrupt_enable_mask_w1c;
-	uint32_t reserved_3[9]; /* padding */
-
-	uint32_t perf_ctrl;
-	uint32_t perf_cyc_lo;
-	uint32_t perf_cyc_hi;
-	uint32_t perf_dat_lo;
-	uint32_t perf_dat_hi;
-	uint32_t perf_pnd_lo;
-	uint32_t perf_pnd_hi;
-} __packed;
-
-struct dma_tsn_nic_engine_sgdma_regs {
-	uint32_t identifier;
-	uint32_t reserved_1[31]; /* padding */
-
-	/* bus address to first descriptor in Root Complex Memory */
-	uint32_t first_desc_lo;
-	uint32_t first_desc_hi;
-	/* number of adjacent descriptors at first_desc */
-	uint32_t first_desc_adjacent;
-	uint32_t credits;
-} __packed;
-
-struct dma_tsn_nic_desc {
-	uint32_t control;
-	uint32_t bytes;
-	uint32_t src_addr_lo;
-	uint32_t src_addr_hi;
-	uint32_t dst_addr_lo;
-	uint32_t dst_addr_hi;
-	uint32_t next_lo;
-	uint32_t next_hi;
-};
-
-struct dma_tsn_nic_result {
-	uint32_t status;
-	uint32_t length;
-	uint32_t reserved_1[6]; /* padding */
-};
-
-struct tick_count {
-	uint32_t tick: 29;
-	uint32_t priority: 3;
-} __attribute__((packed, scalar_storage_order("big-endian")));
-
-struct tx_metadata {
-	struct tick_count from;
-	struct tick_count to;
-	struct tick_count delay_from;
-	struct tick_count delay_to;
-	uint16_t frame_length;
-	uint16_t timestamp_id;
-	uint8_t fail_policy;
-	uint8_t reserved0[3];
-	uint32_t reserved1;
-	uint32_t reserved2;
-} __attribute__((packed, scalar_storage_order("big-endian")));
-
-struct tx_buffer {
-	struct tx_metadata metadata;
-	uint8_t data[BUFFER_SIZE];
-} __attribute__((packed, scalar_storage_order("big-endian")));
-
-struct rx_metadata {
-	uint64_t timestamp;
-	uint16_t frame_length;
-} __attribute__((packed, scalar_storage_order("big-endian")));
+#include "eth_tsn_nic_priv.h"
 
 struct eth_tsn_nic_config {
 	const struct device *pci_dev;
-	const struct device *dma_dev;
 };
 
 struct eth_tsn_nic_data {
 	struct net_if *iface;
 
 	uint8_t mac_addr[NET_ETH_ADDR_LEN];
+
+	mm_reg_t bar[DMA_CONFIG_BAR_IDX + 1];
+	struct dma_tsn_nic_engine_regs *regs[2];
+	struct dma_tsn_nic_engine_sgdma_regs *sgdma_regs[2];
 
 	pthread_spinlock_t tx_lock;
 	pthread_spinlock_t rx_lock;
@@ -318,7 +187,6 @@ static struct net_stats_eth *eth_tsn_nic_get_stats(const struct device *dev)
 static int eth_tsn_nic_start(const struct device *dev)
 {
 	struct eth_tsn_nic_data *data = dev->data;
-	mm_reg_t rx_regs, rx_sgdma_regs;
 
 	data->rx_desc.src_addr_lo = sys_cpu_to_le32(PCI_DMA_L((uintptr_t)&data->res));
 	data->rx_desc.src_addr_hi = sys_cpu_to_le32(PCI_DMA_H((uintptr_t)&data->res));
@@ -329,18 +197,16 @@ static int eth_tsn_nic_start(const struct device *dev)
 	 * TODO: Find out how to move this to dma driver
 	 * or how to access dma registers from here
 	 */
-	device_map(&rx_regs, RX_ENGINE_REG_ADDR, RX_REGS_SIZE, K_MEM_CACHE_NONE);
-	device_map(&rx_sgdma_regs, RX_SGDMA_REG_ADDR, RX_REGS_SIZE, K_MEM_CACHE_NONE);
 
 	pthread_spin_lock(&data->rx_lock);
 
 	/* TODO: It seems the board is not reading the descriptor properly */
-	sys_read32(rx_regs + offsetof(struct dma_tsn_nic_engine_regs, status_rc)); /* Clear reg */
+	sys_read32((uintptr_t)&data->regs[DMA_H2C]->status_rc); /* Clear status regs */
 	sys_write32(sys_cpu_to_le32(PCI_DMA_L((uintptr_t)&data->rx_desc)),
-		    rx_regs + offsetof(struct dma_tsn_nic_engine_sgdma_regs, first_desc_lo));
+		    (uintptr_t)&data->sgdma_regs[DMA_H2C]->first_desc_lo);
 	sys_write32(sys_cpu_to_le32(PCI_DMA_H((uintptr_t)&data->rx_desc)),
-		    rx_regs + offsetof(struct dma_tsn_nic_engine_sgdma_regs, first_desc_hi));
-	sys_write32(DMA_ENGINE_START, rx_regs + offsetof(struct dma_tsn_nic_engine_regs, control));
+		    (uintptr_t)&data->sgdma_regs[DMA_H2C]->first_desc_hi);
+	sys_write32(DMA_ENGINE_START, (uintptr_t)&data->regs[DMA_H2C]->control);
 
 	pthread_spin_unlock(&data->rx_lock);
 
@@ -350,6 +216,9 @@ static int eth_tsn_nic_start(const struct device *dev)
 static int eth_tsn_nic_stop(const struct device *dev)
 {
 	/* TODO: sw-257 (Misc. APIs) */
+	struct eth_tsn_nic_data *data = dev->data;
+	sys_write32(DMA_ENGINE_STOP, (mem_addr_t)&data->regs[DMA_H2C]->control);
+	sys_write32(DMA_ENGINE_STOP, (mem_addr_t)&data->regs[DMA_C2H]->control);
 	return -ENOTSUP;
 }
 
@@ -420,9 +289,10 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 {
 	/* TODO: This is for test only */
 	struct eth_tsn_nic_data *data = dev->data;
-	size_t len;
 	struct timespec ts;
 	uint64_t now;
+	uint32_t w;
+	size_t len;
 	int ret;
 
 #if 0 /* Rx test */
@@ -469,15 +339,14 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	tx_desc_set(&data->tx_desc, (uintptr_t)&data->tx_buffer, len + TX_METADATA_SIZE);
 
-#if 0 /* TODO: Merge dma and eth drivers */
 	/* These are just pseudo codes for now */
 	w = sys_cpu_to_le32(PCI_DMA_L((uintptr_t)&data->tx_desc));
-	sys_write32(w, bar[CONFIG_BAR] + DESC_REG_LO);
+	sys_write32(w, data->bar[DMA_CONFIG_BAR_IDX] + DESC_REG_LO);
 	w = sys_cpu_to_le32(PCI_DMA_H((uintptr_t)&data->tx_desc));
-	sys_write32(w, bar[CONFIG_BAR] + DESC_REG_HI);
-	sys_write32(0, bar[CONFIG_BAR] + DESC_REG_HI + 4);
-	sys_write32(DMA_ENGINE_START, regs->control);
-#endif
+	sys_write32(w, data->bar[DMA_CONFIG_BAR_IDX] + DESC_REG_HI);
+	sys_write32(0, data->bar[DMA_CONFIG_BAR_IDX] + DESC_REG_HI);
+	sys_write32(0, data->bar[DMA_CONFIG_BAR_IDX] + DESC_REG_HI + 4);
+	sys_write32(DMA_ENGINE_START, data->regs[DMA_H2C]->control);
 
 	/* TODO: This shoud be done in tsn_nic_isr() */
 	pthread_spin_unlock(&data->tx_lock);
@@ -509,10 +378,122 @@ static const struct ethernet_api eth_tsn_nic_api = {
 	.send = eth_tsn_nic_send,
 };
 
-static int eth_tsn_nic_init(const struct device *dev)
+static int get_engine_channel_id(struct dma_tsn_nic_engine_regs *regs)
+{
+	int value = sys_read32((mem_addr_t)&regs->identifier);
+
+	return (value & DMA_CHANNEL_ID_MASK) >> DMA_CHANNEL_ID_LSB;
+}
+
+static int get_engine_id(struct dma_tsn_nic_engine_regs *regs)
+{
+	int value = sys_read32((mem_addr_t)&regs->identifier);
+
+	return (value & DMA_ENGINE_ID_MASK) >> DMA_ENGINE_ID_LSB;
+}
+
+static int engine_init_regs(struct dma_tsn_nic_engine_regs *regs)
+{
+	uint32_t align_bytes, granularity_bytes, address_bits;
+	uint32_t tmp, flags;
+
+	sys_write32(DMA_CTRL_NON_INCR_ADDR, (mem_addr_t)&regs->control_w1c);
+	tmp = sys_read32((mem_addr_t)&regs->alignments);
+	/* These values will be used in other operations */
+	if (tmp != 0) {
+		align_bytes = (tmp & DMA_ALIGN_BYTES_MASK) >> DMA_ALIGN_BYTES_LSB;
+		granularity_bytes = (tmp & DMA_GRANULARITY_BYTES_MASK) >> DMA_GRANULARITY_BYTES_LSB;
+		address_bits = (tmp & DMA_ADDRESS_BITS_MASK) >> DMA_ADDRESS_BITS_LSB;
+	} else {
+		align_bytes = 1;
+		granularity_bytes = 1;
+		address_bits = 64;
+	}
+
+	flags = (DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
+		 DMA_CTRL_IE_IDLE_STOPPED | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
+		 DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED);
+
+	sys_write32(flags, (mem_addr_t)&regs->interrupt_enable_mask);
+
+	flags = (DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
+		 DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
+		 DMA_CTRL_POLL_MODE_WB);
+
+	sys_write32(flags, (mem_addr_t)&regs->control);
+
+	return 0;
+}
+
+static int map_bar(const struct device *dev, int idx, size_t size)
 {
 	const struct eth_tsn_nic_config *config = dev->config;
 	struct eth_tsn_nic_data *data = dev->data;
+	uintptr_t bar_addr, bus_addr;
+	bool ret;
+
+	ret = pcie_ctrl_region_allocate(config->pci_dev, PCIE_BDF(idx, 0, 0), true, false,
+					DMA_CONFIG_BAR_SIZE, &bus_addr);
+	if (!ret) {
+		return -EINVAL;
+	}
+
+	ret = pcie_ctrl_region_translate(config->pci_dev, PCIE_BDF(idx, 0, 0), true, false,
+					 bus_addr, &bar_addr);
+	if (!ret) {
+		return -EINVAL;
+	}
+
+	device_map(&data->bar[idx], bar_addr, size, K_MEM_CACHE_NONE);
+
+	return 0;
+}
+
+static int eth_tsn_nic_init(const struct device *dev)
+{
+	struct eth_tsn_nic_data *data = dev->data;
+	struct dma_tsn_nic_engine_regs *regs;
+	int engine_id, channel_id;
+
+	if (map_bar(dev, 0, 0x1000) != 0) {
+		return -EINVAL;
+	}
+
+	if (map_bar(dev, DMA_CONFIG_BAR_IDX, DMA_CONFIG_BAR_SIZE) != 0) {
+		return -EINVAL;
+	}
+
+	regs = (struct dma_tsn_nic_engine_regs *)(data->bar[DMA_CONFIG_BAR_IDX]);
+	engine_id = get_engine_id(regs);
+	channel_id = get_engine_channel_id(regs);
+	if ((engine_id != DMA_ID_H2C) || (channel_id != 0)) {
+		return -EINVAL;
+	}
+
+	engine_init_regs(regs);
+	data->regs[DMA_H2C] = regs;
+	data->sgdma_regs[DMA_H2C] =
+		(struct dma_tsn_nic_engine_sgdma_regs *)(data->bar[DMA_CONFIG_BAR_IDX] +
+							 SGDMA_OFFSET_FROM_CHANNEL);
+
+	regs = (struct dma_tsn_nic_engine_regs *)(data->bar[DMA_CONFIG_BAR_IDX] + DMA_C2H_OFFSET);
+	engine_id = get_engine_id(regs);
+	channel_id = get_engine_channel_id(regs);
+	if ((engine_id != DMA_ID_C2H) || (channel_id != 0)) {
+		return -EINVAL;
+	}
+
+	engine_init_regs(regs);
+	data->regs[DMA_C2H] = regs;
+	data->sgdma_regs[DMA_C2H] =
+		(struct dma_tsn_nic_engine_sgdma_regs *)(data->bar[DMA_CONFIG_BAR_IDX] +
+							 SGDMA_OFFSET_FROM_CHANNEL +
+							 DMA_C2H_OFFSET);
+
+	/* TSN registers */
+	sys_write32(0x1, data->bar[0] + 0x0008);
+	sys_write32(0x800f0000, data->bar[0] + 0x0610);
+	sys_write32(0x10, data->bar[0] + 0x0620);
 
 	pthread_spin_init(&data->tx_lock, PTHREAD_PROCESS_PRIVATE);
 	pthread_spin_init(&data->rx_lock, PTHREAD_PROCESS_PRIVATE);
@@ -526,15 +507,12 @@ static int eth_tsn_nic_init(const struct device *dev)
 		    DEVICE_DT_INST_GET(0), 0);
 
 	/* Test logs */
-	mm_reg_t test_dma_addr;
-
-	device_map(&test_dma_addr, 0x1b08000000, 0x4000, K_MEM_CACHE_NONE);
-	printk("H2C engine id: 0x%08x\n", sys_read32(test_dma_addr));
-	printk("H2C engine control: 0x%08x\n", sys_read32(test_dma_addr + 0x0004));
-	dma_start(config->dma_dev, 0);
-	printk("H2C engine start\n");
-	printk("H2C engine control: 0x%08x\n", sys_read32(test_dma_addr + 0x0004));
-	printk("C2H engine control: 0x%08x\n", sys_read32(test_dma_addr + 0x1004));
+	printk("H2C engine id: 0x%08x\n", sys_read32((mem_addr_t)&data->regs[DMA_H2C]->identifier));
+	printk("H2C engine control: 0x%08x\n",
+	       sys_read32((mem_addr_t)&data->regs[DMA_H2C]->control));
+	printk("C2H engine id: 0x%08x\n", sys_read32((mem_addr_t)&data->regs[DMA_C2H]->identifier));
+	printk("C2H engine control: 0x%08x\n",
+	       sys_read32((mem_addr_t)&data->regs[DMA_C2H]->control));
 
 	return 0;
 }
@@ -544,8 +522,7 @@ static int eth_tsn_nic_init(const struct device *dev)
 	static struct eth_tsn_nic_data eth_tsn_nic_data_##n = {};                                  \
                                                                                                    \
 	static const struct eth_tsn_nic_config eth_tsn_nic_cfg_##n = {                             \
-		.dma_dev = DEVICE_DT_GET(DT_PARENT(DT_DRV_INST(n))),                               \
-		.pci_dev = DEVICE_DT_GET(DT_GPARENT(DT_DRV_INST(n))),                              \
+		.pci_dev = DEVICE_DT_GET(DT_PARENT(DT_DRV_INST(n))),                               \
 	};                                                                                         \
                                                                                                    \
 	ETH_NET_DEVICE_DT_INST_DEFINE(n, eth_tsn_nic_init, NULL, &eth_tsn_nic_data_##n,            \
