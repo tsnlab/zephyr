@@ -372,7 +372,7 @@ typedef struct uart_status {
 	uint32_t baudrate;             /* Baudrate setting in bps */
 	uart_parity_t sParity;         /* 0:disable, 1:enable */
 	uart_word_len_t sWordLength;   /* Word Length */
-	uart_board_port_t sPort;       /* GPIO Port Infomation */
+	uart_board_port_t sPort;       /* GPIO Port Information */
 	gdma_information_t sRxDma;     /* Rx DMA */
 	gdma_information_t sTxDma;     /* Tx DMA */
 	uart_interrupt_data_t sRxIntr; /* Rx Interrupt */

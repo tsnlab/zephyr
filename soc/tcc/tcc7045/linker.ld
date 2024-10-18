@@ -28,7 +28,7 @@ ENTRY(_vector_table)
 #ifdef CONFIG_XIP
   #define ROMABLE_REGION FLASH
 #else
-  #define ROMABLE_REGION RAM 
+  #define ROMABLE_REGION RAM
 /* POOKY 20241007 Here */
 #endif
 #define RAMABLE_REGION RAM
@@ -107,14 +107,14 @@ STACK_BASE_ADDR = __VECTOR_START + SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE;
 
 MEMORY
 {
-    RAM            (rwx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE 
+    RAM            (rwx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
     /*RAM            (rwx) : ORIGIN = 0x00000000, LENGTH = (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE) */
 	SRAM_ARM_STACK (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - ARM_STACK_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = ARM_STACK_SIZE
 	CAN_NC_SRAM    (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE - CAN_NC_SIZE), LENGTH = CAN_NC_SIZE
 	NC_SRAM        (rwx) : ORIGIN = 0x00000000 + (SRAM_TOTAL_SIZE - DMA_NC_SIZE), LENGTH = DMA_NC_SIZE
-	REMAP_FLASH	   (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000 
-    FLASH          (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000 
-    /* FLASH    (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE */ 
+	REMAP_FLASH	   (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000
+    FLASH          (rx)  : ORIGIN = 0x01043000, LENGTH = 0x00200000
+    /* FLASH    (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE */
     LINKER_DT_REGIONS()
     /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST       (wx)  : ORIGIN = 0xFFFF8000, LENGTH = 32K
@@ -144,12 +144,12 @@ SECTIONS
         *(.iplt)
     }
 
-    GROUP_START(ROMABLE_REGION) 
+    GROUP_START(ROMABLE_REGION)
 
 #if defined(CONFIG_XIP)
     __rom_region_start = ROM_ADDR;
 #else
-    __rom_region_start = RAM_ADDR; 
+    __rom_region_start = RAM_ADDR;
 #endif
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
@@ -161,7 +161,7 @@ SECTIONS
         z_mapped_start = .;
 #endif
 
-        *startup.S.obj (.text)  
+        *startup.S.obj (.text)
 #include <zephyr/linker/kobject-text.ld>
 
         *(.text)
@@ -198,7 +198,7 @@ SECTIONS
 
 #ifdef CONFIG_CODE_DATA_RELOCATION
 
-#include <linker_relocate.ld> 
+#include <linker_relocate.ld>
 
 #endif /* CONFIG_CODE_DATA_RELOCATION */
 

@@ -12,8 +12,8 @@
 /*** 1. SELECT DMA SIZE - CHOICE ONLY ONE ***/
 
 /*** 2. SET RESION ATTRIBUTES ***/
-// Msg(4:3408) 'sMPUTable' has external linkage but is being defined without any previous
-// declaration. MISRA-C:2004 Rule 8.8
+/* Msg(4:3408) 'sMPUTable' has external linkage but is being defined without any previous
+   declaration. MISRA-C:2004 Rule 8.8 */
 
 /*
 ***************************************************************************************************
@@ -57,10 +57,10 @@ static void MPU_EnableRegion(unsigned long uiRegionNumber, unsigned long uiAddr,
 	uiAddress = uiAddr;
 	uiRegionsize = 0;
 
-	// if((sMPUConfig[uiRegionNumber].uiRegionEnable != MPU_REGION_ENABLE) && (uiRegionNumber <
-	// MPU_MAX_REGION))
+	/* if((sMPUConfig[uiRegionNumber].uiRegionEnable != MPU_REGION_ENABLE) && (uiRegionNumber <
+	   MPU_MAX_REGION)) */
 	if (uiRegionNumber <
-	    MPU_MAX_REGION) // QAC : Dereference of an invalid pointer value of uiRegionNumber
+	    MPU_MAX_REGION) /* QAC : Dereference of an invalid pointer value of uiRegionNumber */
 	{
 		MPU_WriteControlRegisterConfigurationData(MPU_ARM_CP15_MPU_MEMORY_REG_NUMBER,
 							  uiRegionNumber);
@@ -109,7 +109,7 @@ void MPU_Init(void)
 	MPUConfig_t sMPUTable[MPU_MAX_REGION] = {
 		{MPU_REGION_ENABLE, MPU_SRAM0_ADDR, MPU_REGION_512KB,
 		 MPU_NORM_SHARED_WB_WA | MPU_PRIV_RW_USER_RW},
-//		{MPU_REGION_ENABLE, 0, 0, MPU_STRONG_ORDERED_SHARED | MPU_PRIV_RW_USER_RW},
+/*		{MPU_REGION_ENABLE, 0, 0, MPU_STRONG_ORDERED_SHARED | MPU_PRIV_RW_USER_RW}, */
 		{MPU_REGION_ENABLE, 0, 0, MPU_STRONG_ORDERED_SHARED | MPU_PRIV_RW_USER_RW},
 		{MPU_REGION_ENABLE, MPU_REMAP_ADDR, MPU_REGION_4MB,
 		 MPU_NORM_NSHARED_WB_NWA | MPU_PRIV_RO_USER_RO},
@@ -133,12 +133,12 @@ void MPU_Init(void)
 		 MPU_STRONG_ORDERED_SHARED | MPU_PRIV_RW_USER_RO},
 		{MPU_REGION_ENABLE, MPU_DFLASH_INT_ADDR, MPU_REGION_64B,
 		 MPU_STRONG_ORDERED_SHARED | MPU_PRIV_RW_USER_RW},
-		//        { MPU_REGION_ENABLE,  MPU_SFMC_ADDR,          MPU_REGION_4KB,
-		//        MPU_STRONG_ORDERED_SHARED  | MPU_PRIV_RW_USER_RW },
+/*        { MPU_REGION_ENABLE,  MPU_SFMC_ADDR,          MPU_REGION_4KB,
+		        MPU_STRONG_ORDERED_SHARED  | MPU_PRIV_RW_USER_RW }, */
 
-		// Msg(4:0686) Array has fewer initializers than its declared size. Default
-		// initialization is applied to the remainder of the array elements. MISRA-C:2004
-		// Rule 9.2; REFERENCE - ISO-6.5.7 Semantics
+		/* Msg(4:0686) Array has fewer initializers than its declared size. Default
+		   initialization is applied to the remainder of the array elements. MISRA-C:2004
+		   Rule 9.2; REFERENCE - ISO-6.5.7 Semantics */
 	};
 	unsigned long uiIndex;
 
@@ -150,4 +150,3 @@ void MPU_Init(void)
 				 sMPUTable[uiIndex].uiRegionSize, sMPUTable[uiIndex].uiRegionAttr);
 	}
 }
-
