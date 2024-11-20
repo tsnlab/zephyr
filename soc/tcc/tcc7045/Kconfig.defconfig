@@ -1,0 +1,36 @@
+# Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_TCC7045
+
+config SHARED_INTERRUPTS
+    def_bool y
+
+config NUM_IRQS
+	# must be >= the highest interrupt number used
+	# - include the UART interrupts
+	default 220
+
+config TICKLESS_KERNEL
+    def_bool y
+
+config TCCVCP_CONSOLE
+    def_bool y
+
+config REQUIRES_FULL_LIBC
+    def_bool y
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 12000000
+#	default 300000000
+
+# Workaround for not being able to have commas in macro arguments
+DT_CHOSEN_Z_FLASH := zephyr,flash
+
+config FLASH_SIZE
+	default $(dt_chosen_reg_size_int,$(DT_CHOSEN_Z_FLASH),0,K)
+
+config FLASH_BASE_ADDRESS
+	default $(dt_chosen_reg_addr_hex,$(DT_CHOSEN_Z_FLASH))
+
+endif # SOC_TCC7045

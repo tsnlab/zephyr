@@ -1,0 +1,95 @@
+/*
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+#include <arm/armv7-r.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/tcc-tic.h>
+
+/ {
+	soc {
+
+		flash0: flash@20000000 {
+			compatible = "soc-nv-flash";
+			reg = <0x20000000 DT_SIZE_M(2)>;
+		};
+
+		ram_ilm: memory@0 {
+			compatible = "mmio-sram";
+		};
+
+		ram_dlm: memory@1043000 {
+			compatible = "mmio-sram";
+		};
+
+		uart1: uart@a0210000 {
+			compatible = "tcc,tccvcp-uart";
+			reg = <0xa0210000 0x4c>;
+			status = "disabled";
+			interrupts = <TIC_SPI TIC_UART1 TIC_INT_TYPE_LEVEL_HIGH
+						TIC_PRIORITY_NO_MEAN>;
+			interrupt-names = "irq_uart1";
+            interrupt-parent = <&tic>;
+		};
+
+		systick_timer: timer@a0f2a000 {
+			compatible = "tcc,ttcvcp";
+			status = "disabled";
+			interrupts = <TIC_SPI TIC_TIMER_0 TIC_INT_TYPE_LEVEL_HIGH
+						IRQ_DEFAULT_PRIORITY>;
+			interrupt-names = "irq_timer0";
+            interrupt-parent = <&tic>;
+			reg = <0xa0f2a000 0x20>;
+		};
+
+		ttc1: timer@a0f2a100 {
+			compatible = "tcc,ttcvcp";
+			status = "disabled";
+			interrupts = <TIC_SPI TIC_TIMER_1 TIC_INT_TYPE_LEVEL_HIGH
+						TIC_PRIORITY_NO_MEAN>;
+			interrupt-names = "irq_timer1";
+            interrupt-parent = <&tic>;
+			reg = <0xa0f2a100 0x20>;
+		};
+
+#if 1
+		gpioc@a0f22080 {
+			compatible = "simple-bus";
+			reg = <0xa0f22080 0x40>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gio_aon: gpio@0 {
+				compatible = "tcc,tccvcp-gpio";
+				reg = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <22>;
+				status = "disabled";
+			};
+		};
+#endif
+
+#if 0
+		gpiok@a0f220c0 {
+			compatible = "simple-bus";
+			reg = <0xa0f220c0 0x40>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gio_aon: gpio@0 {
+				compatible = "tcc,tccvcp-gpio";
+				reg = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <18>;
+				status = "disabled";
+			};
+		};
+#endif
+	};
+};
