@@ -9,7 +9,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/types.h>
-#include <soc.h>
 
 #include <zephyr/init.h>
 #include <zephyr/toolchain.h>
@@ -18,184 +17,89 @@
 #include <zephyr/sys/sys_io.h>
 #include <zephyr/irq.h>
 
-#ifdef CONFIG_PINCTRL
-#include <zephyr/drivers/pinctrl.h>
-#endif
+#include <zephyr/dt-bindings/interrupt-controller/tcc-tic.h>
+#include <zephyr/drivers/interrupt_controller/intc_tic.h>
+#include <zephyr/drivers/gpio/gpio_tccvcp.h>
+#include <zephyr/drivers/clock_control/clock_control_tcc_ccu.h>
+#include <zephyr/drivers/clock_control/clock_control_tccvcp.h>
 
-#include <string.h>
+
+//#include <clock_dev.h>
+//#include <clock.h>
+#include <soc.h>
 
 #include "uart_tccvcp.h"
+#include <string.h>
 
-static uart_status_t uart[UART_CH_MAX];
+static struct uart_status uart[UART_CH_MAX];
 
-int mfio_ch_cfg_flag[3] = {
-	0,
-};
-
-static void UART_RegWrite(uint8_t ucCh, uint32_t uiAddr, uint32_t uiSetValue)
+static void uart_write_reg(uint8_t chan, uint32_t addr, uint32_t set_value)
 {
-	uint32_t uiBaseAddr;
-	uint32_t uiRegAddr;
+	uint32_t base_addr;
+	uint32_t reg_addr;
 
-	if (uart[ucCh].sBase == 0UL) {
-		uart[ucCh].sBase = UART_GET_BASE(ucCh);
+	if (uart[chan].status_base == 0UL) {
+		uart[chan].status_base = UART_GET_BASE(chan);
 	}
 
-	uiBaseAddr = uart[ucCh].sBase & 0xAFFFFFFFU;
-	uiAddr &= 0xFFFFU;
-	uiRegAddr = uiBaseAddr + uiAddr;
-	sys_write32(uiSetValue, uiRegAddr);
+	base_addr = uart[chan].status_base & 0xAFFFFFFFU;
+	addr &= 0xFFFFU;
+	reg_addr = base_addr + addr;
+	sys_write32(set_value, reg_addr);
 }
 
-SALRetCode_t GPIO_MfioCfg(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiChSel,
-			  uint32_t uiChNum)
+static uint32_t uart_clear_gpio(uint8_t chan)
 {
-	uint32_t base_val;
-	uint32_t set_val;
-	uint32_t clear_bit;
-	uint32_t comp_val;
+	uint32_t gpio_tx = 0;
+	uint32_t gpio_rx = 0;
+	uint32_t gpio_clr2send = 0;
+	uint32_t gpio_req2send = 0;
+	uint32_t ret, ret1, ret2;
 
-	if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL0) {
-		if (uiChSel == GPIO_MFIO_CFG_CH_SEL0) {
-			if (mfio_ch_cfg_flag[0] == 0) {
-				/* clear bit */
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				clear_bit = base_val &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL0) &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL0);
-				sys_write32(clear_bit, GPIO_MFIO_CFG);
+	ret = 0;
+	ret1 = 0;
+	ret2 = 0;
 
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				set_val =
-					base_val |
-					((uiChNum & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL0) |
-					((uiPeriType & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL0);
-				sys_write32(set_val, GPIO_MFIO_CFG);
-				comp_val = sys_read32(GPIO_MFIO_CFG);
-
-				if (comp_val != set_val) {
-					return SAL_RET_FAILED;
-				}
-				mfio_ch_cfg_flag[0] = 1;
-			} else {
-				return SAL_RET_FAILED;
-			}
-		} else {
-			return SAL_RET_FAILED;
-		}
-	} else if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL1) {
-		if (uiChSel == GPIO_MFIO_CFG_CH_SEL1) {
-			if (mfio_ch_cfg_flag[1] == 0) {
-				/* clear bit */
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				clear_bit = base_val &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL1) &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL1);
-				sys_write32(clear_bit, GPIO_MFIO_CFG);
-
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				set_val =
-					base_val |
-					((uiChNum & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL1) |
-					((uiPeriType & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL1);
-				sys_write32(set_val, GPIO_MFIO_CFG);
-				comp_val = sys_read32(GPIO_MFIO_CFG);
-
-				if (comp_val != set_val) {
-					return SAL_RET_FAILED;
-				}
-				mfio_ch_cfg_flag[1] = 1;
-			} else {
-				return SAL_RET_FAILED;
-			}
-		} else {
-			return SAL_RET_FAILED;
-		}
-
-	} else if (uiPeriSel == GPIO_MFIO_CFG_PERI_SEL2) {
-		if (uiChSel == GPIO_MFIO_CFG_CH_SEL2) {
-			if (mfio_ch_cfg_flag[2] == 0) {
-				/* clear bit */
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				clear_bit = base_val &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL2) &
-					    ~((0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL2);
-				sys_write32(clear_bit, GPIO_MFIO_CFG);
-
-				base_val = sys_read32(GPIO_MFIO_CFG);
-				set_val =
-					base_val |
-					((uiChNum & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_CH_SEL2) |
-					((uiPeriType & 0x3UL) << (uint32_t)GPIO_MFIO_CFG_PERI_SEL2);
-				sys_write32(set_val, GPIO_MFIO_CFG);
-				comp_val = sys_read32(GPIO_MFIO_CFG);
-
-				if (comp_val != set_val) {
-					return SAL_RET_FAILED;
-				}
-				mfio_ch_cfg_flag[2] = 1;
-			} else {
-				return SAL_RET_FAILED;
-			}
-		} else {
-			return SAL_RET_FAILED;
-		}
+	if (chan >= UART_CH_MAX) {
+		ret = 1;
 	} else {
-		return SAL_RET_FAILED;
-	}
-
-	return SAL_RET_SUCCESS;
-}
-
-static SALRetCode_t UART_ClearGpio(uint8_t ucCh)
-{
-	uint32_t gpio_Tx = 0;
-	uint32_t gpio_Rx = 0;
-	uint32_t gpio_Cts = 0;
-	uint32_t gpio_Rts = 0;
-	SALRetCode_t ret, ret1, ret2;
-
-	ret = SAL_RET_SUCCESS;
-	ret1 = SAL_RET_SUCCESS;
-	ret2 = SAL_RET_SUCCESS;
-
-	if (ucCh >= UART_CH_MAX) {
-		ret = SAL_RET_FAILED;
-	} else {
-		gpio_Tx = uart[ucCh].sPort.bPortTx;
-		gpio_Rx = uart[ucCh].sPort.bPortRx;
+		gpio_tx = uart[chan].status_port.bd_port_tx;
+		gpio_rx = uart[chan].status_port.bd_port_rx;
 
 		/* Reset gpio */
-		ret1 = GPIO_Config(gpio_Tx, GPIO_FUNC(0UL));
-		ret2 = GPIO_Config(gpio_Rx, GPIO_FUNC(0UL));
+		ret1 = vcp_gpio_config(gpio_tx, GPIO_FUNC(0UL));
+		ret2 = vcp_gpio_config(gpio_rx, GPIO_FUNC(0UL));
 
-		if ((ret1 != SAL_RET_SUCCESS) || (ret2 != SAL_RET_SUCCESS)) {
-			ret = SAL_RET_FAILED;
+		if ((ret1 != 0) || (ret2 != 0)) {
+			ret = 1;
 		} else {
-			if (uart[ucCh].sCtsRts == ON) {
-				gpio_Cts = uart[ucCh].sPort.bPortCts;
-				gpio_Rts = uart[ucCh].sPort.bPortRts;
+			if (uart[chan].status_cts_rts == ON) {
+				gpio_clr2send = uart[chan].status_port.bd_port_cts;
+				gpio_req2send = uart[chan].status_port.bd_port_rts;
 
-				ret1 = GPIO_Config(gpio_Cts, GPIO_FUNC(0UL));
-				ret2 = GPIO_Config(gpio_Rts, GPIO_FUNC(0UL));
+				ret1 = vcp_gpio_config(gpio_clr2send, GPIO_FUNC(0UL));
+				ret2 = vcp_gpio_config(gpio_req2send, GPIO_FUNC(0UL));
 
-				if ((ret1 != SAL_RET_SUCCESS) || (ret2 != SAL_RET_SUCCESS)) {
-					ret = SAL_RET_FAILED;
+				if ((ret1 != 0) || (ret2 != 0)) {
+					ret = 1;
 				}
 			}
 		}
 
-		if ((ret != SAL_RET_FAILED) && (ucCh >= UART_CH3)) {
+		if ((ret != 1) && (chan >= UART_CH3)) {
 			/* Reset MFIO Configuration */
-			if (ucCh == UART_CH3) {
-				ret = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL0, GPIO_MFIO_DISABLE,
-						   GPIO_MFIO_CFG_CH_SEL0, GPIO_MFIO_CH0);
-			} else if (ucCh == UART_CH4) {
-				ret = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL1, GPIO_MFIO_DISABLE,
-						   GPIO_MFIO_CFG_CH_SEL1, GPIO_MFIO_CH0);
-			} else if (ucCh == UART_CH5) {
-				ret = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL2, GPIO_MFIO_DISABLE,
-						   GPIO_MFIO_CFG_CH_SEL2, GPIO_MFIO_CH0);
+			if (chan == UART_CH3) {
+				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL0,
+							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL0,
+							   GPIO_MFIO_CH0);
+			} else if (chan == UART_CH4) {
+				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL1,
+							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL1,
+							   GPIO_MFIO_CH0);
+			} else if (chan == UART_CH5) {
+				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL2,
+							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL2,
+							   GPIO_MFIO_CH0);
 			}
 		}
 	}
@@ -203,192 +107,150 @@ static SALRetCode_t UART_ClearGpio(uint8_t ucCh)
 	return ret;
 }
 
-static SALRetCode_t UART_Reset(uint8_t ucCh)
+static uint32_t uart_reset(uint8_t chan)
 {
-	SALRetCode_t tRet;
-	int32_t iRet;
-	int32_t iClkBusId;
+	uint32_t ret;
+	int32_t clk_ret;
+	int32_t clk_bus_id;
 
-	tRet = SAL_RET_SUCCESS;
-	iClkBusId = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)ucCh;
+	ret = 0;
+	clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
 
 	/* SW reset */
-	iRet = CLOCK_SetSwReset(iClkBusId, TRUE);
+	clk_ret = clock_set_sw_reset(clk_bus_id, TRUE);
 
-	if (iRet != (int32_t)NULL) {
-		tRet = SAL_RET_FAILED;
+	if (clk_ret != (int32_t)NULL) {
+		ret = 1;
 	} else {
 		/* Bit Clear */
-		iRet = CLOCK_SetSwReset(iClkBusId, FALSE);
+		clk_ret = clock_set_sw_reset(clk_bus_id, FALSE);
 
-		if (iRet != (int32_t)NULL) {
-			tRet = SAL_RET_FAILED;
+		if (clk_ret != (int32_t)NULL) {
+			ret = 1;
 		}
 	}
 
-	return tRet;
+	return ret;
 }
 
-void uart_close(uint8_t channel)
+void uart_close(uint8_t chan)
 {
-	int32_t iClkBusId;
-	SALRetCode_t ret;
+	int32_t clk_bus_id;
+	uint32_t ret;
 
-	if (channel < UART_CH_MAX) {
+	if (chan < UART_CH_MAX) {
 		/* Disable the UART controller Bus clock */
-		iClkBusId = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)channel;
-		(void)CLOCK_SetIobusPwdn(iClkBusId, TRUE);
+		clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
+		(void)clock_set_iobus_pwdn(clk_bus_id, TRUE);
 
-		ret = UART_ClearGpio(channel);
+		ret = uart_clear_gpio(chan);
 
 		/* Disable the UART ch */
-		sys_write32((uint32_t)NULL,
-			    MCU_BSP_UART_BASE + (0x10000UL * (channel)) + UART_REG_CR);
+		sys_write32((uint32_t)NULL, MCU_BSP_UART_BASE + (0x10000UL * (chan)) + UART_REG_CR);
 
 		/* Initialize UART Structure */
-		memset(&uart[channel], 0, sizeof(uart_status_t));
+		memset(&uart[chan], 0, sizeof(struct uart_status));
 
 		/* UART SW Reset */
-		(void)UART_Reset(channel);
+		(void)uart_reset(chan);
 	}
 }
 
-static void UART_StatusInit(uint8_t ucCh)
+static void uart_status_init(uint8_t chan)
 {
-	uart[ucCh].sIsProbed = OFF;
-	uart[ucCh].sBase = UART_GET_BASE(ucCh);
-	uart[ucCh].sCh = ucCh;
-	uart[ucCh].sOpMode = UART_POLLING_MODE;
-	uart[ucCh].sCtsRts = 0;
-	uart[ucCh].sWordLength = WORD_LEN_5;
-	uart[ucCh].s2StopBit = 0;
-	uart[ucCh].sParity = PARITY_SPACE;
+	uart[chan].status_is_probed = OFF;
+	uart[chan].status_base = UART_GET_BASE(chan);
+	uart[chan].status_chan = chan;
+	uart[chan].status_op_mode = UART_POLLING_MODE;
+	uart[chan].status_cts_rts = 0;
+	uart[chan].status_word_len = WORD_LEN_5;
+	uart[chan].status_2stop_bit = 0;
+	uart[chan].status_parity = PARITY_SPACE;
 
 	/* Interrupt mode init */
-	uart[ucCh].sTxIntr.iXmitBuf = NULL;
-	uart[ucCh].sTxIntr.iHead = -1;
-	uart[ucCh].sTxIntr.iTail = -1;
-	uart[ucCh].sTxIntr.iSize = 0;
-	uart[ucCh].sRxIntr.iXmitBuf = NULL;
-	uart[ucCh].sRxIntr.iHead = -1;
-	uart[ucCh].sRxIntr.iTail = -1;
-	uart[ucCh].sRxIntr.iSize = 0;
+	uart[chan].status_tx_intr.irq_data_xmit_buf = NULL;
+	uart[chan].status_tx_intr.irq_data_head = -1;
+	uart[chan].status_tx_intr.irq_data_tail = -1;
+	uart[chan].status_tx_intr.irq_data_size = 0;
+	uart[chan].status_rx_intr.irq_data_xmit_buf = NULL;
+	uart[chan].status_rx_intr.irq_data_head = -1;
+	uart[chan].status_rx_intr.irq_data_tail = -1;
+	uart[chan].status_rx_intr.irq_data_size = 0;
 }
 
-SALRetCode_t GPIO_PerichSel(uint32_t uiPerichSel, uint32_t uiCh)
-{
-	uint32_t peri_sel_addr;
-	uint32_t clear_bit;
-	uint32_t set_bit;
-	uint32_t base_val;
-	uint32_t comp_val;
-
-	peri_sel_addr = GPIO_PERICH_SEL;
-	base_val = sys_read32(peri_sel_addr);
-
-	if (uiPerichSel < GPIO_PERICH_SEL_I2SSEL_0) {
-		if (uiCh < 2) {
-			/* clear bit */
-			clear_bit = base_val & ~((0x1UL) << uiPerichSel);
-			sys_write32(clear_bit, peri_sel_addr);
-			/* set bit */
-			base_val = sys_read32(peri_sel_addr);
-			set_bit = base_val | ((uiCh & 0x1UL) << uiPerichSel);
-			sys_write32(set_bit, peri_sel_addr);
-			comp_val = sys_read32(peri_sel_addr);
-
-			if (comp_val != set_bit) {
-				return SAL_RET_FAILED;
-			}
-		} else {
-			return SAL_RET_FAILED;
-		}
-	} else {
-		if (uiCh < 4) {
-			/* clear bit */
-			clear_bit = base_val & ~((0x3UL) << uiPerichSel);
-			sys_write32(clear_bit, peri_sel_addr);
-			/* set bit */
-			base_val = sys_read32(peri_sel_addr);
-			set_bit = base_val | ((uiCh & 0x3UL) << uiPerichSel);
-			sys_write32(set_bit, peri_sel_addr);
-			comp_val = sys_read32(peri_sel_addr);
-
-			if (comp_val != set_bit) {
-				return SAL_RET_FAILED;
-			}
-		} else {
-			return SAL_RET_FAILED;
-		}
-	}
-
-	return SAL_RET_SUCCESS;
-}
-
-static int32_t UART_SetGpio(uint8_t ucCh, const uart_board_port_t *psInfo)
+static int32_t uart_set_gpio(uint8_t chan, const struct uart_board_port *port_info)
 {
 	int32_t ret;
-	SALRetCode_t ret1;
-	SALRetCode_t ret2;
-	SALRetCode_t ret3;
-	SALRetCode_t ret4;
-	SALRetCode_t retCfg;
+	uint32_t ret1;
+	uint32_t ret2;
+	uint32_t ret3;
+	uint32_t ret4;
+	uint32_t ret_cfg;
 
 	ret = -2;
-	retCfg = SAL_RET_FAILED;
+	ret_cfg = 1;
 
-	if (psInfo != NULL_PTR) {
+	if (port_info != NULL_PTR) {
 		/* set port controller, channel */
-		switch (ucCh) {
+		switch (chan) {
 		case UART_CH0:
-			retCfg = GPIO_PerichSel(GPIO_PERICH_SEL_UARTSEL_0, psInfo->bPortCH);
+			ret_cfg = vcp_gpio_peri_chan_sel(GPIO_PERICH_SEL_UARTSEL_0,
+							 port_info->bd_port_ch);
 			break;
 		case UART_CH1:
-			retCfg = GPIO_PerichSel(GPIO_PERICH_SEL_UARTSEL_1, psInfo->bPortCH);
+			ret_cfg = vcp_gpio_peri_chan_sel(GPIO_PERICH_SEL_UARTSEL_1,
+							 port_info->bd_port_ch);
 			break;
 		case UART_CH2:
-			retCfg = GPIO_PerichSel(GPIO_PERICH_SEL_UARTSEL_2, psInfo->bPortCH);
+			ret_cfg = vcp_gpio_peri_chan_sel(GPIO_PERICH_SEL_UARTSEL_2,
+							 port_info->bd_port_ch);
 			break;
 		case UART_CH3:
-			retCfg = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL0, GPIO_MFIO_UART3,
-					      GPIO_MFIO_CFG_CH_SEL0, psInfo->bPortCH);
+			ret_cfg =
+				vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL0, GPIO_MFIO_UART3,
+						     GPIO_MFIO_CFG_CH_SEL0, port_info->bd_port_ch);
 			break;
 		case UART_CH4:
-			retCfg = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL1, GPIO_MFIO_UART4,
-					      GPIO_MFIO_CFG_CH_SEL1, psInfo->bPortCH);
+			ret_cfg =
+				vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL1, GPIO_MFIO_UART4,
+						     GPIO_MFIO_CFG_CH_SEL1, port_info->bd_port_ch);
 			break;
 		case UART_CH5:
-			retCfg = GPIO_MfioCfg(GPIO_MFIO_CFG_PERI_SEL2, GPIO_MFIO_UART5,
-					      GPIO_MFIO_CFG_CH_SEL2, psInfo->bPortCH);
+			ret_cfg =
+				vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL2, GPIO_MFIO_UART5,
+						     GPIO_MFIO_CFG_CH_SEL2, port_info->bd_port_ch);
 			break;
 		default:
-			retCfg = SAL_RET_FAILED;
+			ret_cfg = 1;
 			break;
 		}
 
-		if (retCfg != SAL_RET_FAILED) {
+		if (ret_cfg != 1) {
 			/* set debug port */
-			ret1 = GPIO_Config(psInfo->bPortTx, (psInfo->bPortFs)); /* TX */
-			ret2 = GPIO_Config(psInfo->bPortRx, (psInfo->bPortFs | GPIO_INPUT |
-							     GPIO_INPUTBUF_EN)); /* RX */
+			ret1 = vcp_gpio_config(port_info->bd_port_tx,
+					       (port_info->bd_port_fs)); /* TX */
+			ret2 = vcp_gpio_config(port_info->bd_port_rx,
+					       (port_info->bd_port_fs | VCP_GPIO_INPUT |
+						GPIO_INPUTBUF_EN)); /* RX */
 
-			uart[ucCh].sPort.bPortCfg = psInfo->bPortCfg;
-			uart[ucCh].sPort.bPortTx = psInfo->bPortTx;
-			uart[ucCh].sPort.bPortRx = psInfo->bPortRx;
-			uart[ucCh].sPort.bPortFs = psInfo->bPortFs;
+			uart[chan].status_port.bd_port_cfg = port_info->bd_port_cfg;
+			uart[chan].status_port.bd_port_tx = port_info->bd_port_tx;
+			uart[chan].status_port.bd_port_rx = port_info->bd_port_rx;
+			uart[chan].status_port.bd_port_fs = port_info->bd_port_fs;
 
-			if (uart[ucCh].sCtsRts != 0UL) {
-				ret3 = GPIO_Config(psInfo->bPortRts, psInfo->bPortFs); /* RTS */
-				ret4 = GPIO_Config(psInfo->bPortCts, psInfo->bPortFs); /* CTS */
+			if (uart[chan].status_cts_rts != 0UL) {
+				ret3 = vcp_gpio_config(port_info->bd_port_rts,
+						       port_info->bd_port_fs); /* RTS */
+				ret4 = vcp_gpio_config(port_info->bd_port_cts,
+						       port_info->bd_port_fs); /* CTS */
 
-				if ((ret1 != SAL_RET_SUCCESS) || (ret2 != SAL_RET_SUCCESS) ||
-				    (ret3 != SAL_RET_SUCCESS) || (ret4 != SAL_RET_SUCCESS)) {
+				if ((ret1 != 0) || (ret2 != 0) || (ret3 != 0) || (ret4 != 0)) {
 					ret = -1;
 				} else {
-					uart[ucCh].sPort.bPortCts = psInfo->bPortCts;
-					uart[ucCh].sPort.bPortRts = psInfo->bPortRts;
+					uart[chan].status_port.bd_port_cts = port_info->bd_port_cts;
+					uart[chan].status_port.bd_port_rts = port_info->bd_port_rts;
 				}
-			} else if ((ret1 != SAL_RET_SUCCESS) || (ret2 != SAL_RET_SUCCESS)) {
+			} else if ((ret1 != 0) || (ret2 != 0)) {
 				ret = -1;
 			} else {
 				ret = 0;
@@ -401,11 +263,11 @@ static int32_t UART_SetGpio(uint8_t ucCh, const uart_board_port_t *psInfo)
 	return ret;
 }
 
-static int32_t UART_SetPortConfig(uint8_t ucCh, uint32_t uiPort)
+static int32_t uart_set_port_config(uint8_t chan, uint32_t port)
 {
 	uint32_t idx;
 	int32_t ret = 0;
-	static const uart_board_port_t board_serial[UART_PORT_TBL_SIZE] = {
+	static const struct uart_board_port board_serial[UART_PORT_TBL_SIZE] = {
 		{0UL, GPIO_GPA(28UL), GPIO_GPA(29UL), TCC_GPNONE, TCC_GPNONE, GPIO_FUNC(1UL),
 		 GPIO_PERICH_CH0}, /* CTL_0, CH_0 */
 		{1UL, GPIO_GPC(16UL), GPIO_GPC(17UL), GPIO_GPC(18UL), GPIO_GPC(19UL),
@@ -445,10 +307,10 @@ static int32_t UART_SetPortConfig(uint8_t ucCh, uint32_t uiPort)
 		 GPIO_FUNC(3UL), GPIO_MFIO_CH2}, /* CTL_5, CH_2 */
 	};
 
-	if ((uiPort < UART_PORT_CFG_MAX) && (ucCh < UART_CH_MAX)) {
+	if ((port < UART_PORT_CFG_MAX) && (chan < UART_CH_MAX)) {
 		for (idx = 0UL; idx < UART_PORT_CFG_MAX; idx++) {
-			if (board_serial[idx].bPortCfg == uiPort) {
-				ret = UART_SetGpio(ucCh, &board_serial[idx]);
+			if (board_serial[idx].bd_port_cfg == port) {
+				ret = uart_set_gpio(chan, &board_serial[idx]);
 				break;
 			}
 		}
@@ -457,82 +319,81 @@ static int32_t UART_SetPortConfig(uint8_t ucCh, uint32_t uiPort)
 	return ret;
 }
 
-static int32_t UART_SetBaudRate(uint8_t ucCh,
-				uint32_t uiBaud) /* (uint32_t => int32_t)return type mismatched */
+static int32_t uart_set_baud_rate(uint8_t chan, uint32_t baud)
 {
-	uint32_t u32_div;
+	uint32_t div;
 	uint32_t mod;
 	uint32_t brd_i;
 	uint32_t brd_f;
 	uint32_t pclk;
 	int32_t ret;
 
-	if (ucCh >= UART_CH_MAX) {
+	if (chan >= UART_CH_MAX) {
 		ret = -1;
 	} else {
 		/* Read the peri clock */
-		pclk = CLOCK_GetPeriRate((int32_t)CLOCK_PERI_UART0 + (int32_t)ucCh);
+		pclk = clock_get_peri_rate((int32_t)CLOCK_PERI_UART0 + (int32_t)chan);
 
 		if (pclk == 0UL) {
 			ret = -1;
 		} else {
 			/* calculate integer baud rate divisor */
-			u32_div = 16UL * uiBaud;
-			brd_i = pclk / u32_div;
-			UART_RegWrite(ucCh, UART_REG_IBRD, brd_i);
+			div = 16UL * baud;
+			brd_i = pclk / div;
+			uart_write_reg(chan, UART_REG_IBRD, brd_i);
 
 			/* calculate faction baud rate divisor */
 			/* NOTICE : fraction maybe need sampling */
-			uiBaud &= 0xFFFFFFU;
-			mod = (pclk % (16UL * uiBaud)) & 0xFFFFFFU;
-			u32_div = ((((1UL << 3UL) * 16UL) * mod) / (16UL * uiBaud));
-			brd_f = u32_div / 2UL;
-			UART_RegWrite(ucCh, UART_REG_FBRD, brd_f);
-			ret = (int32_t)SAL_RET_SUCCESS;
+			baud &= 0xFFFFFFU;
+			mod = (pclk % (16UL * baud)) & 0xFFFFFFU;
+			div = ((((1UL << 3UL) * 16UL) * mod) / (16UL * baud));
+			brd_f = div / 2UL;
+			uart_write_reg(chan, UART_REG_FBRD, brd_f);
+			ret = (int32_t)0;
 		}
 	}
 	return ret;
 }
 
-static int32_t UART_SetChannelConfig(uart_param_t *pUartCfg)
+static int32_t uart_set_chan_config(struct uart_param *uart_cfg)
 {
-	uint8_t ucCh;
-	uint8_t ucWordLength = (uint8_t)pUartCfg->word_length;
+	uint8_t chan;
+	uint8_t word_len = (uint8_t)uart_cfg->word_length;
 	uint32_t cr_data = 0;
 	uint32_t lcr_data = 0;
 	int32_t ret;
-	int32_t iClkBusId;
-	int32_t iClkPeriId;
+	int32_t clk_bus_id;
+	int32_t clk_peri_id;
 
-	ucCh = pUartCfg->channel;
+	chan = uart_cfg->channel;
 	/* Enable the UART controller peri clock */
-	iClkBusId = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)ucCh;
-	(void)CLOCK_SetIobusPwdn(iClkBusId, SALDisabled);
-	iClkPeriId = (int32_t)CLOCK_PERI_UART0 + (int32_t)ucCh;
-	ret = CLOCK_SetPeriRate(iClkPeriId, UART_DEBUG_CLK);
-	(void)CLOCK_EnablePeri(iClkPeriId);
+	clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
+	(void)clock_set_iobus_pwdn(clk_bus_id, SALDisabled);
+	clk_peri_id = (int32_t)CLOCK_PERI_UART0 + (int32_t)chan;
+	ret = clock_set_peri_rate(clk_peri_id, UART_DEBUG_CLK);
+	(void)clock_enable_peri(clk_peri_id);
 
 	if (ret == 0) {
-		(void)UART_SetBaudRate(ucCh, pUartCfg->baud_rate);
+		(void)uart_set_baud_rate(chan, uart_cfg->baud_rate);
 
 		/* line control setting */
 		/* Word Length */
-		ucWordLength &= 0x3U;
-		pUartCfg->word_length = (uart_word_len_t)ucWordLength;
-		lcr_data |= UART_LCRH_WLEN((uint32_t)pUartCfg->word_length);
+		word_len &= 0x3U;
+		uart_cfg->word_length = (enum uart_word_len)word_len;
+		lcr_data |= UART_LCRH_WLEN((uint32_t)uart_cfg->word_length);
 
 		/* Enables FIFOs */
-		if (pUartCfg->fifo == ENABLE_FIFO) {
+		if (uart_cfg->fifo == ENABLE_FIFO) {
 			lcr_data |= UART_LCRH_FEN;
 		}
 
 		/* Two Stop Bits */
-		if (pUartCfg->stop_bit == ON) {
+		if (uart_cfg->stop_bit == ON) {
 			lcr_data |= UART_LCRH_STP2;
 		}
 
 		/* Parity Enable */
-		switch (pUartCfg->parity) {
+		switch (uart_cfg->parity) {
 		case PARITY_SPACE:
 			lcr_data &= ~(UART_LCRH_PEN);
 			break;
@@ -549,62 +410,62 @@ static int32_t UART_SetChannelConfig(uart_param_t *pUartCfg)
 			break;
 		}
 
-		UART_RegWrite(ucCh, UART_REG_LCRH, lcr_data);
+		uart_write_reg(chan, UART_REG_LCRH, lcr_data);
 
 		/* control register setting */
 		cr_data = UART_CR_EN;
 		cr_data |= UART_CR_TXE;
 		cr_data |= UART_CR_RXE;
 
-		if (uart[ucCh].sCtsRts != 0UL) { /* brace */
+		if (uart[chan].status_cts_rts != 0UL) { /* brace */
 			cr_data |= (UART_CR_RTSEN | UART_CR_CTSEN);
 		}
 
-		UART_RegWrite(ucCh, UART_REG_CR, cr_data);
+		uart_write_reg(chan, UART_REG_CR, cr_data);
 	}
 
 	return ret;
 }
 
-static uint32_t UART_RegRead(uint8_t ucCh, uint32_t uiAddr)
+static uint32_t uart_read_reg(uint8_t chan, uint32_t addr)
 {
-	uint32_t uiRet;
-	uint32_t uiBaseAddr;
-	uint32_t uiRegAddr;
+	uint32_t ret;
+	uint32_t base_addr;
+	uint32_t reg_addr;
 
-	uiRet = 0;
+	ret = 0;
 
-	if (uart[ucCh].sBase == 0UL) {
-		uart[ucCh].sBase = UART_GET_BASE(ucCh);
+	if (uart[chan].status_base == 0UL) {
+		uart[chan].status_base = UART_GET_BASE(chan);
 	}
 
-	uiBaseAddr = uart[ucCh].sBase & 0xAFFFFFFFU;
-	uiAddr &= 0xFFFFU;
-	uiRegAddr = uiBaseAddr + uiAddr;
-	uiRet = sys_read32(uiRegAddr);
+	base_addr = uart[chan].status_base & 0xAFFFFFFFU;
+	addr &= 0xFFFFU;
+	reg_addr = base_addr + addr;
+	ret = sys_read32(reg_addr);
 
-	return uiRet;
+	return ret;
 }
 
-static int32_t UART_Probe(uart_param_t *pUartCfg)
+static int32_t uart_probe(struct uart_param *uart_cfg)
 {
-	uint8_t ucCh;
+	uint8_t chan;
 	int32_t ret = -1;
 
-	ucCh = pUartCfg->channel;
+	chan = uart_cfg->channel;
 
-	if ((ucCh < UART_CH_MAX) && (uart[ucCh].sIsProbed == OFF)) {
-		uart[ucCh].sOpMode = pUartCfg->mode;
-		uart[ucCh].sCtsRts = pUartCfg->cts_rts;
+	if ((chan < UART_CH_MAX) && (uart[chan].status_is_probed == OFF)) {
+		uart[chan].status_op_mode = uart_cfg->mode;
+		uart[chan].status_cts_rts = uart_cfg->cts_rts;
 
 		/* Set port config */
-		ret = UART_SetPortConfig(ucCh, pUartCfg->port_cfg);
+		ret = uart_set_port_config(chan, uart_cfg->port_cfg);
 
 		if (ret != -1) {
-			ret = UART_SetChannelConfig(pUartCfg);
+			ret = uart_set_chan_config(uart_cfg);
 
 			if (ret != -1) {
-				uart[ucCh].sIsProbed = ON;
+				uart[chan].status_is_probed = ON;
 			}
 		}
 	}
@@ -612,15 +473,15 @@ static int32_t UART_Probe(uart_param_t *pUartCfg)
 	return ret;
 }
 
-int32_t UART_Open(uart_param_t *pUartCfg)
+int32_t uart_open(struct uart_param *uart_cfg)
 {
-	uint8_t ucCh = pUartCfg->channel;
+	uint8_t chan = uart_cfg->channel;
 	int32_t ret = -1;
 
-	UART_StatusInit(ucCh);
+	uart_status_init(chan);
 
-	if (pUartCfg->port_cfg <= UART_PORT_CFG_MAX) {
-		ret = UART_Probe(pUartCfg);
+	if (uart_cfg->port_cfg <= UART_PORT_CFG_MAX) {
+		ret = uart_probe(uart_cfg);
 	}
 
 	return ret;
@@ -628,54 +489,51 @@ int32_t UART_Open(uart_param_t *pUartCfg)
 
 static int uart_tccvcp_init(const struct device *dev)
 {
-	uart_param_t uart_pars;
-    uint8_t uart_port;
+	struct uart_param uart_pars;
+	uint8_t uart_port;
 
-    uart_port = ((UART_BASE_ADDR - 0xA0200000) / 0x10000);
+	uart_port = ((UART_BASE_ADDR - MCU_BSP_UART_BASE) / 0x10000);
 
 	uart_pars.channel = uart_port;
-	uart_pars.priority = GIC_PRIORITY_NO_MEAN;
+	uart_pars.priority = TIC_PRIORITY_NO_MEAN;
 	uart_pars.baud_rate = 115200;
 	uart_pars.mode = UART_POLLING_MODE;
 	uart_pars.cts_rts = UART_CTSRTS_OFF;
-	//uart_pars.port_cfg = (uint8_t)(4U + uart_port);
-	uart_pars.port_cfg = (uint8_t)(4U);
+	uart_pars.port_cfg = (uint8_t)(3U + uart_port);
 	uart_pars.fifo = DISABLE_FIFO, uart_pars.stop_bit = TWO_STOP_BIT_OFF;
 	uart_pars.word_length = WORD_LEN_8;
 	uart_pars.parity = PARITY_SPACE;
 	uart_pars.callback_fn = NULL_PTR;
 
 	(void)uart_close(uart_pars.channel);
-	(void)UART_Open(&uart_pars);
+	(void)uart_open(&uart_pars);
 
 	return 0;
 }
 
 int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 {
-	uint8_t ucCh;
+	uint8_t chan;
 	uint32_t data;
 	uint32_t repeat = 0;
 
-    ucCh = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
+	chan = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
 
-	if (ucCh >= UART_CH_MAX) {
+	if (chan >= UART_CH_MAX) {
 		return -1;
 	} else {
-        while ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_RXFE) != 0UL)
-        {
-            if ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_RXFE) == 0UL)
-            {
-                break;
-            }
-            repeat++;
-            if(repeat > 100) {
-                return -1;
-            }
-        }
+		while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) != 0UL) {
+			if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) == 0UL) {
+				break;
+			}
+			repeat++;
+			if (repeat > 100) {
+				return -1;
+			}
+		}
 
-        data = UART_RegRead(ucCh, UART_REG_DR);
-        *c = (unsigned char)(data & 0xFFUL);
+		data = uart_read_reg(chan, UART_REG_DR);
+		*c = (unsigned char)(data & 0xFFUL);
 	}
 
 	return 0;
@@ -683,120 +541,39 @@ int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 
 void uart_tccvcp_poll_out(const struct device *dev, unsigned char c)
 {
-	uint8_t ucCh;
+	uint8_t chan;
 	uint32_t repeat = 0;
 
-    ucCh = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
+	chan = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
 
-	if (ucCh >= UART_CH_MAX) {
+	if (chan >= UART_CH_MAX) {
 		return;
 	} else {
-        while ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_TXFF) != 0UL)
-        {
-            if ((UART_RegRead(ucCh, UART_REG_FR) & UART_FR_TXFF) == 0UL)
-            {
-                break;
-            }
-            repeat++;
-            if(repeat > 100) {
-                return;
-            }
-        }
-		UART_RegWrite(ucCh, UART_REG_DR, c);
+		while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) != 0UL) {
+			if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) == 0UL) {
+				break;
+			}
+			repeat++;
+			if (repeat > 100) {
+				return;
+			}
+		}
+		uart_write_reg(chan, UART_REG_DR, c);
 	}
-}
-
-static inline bool uart_tccvcp_cfg2ll_parity(uint32_t *mode_reg, enum uart_config_parity parity)
-{
-	switch (parity) {
-	default:
-	case PARITY_EVEN:
-		*mode_reg |= ((UART_LCRH_PEN | UART_LCRH_EPS) & ~(UART_LCRH_SPS));
-		break;
-	case PARITY_ODD:
-		*mode_reg |= ((UART_LCRH_PEN & ~(UART_LCRH_EPS)) & ~(UART_LCRH_SPS));
-		break;
-	case PARITY_SPACE:
-		*mode_reg &= ~(UART_LCRH_PEN);
-		break;
-	case PARITY_MARK:
-		*mode_reg |= ((UART_LCRH_PEN & ~(UART_LCRH_EPS)) | UART_LCRH_SPS);
-		break;
-	}
-
-	return true;
-}
-
-static inline bool uart_tccvcp_cfg2ll_stopbits(uint32_t *mode_reg,
-					       enum uart_config_stop_bits stopbits)
-{
-	switch (stopbits) {
-	default:
-	case UART_CFG_STOP_BITS_2:
-		*mode_reg |= UART_LCRH_STP2;
-		break;
-	}
-
-	return true;
-}
-
-static inline bool uart_tccvcp_cfg2ll_databits(uint32_t *mode_reg,
-					       enum uart_config_data_bits databits)
-{
-	switch (databits) {
-	case UART_CFG_DATA_BITS_9:
-		/* Controller doesn't support 5 or 9 data bits */
-		return false;
-	default:
-	case UART_CFG_DATA_BITS_8:
-		*mode_reg |= UART_LCRH_WLEN(WORD_LEN_8);
-		break;
-	case UART_CFG_DATA_BITS_7:
-		*mode_reg |= UART_LCRH_WLEN(WORD_LEN_7);
-		break;
-	case UART_CFG_DATA_BITS_6:
-		*mode_reg |= UART_LCRH_WLEN(WORD_LEN_6);
-		break;
-	case UART_CFG_DATA_BITS_5:
-		*mode_reg |= UART_LCRH_WLEN(WORD_LEN_5);
-		break;
-	}
-
-	return true;
-}
-
-static inline bool uart_tccvcp_cfg2ll_hwctrl(uint32_t *modemcr_reg,
-					     enum uart_config_flow_control hwctrl)
-{
-	/*
-	 * Translate the new flow control configuration to the modem
-	 * control register's bit [5] (FCM):
-	 *  0b : no flow control
-	 *  1b : RTS/CTS
-	 */
-
-	if (hwctrl == UART_CFG_FLOW_CTRL_RTS_CTS) {
-		*modemcr_reg |= (UART_CR_RTSEN | UART_CR_CTSEN);
-	} else {
-		/* Only no flow control or RTS/CTS is supported. */
-		return false;
-	}
-
-	return true;
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_tccvcp_configure(const struct device *dev, const struct uart_config *cfg)
 {
 	const struct uart_tccvcp_dev_config *dev_cfg = dev->config;
-	uint8_t ucCh;
-	uart_param_t uart_cfg;
+	uint8_t chan;
+	struct uart_param uart_cfg;
 	int32_t ret;
 
-    ucCh = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
+	chan = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
 
-	uart_cfg.channel = ucCh;
-	uart_cfg.priority = GIC_PRIORITY_NO_MEAN;
+	uart_cfg.channel = chan;
+	uart_cfg.priority = TIC_PRIORITY_NO_MEAN;
 	uart_cfg.baud_rate = 115200;
 	uart_cfg.mode = UART_POLLING_MODE;
 	switch (cfg->flow_ctrl) {
@@ -862,55 +639,26 @@ static int uart_tccvcp_configure(const struct device *dev, const struct uart_con
 
 	uart_cfg.callback_fn = NULL_PTR;
 
-	ret = UART_SetChannelConfig(&uart_cfg);
+	ret = uart_set_chan_config(&uart_cfg);
 	if (ret == 0) {
-		uart[ucCh].sCtsRts = uart_cfg.cts_rts;
-		uart[ucCh].s2StopBit = uart_cfg.stop_bit;
-		uart[ucCh].sParity = uart_cfg.parity;
-		uart[ucCh].sWordLength = uart_cfg.word_length;
-		uart[ucCh].baudrate = uart_cfg.baud_rate;
+		uart[chan].status_cts_rts = uart_cfg.cts_rts;
+		uart[chan].status_2stop_bit = uart_cfg.stop_bit;
+		uart[chan].status_parity = uart_cfg.parity;
+		uart[chan].status_word_len = uart_cfg.word_length;
+		uart[chan].baudrate = uart_cfg.baud_rate;
 	}
 
 	return ret;
 };
-#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
-static inline enum uart_config_parity uart_tccvcp_ll2cfg_parity(uint32_t mode_reg)
-{
-	switch ((mode_reg & 0x7)) {
-	case PARITY_EVEN:
-	default:
-		return UART_CFG_PARITY_EVEN;
-	case PARITY_ODD:
-		return UART_CFG_PARITY_ODD;
-	case PARITY_SPACE:
-		return UART_CFG_PARITY_SPACE;
-	case PARITY_MARK:
-		return UART_CFG_PARITY_MARK;
-	case (PARITY_MARK + 1):
-		return UART_CFG_PARITY_NONE;
-	}
-}
-
-static inline enum uart_config_stop_bits uart_tccvcp_ll2cfg_stopbits(uint32_t mode_reg)
-{
-	switch ((mode_reg)) {
-	case UART_CFG_STOP_BITS_2:
-		return UART_CFG_STOP_BITS_2;
-	default:
-		return UART_CFG_STOP_BITS_1;
-	}
-}
-
-#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_tccvcp_config_get(const struct device *dev, struct uart_config *cfg)
 {
-	uint8_t ucCh;
+	uint8_t chan;
 
-    ucCh = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
-	cfg->baudrate = uart[ucCh].baudrate;
+	chan = (uint8_t)((UART_BASE_ADDR - MCU_BSP_UART_BASE) / 0x10000);
+	cfg->baudrate = uart[chan].baudrate;
 
-	switch (uart[ucCh].sCtsRts) {
+	switch (uart[chan].status_cts_rts) {
 	case UART_CTSRTS_ON:
 		cfg->flow_ctrl = UART_CFG_FLOW_CTRL_RTS_CTS;
 		break;
@@ -920,7 +668,7 @@ static int uart_tccvcp_config_get(const struct device *dev, struct uart_config *
 		break;
 	}
 
-	switch (uart[ucCh].sWordLength) {
+	switch (uart[chan].status_word_len) {
 	case WORD_LEN_8:
 		cfg->data_bits = UART_CFG_DATA_BITS_8;
 		break;
@@ -938,7 +686,7 @@ static int uart_tccvcp_config_get(const struct device *dev, struct uart_config *
 		break;
 	}
 
-	switch (uart[ucCh].s2StopBit) {
+	switch (uart[chan].status_2stop_bit) {
 	case TWO_STOP_BIT_ON:
 		cfg->stop_bits = UART_CFG_STOP_BITS_2;
 		break;
@@ -947,7 +695,7 @@ static int uart_tccvcp_config_get(const struct device *dev, struct uart_config *
 		break;
 	}
 
-	switch (uart[ucCh].sParity) {
+	switch (uart[chan].status_parity) {
 	case PARITY_EVEN:
 		cfg->parity = UART_CFG_PARITY_EVEN;
 		break;
@@ -978,24 +726,8 @@ static const struct uart_driver_api uart_tccvcp_driver_api = {
 #endif
 };
 
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-
-#define UART_TCC_VCP_IRQ_CONF_FUNC_SET(port) .irq_config_func = uart_tccvcp_irq_config_##port,
-
-#define UART_TCC_VCP_IRQ_CONF_FUNC(port)                                                           \
-	static void uart_tccvcp_irq_config_##port(const struct device *dev)                        \
-	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQN(port), DT_INST_IRQ(port, priority), uart_tccvcp_isr,      \
-			    DEVICE_DT_INST_GET(port), 0);                                          \
-		irq_enable(DT_INST_IRQN(port));                                                    \
-	}
-
-#else
-
 #define UART_TCC_VCP_IRQ_CONF_FUNC_SET(port)
 #define UART_TCC_VCP_IRQ_CONF_FUNC(port)
-
-#endif /*CONFIG_UART_INTERRUPT_DRIVEN */
 
 #define UART_TCC_VCP_DEV_DATA(port) static struct uart_tccvcp_dev_data_t uart_tccvcp_dev_data_##port
 

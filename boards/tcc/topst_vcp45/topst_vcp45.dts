@@ -25,37 +25,24 @@
 		zephyr,shell-uart = &uart1;
 	};
 
-#if 1
 	leds {
 		compatible = "gpio-leds";
 
 		led_act: led-act {
-//			gpios = <&gio_aon 16 GPIO_ACTIVE_HIGH>;
 			gpios = <&gio_aon 2 GPIO_ACTIVE_HIGH>;
 			label = "ACT";
 		};
 	};
-#endif
 
-};
-
-&ram_ilm {
-	reg = <0x00000000 0x00020000>;
-};
-
-&ram_dlm {
-	reg = <0x01043000 0x00020000>;
 };
 
 &flash0 {
 	status = "okay";
 };
 
-#if 1
 &gio_aon {
 	status = "okay";
 };
-#endif
 
 &systick_timer {
 	status = "okay";
@@ -65,5 +52,5 @@
 &uart1 {
 	status = "okay";
 	current-speed = <115200>;
-    clock-frequency = <12000000>;
+	clock-frequency = <48000000>;
 };

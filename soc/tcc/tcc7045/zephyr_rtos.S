@@ -2,22 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-.global  CPU_DSB
-.global  CPU_SR_Save
-.global  CPU_SR_Restore
+.global  cpu_dsb
+.global  cpu_sr_save
+.global  cpu_sr_restore
 
-CPU_DSB:
+cpu_dsb:
         DSB
         ISB
         BX      LR
 
-CPU_SR_Save:
+cpu_sr_save:
         MRS     R0, CPSR
         CPSID   IF                                              @ Set IRQ & FIQ bits in CPSR to DISABLE all interrupts
         DSB
         BX      LR                                              @ DISABLED, return the original CPSR contents in R0
 
-CPU_SR_Restore:
+cpu_sr_restore:
         DSB
         MSR     CPSR_c, R0
         BX      LR

@@ -5,36 +5,6 @@
 
 #ifndef ZEPHYR_DRIVERS_SERIAL_UART_TCCVCP_H_
 #define ZEPHYR_DRIVERS_SERIAL_UART_TCCVCP_H_
-#include <zephyr/types.h>
-
-#ifndef NULL_PTR
-#define NULL_PTR ((void *)0)
-#endif
-
-#ifndef NULL
-#define NULL (0)
-#endif
-
-#define MCU_BSP_UART_BASE (0xA0200000UL)
-#define MCU_BSP_GDMA_BASE (0xA0800000UL)
-
-#ifndef FALSE
-#define FALSE (0U)
-#endif
-
-#ifndef TRUE
-#define TRUE (1U)
-#endif
-
-#ifndef ON
-#define ON  (TRUE)
-#define OFF (FALSE)
-#endif
-
-#define SALDisabled (FALSE)
-#define SALEnabled  (TRUE)
-
-#define GIC_PRIORITY_NO_MEAN (16UL)
 
 #define UART_POLLING_MODE (0U)
 #define UART_INTR_MODE    (1U)
@@ -58,7 +28,7 @@
 #define UART_CH5    (5U)
 #define UART_CH_MAX (6U)
 
-#define UART_DEBUG_CH  (UART_CH1)
+#define UART_DEBUG_CH  (TCCVCP_UART_DEBUG_PORT)
 #define UART_DEBUG_CLK (48000000UL) /* 48MHz */
 
 /* UART Base address */
@@ -131,224 +101,76 @@
 #define UART_DMACR_TXDMAE   (1UL << 1U) /* Transmit DMA enable */
 #define UART_DMACR_RXDMAE   (1UL << 0U) /* Receive DMA enable */
 
-#define UART_BASE_ADDR      DT_INST_REG_ADDR(0)
+#define UART_BASE_ADDR DT_INST_REG_ADDR(0)
 
-#define TCC_GPNONE   (0xFFFFUL)
-#define TCC_GPSD0(x) (TCC_GPNONE)
-#define TCC_GPSD1(x) (TCC_GPNONE)
-#define TCC_GPSD2(x) (TCC_GPNONE)
+#define TCC_GPNONE (0xFFFFUL)
 
-#define GDMA_CON_MAX (8UL)
-#define GDMA_CH_MAX  (2UL)
-
-/* UART DMA Register offsets */
-#define GDMA_INTSR  (0x00UL) /* Interrupt Status Register */
-#define GDMA_ITCSR  (0x04UL) /* Interrupt Terminal Count Status Register */
-#define GDMA_ITCCR  (0x08UL) /* Interrupt Terminal Count Clear Register */
-#define GDMA_IESR   (0x0CUL) /* Interrupt Error Status Register */
-#define GDMA_IECR   (0x10UL) /* Interrupt Error Clear Register */
-#define GDMA_RITCSR (0x14UL) /* Raw Interrupt Terminal Count Status Register */
-#define GDMA_REISR  (0x18UL) /* Raw Error Interrupt Status Register */
-#define GDMA_ECR    (0x1CUL) /* Enabled Channel Register */
-#define GDMA_SBRR   (0x20UL) /* Software Burst Request Register */
-#define GDMA_SSRR   (0x24UL) /* Software Single Request Register */
-#define GDMA_SLBRR  (0x28UL) /* Software Last Burst Request Register */
-#define GDMA_SLSRR  (0x2CUL) /* Software Last Single Request Register */
-#define GDMA_CR     (0x30UL) /* Configuration Register */
-#define GDMA_SR     (0x34UL) /* Reserved */
-
-#define GDMA_CON_BASE(x) ((uint32_t)MCU_BSP_GDMA_BASE + ((x)*0x10000UL))
-
-#define GDMA_CH_SRC_ADDR(x) (((uint32_t)0x100UL + ((x)*0x20UL)))
-#define GDMA_CH_DST_ADDR(x) (((uint32_t)0x104UL + ((x)*0x20UL)))
-#define GDMA_CH_LLI(x)      (((uint32_t)0x108UL + ((x)*0x20UL)))
-#define GDMA_CH_CON(x)      (((uint32_t)0x10CUL + ((x)*0x20UL)))
-#define GDMA_CH_CONFIG(x)   (((uint32_t)0x110UL + ((x)*0x20UL)))
-
-#define GDMA_BUFF_SIZE   (0x3ffUL) /* 1023. */
-#define GDMA_BUFF_MARGIN (0x0UL)
-
-#define GDMA_CH0 (0UL)
-#define GDMA_CH1 (1UL)
-
-#define GDMA_INC    (1U)
-#define GDMA_NO_INC (0U)
-
-#define GDMA_TRANSFER_SIZE_BYTE (0U)
-#define GDMA_TRANSFER_SIZE_HALF (1U)
-#define GDMA_TRANSFER_SIZE_WORD (2U)
-
-#define GDMA_BURST_SIZE_1   (0U)
-#define GDMA_BURST_SIZE_4   (1U)
-#define GDMA_BURST_SIZE_8   (2U)
-#define GDMA_BURST_SIZE_16  (3U)
-#define GDMA_BURST_SIZE_32  (4U)
-#define GDMA_BURST_SIZE_64  (5U)
-#define GDMA_BURST_SIZE_128 (6U)
-#define GDMA_BURST_SIZE_256 (7U)
-
-/* GDMA Address */
-#define GDMA_ADDRESS_OFFSET (0UL)
-#define GDMA_ADDRESS_UNIT   (GDMA_BUFF_SIZE + GDMA_BUFF_MARGIN)
-#define GDMA_ADDRESS_UNIT_CH_RX(ch)                                                                \
-	((uint32_t)GDMA_ADDRESS_OFFSET + ((GDMA_ADDRESS_UNIT * 2UL) * (ch)))
-#define GDMA_ADDRESS_UNIT_CH_TX(ch)                                                                \
-	(((uint32_t)GDMA_ADDRESS_OFFSET + ((GDMA_ADDRESS_UNIT * 2UL) * (ch))) + GDMA_ADDRESS_UNIT)
-
-#define GDMA_FLOW_TYPE_M2M       (0UL)
-#define GDMA_FLOW_TYPE_M2P       (1UL)
-#define GDMA_FLOW_TYPE_P2M       (2UL)
-#define GDMA_FLOW_TYPE_P2P       (3UL)
-#define GDMA_FLOW_TYPE_P2P_BY_DP (4UL)
-#define GDMA_FLOW_TYPE_M2P_BY_P  (5UL)
-#define GDMA_FLOW_TYPE_P2M_BY_P  (6UL)
-#define GDMA_FLOW_TYPE_P2P_BY_SP (7UL)
-
-#define GDMA_PERI_REQ_PORT_UART0_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART0_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART1_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART1_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART2_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART2_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART3_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART3_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART4_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART4_TX (1UL)
-
-#define GDMA_PERI_REQ_PORT_UART5_RX (0UL)
-#define GDMA_PERI_REQ_PORT_UART5_TX (1UL)
-/* MICOM Subsystem Register Offsets */
-#define CLOCK_MCKC_HCLK0            (0x000)
-#define CLOCK_MCKC_HCLK1            (0x004)
-#define CLOCK_MCKC_HCLK2            (0x008)
-#define CLOCK_MCKC_HCLKSWR0         (0x00C)
-#define CLOCK_MCKC_HCLKSWR1         (0x010)
-#define CLOCK_MCKC_HCLKSWR2         (0x014)
-
-#define GPIO_PERICH_CH0 (0)
-#define GPIO_PERICH_CH1 (1)
-#define GPIO_PERICH_CH2 (2)
-#define GPIO_PERICH_CH3 (3)
-
-#define GPIO_OUTPUT_SHIFT (9)
-#define GPIO_OUTPUT       (1UL << (uint32_t)GPIO_OUTPUT_SHIFT)
-#define GPIO_INPUT        (0UL << (uint32_t)GPIO_OUTPUT_SHIFT)
-
-#define GPIO_MFIO_CFG_CH_SEL0     (0)
-#define GPIO_MFIO_CFG_PERI_SEL0   (4)
-#define GPIO_MFIO_CFG_CH_SEL1     (8)
-#define GPIO_MFIO_CFG_PERI_SEL1   (12)
-#define GPIO_MFIO_CFG_CH_SEL2     (16)
-#define GPIO_MFIO_CFG_PERI_SEL2   (20)
-#define GPIO_MFIO_DISABLE         (0)
-#define GPIO_MFIO_SPI2            (1)
-#define GPIO_MFIO_UART3           (2)
-#define GPIO_MFIO_I2C3            (3)
-#define GPIO_MFIO_SPI3            (1)
-#define GPIO_MFIO_UART4           (2)
-#define GPIO_MFIO_I2C4            (3)
-#define GPIO_MFIO_SPI4            (1)
-#define GPIO_MFIO_UART5           (2)
-#define GPIO_MFIO_I2C5            (3)
-#define GPIO_MFIO_CH0             (0)
-#define GPIO_MFIO_CH1             (1)
-#define GPIO_MFIO_CH2             (2)
-#define GPIO_MFIO_CH3             (3)
-#define GPIO_PERICH_SEL_UARTSEL_0 (0)
-#define GPIO_PERICH_SEL_UARTSEL_1 (1)
-#define GPIO_PERICH_SEL_UARTSEL_2 (2)
-#define GPIO_PERICH_SEL_I2CSEL_0  (3)
-#define GPIO_PERICH_SEL_I2CSEL_1  (4)
-#define GPIO_PERICH_SEL_I2CSEL_2  (5)
-#define GPIO_PERICH_SEL_SPISEL_0  (6)
-#define GPIO_PERICH_SEL_SPISEL_1  (7)
-#define GPIO_PERICH_SEL_I2SSEL_0  (8)
-#define GPIO_PERICH_SEL_PWMSEL_0  (10)
-#define GPIO_PERICH_SEL_PWMSEL_1  (12)
-#define GPIO_PERICH_SEL_PWMSEL_2  (14)
-#define GPIO_PERICH_SEL_PWMSEL_3  (16)
-#define GPIO_PERICH_SEL_PWMSEL_4  (18)
-#define GPIO_PERICH_SEL_PWMSEL_5  (20)
-#define GPIO_PERICH_SEL_PWMSEL_6  (22)
-#define GPIO_PERICH_SEL_PWMSEL_7  (24)
-#define GPIO_PERICH_SEL_PWMSEL_8  (26)
-#define GPIO_PERICH_CH0           (0)
-#define GPIO_PERICH_CH1           (1)
-#define GPIO_PERICH_CH2           (2)
-#define GPIO_PERICH_CH3           (3)
-
-typedef enum uart_word_len {
+enum uart_word_len {
 	WORD_LEN_5 = 0,
 	WORD_LEN_6,
 	WORD_LEN_7,
 	WORD_LEN_8
-} uart_word_len_t;
+};
 
-typedef enum uart_parity {
+enum uart_parity {
 	PARITY_SPACE = 0,
 	PARITY_EVEN,
 	PARITY_ODD,
 	PARITY_MARK
-} uart_parity_t;
+};
 
-typedef struct uart_board_port {
-	uint32_t bPortCfg; /* Config port ID */
-	uint32_t bPortTx;  /* UT_TXD GPIO */
-	uint32_t bPortRx;  /* UT_RXD GPIO */
-	uint32_t bPortRts; /* UT_RTS GPIO */
-	uint32_t bPortCts; /* UT_CTS GPIO */
-	uint32_t bPortFs;  /* UART function select */
-	uint32_t bPortCH;  /* Channel */
-} uart_board_port_t;
+struct uart_board_port {
+	uint32_t bd_port_cfg; /* Config port ID */
+	uint32_t bd_port_tx;  /* UT_TXD GPIO */
+	uint32_t bd_port_rx;  /* UT_RXD GPIO */
+	uint32_t bd_port_rts; /* UT_RTS GPIO */
+	uint32_t bd_port_cts; /* UT_CTS GPIO */
+	uint32_t bd_port_fs;  /* UART function select */
+	uint32_t bd_port_ch;  /* Channel */
+};
 
-typedef struct uart_interrupt_data {
-	int8_t *iXmitBuf;
-	int32_t iHead;
-	int32_t iTail;
-	int32_t iSize;
-} uart_interrupt_data_t;
+struct uart_interrupt_data {
+	int8_t *irq_data_xmit_buf;
+	int32_t irq_data_head;
+	int32_t irq_data_tail;
+	int32_t irq_data_size;
+};
 
-typedef void (*gic_isr_fn)(void *pArg);
-
-typedef struct uart_param {
+struct uart_param {
 	uint8_t channel;
-	uint32_t priority;           /* Interrupt priority */
-	uint32_t baud_rate;          /* Baudrate */
-	uint8_t mode;                /* polling or interrupt */
-	uint8_t cts_rts;             /* on/off */
-	uint8_t port_cfg;            /* port selection */
-	uint8_t fifo;                /* on/off */
-	uint8_t stop_bit;            /* on/off */
-	uart_word_len_t word_length; /* 5~8 bits */
-	uart_parity_t parity;        /* space, even, odd, mark */
-	gic_isr_fn callback_fn;      /* callback function */
-} uart_param_t;
+	uint32_t priority;              /* Interrupt priority */
+	uint32_t baud_rate;             /* Baudrate */
+	uint8_t mode;                   /* polling or interrupt */
+	uint8_t cts_rts;                /* on/off */
+	uint8_t port_cfg;               /* port selection */
+	uint8_t fifo;                   /* on/off */
+	uint8_t stop_bit;               /* on/off */
+	enum uart_word_len word_length; /* 5~8 bits */
+	enum uart_parity parity;        /* space, even, odd, mark */
+	tic_isr_func callback_fn;       /* callback function */
+};
 
-typedef struct uart_status {
-	unsigned char sIsProbed;
-	uint32_t sBase;                /* UART Controller base address */
-	uint8_t sCh;                   /* UART Channel */
-	uint8_t sOpMode;               /* Operation Mode */
-	uint8_t sCtsRts;               /* CTS and RTS */
-	uint8_t s2StopBit;             /* 1: two stop bits are transmitted */
-	uint32_t baudrate;             /* Baudrate setting in bps */
-	uart_parity_t sParity;         /* 0:disable, 1:enable */
-	uart_word_len_t sWordLength;   /* Word Length */
-	uart_board_port_t sPort;       /* GPIO Port Information */
-	uart_interrupt_data_t sRxIntr; /* Rx Interrupt */
-	uart_interrupt_data_t sTxIntr; /* Tx Interrupt */
-} uart_status_t;
+struct uart_status {
+	unsigned char status_is_probed;
+	uint32_t status_base;                      /* UART Controller base address */
+	uint8_t status_chan;                       /* UART Channel */
+	uint8_t status_op_mode;                    /* Operation Mode */
+	uint8_t status_cts_rts;                    /* CTS and RTS */
+	uint8_t status_2stop_bit;                  /* 1: two stop bits are transmitted */
+	uint32_t baudrate;                         /* Baudrate setting in bps */
+	enum uart_parity status_parity;            /* 0:disable, 1:enable */
+	enum uart_word_len status_word_len;        /* Word Length */
+	struct uart_board_port status_port;        /* GPIO Port Information */
+	struct uart_interrupt_data status_rx_intr; /* Rx Interrupt */
+	struct uart_interrupt_data status_tx_intr; /* Tx Interrupt */
+};
 
 /** Device configuration structure */
 struct uart_tccvcp_dev_config {
 	DEVICE_MMIO_ROM;
 	uint8_t channel;
 	uint32_t sys_clk_freq;
-	uart_param_t uart_pars;
+	struct uart_param uart_pars;
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_config_func_t irq_config_func;
 #endif
@@ -372,144 +194,4 @@ struct uart_tccvcp_dev_data_t {
 #endif
 };
 
-/* I/O Bus pwdn/swreset */
-typedef enum CLOCK_IO_BUS {
-	CLOCK_IOBUS_SFMC = 0,
-	CLOCK_IOBUS_IMC = 1,
-	CLOCK_IOBUS_PFLASH = 2,
-	CLOCK_IOBUS_DFLASH = 3,
-	CLOCK_IOBUS_GIC = 4,
-	CLOCK_IOBUS_SOC400 = 5,
-	CLOCK_IOBUS_DMA_CON0 = 6,
-	CLOCK_IOBUS_DMA_CON1 = 7,
-	CLOCK_IOBUS_DMA_CON2 = 8,
-	CLOCK_IOBUS_DMA_CON3 = 9,
-	CLOCK_IOBUS_DMA_CON4 = 10,
-	CLOCK_IOBUS_DMA_CON5 = 11,
-	CLOCK_IOBUS_DMA_CON6 = 12,
-	CLOCK_IOBUS_DMA_CON7 = 13,
-	CLOCK_IOBUS_CAN0 = 14,
-	CLOCK_IOBUS_CAN1 = 15,
-	CLOCK_IOBUS_CAN2 = 16,
-	CLOCK_IOBUS_CAN_CONF = 17,
-	CLOCK_IOBUS_UART0 = 18,
-	CLOCK_IOBUS_UART1 = 19,
-	CLOCK_IOBUS_UART2 = 20,
-	CLOCK_IOBUS_UART3 = 21,
-	CLOCK_IOBUS_UART4 = 22,
-	CLOCK_IOBUS_UART5 = 23,
-	CLOCK_IOBUS_CONF = 24,
-	CLOCK_IOBUS_I2C0 = 25,
-	CLOCK_IOBUS_I2C1 = 26,
-	CLOCK_IOBUS_I2C2 = 27,
-	CLOCK_IOBUS_I2C3 = 28,
-	CLOCK_IOBUS_I2C4 = 29,
-	CLOCK_IOBUS_I2C5 = 30,
-	CLOCK_IOBUS_I2C_M_PORTCFG = 31,
-	CLOCK_IOBUS_PWM0 = 32,      /* HCLK_MASK1[0] */
-	CLOCK_IOBUS_PWM1 = 33,      /* HCLK_MASK1[1] */
-	CLOCK_IOBUS_PWM2 = 34,      /* HCLK_MASK1[2] */
-	CLOCK_IOBUS_PWM_CONF = 35,  /* HCLK_MASK1[3] */
-	CLOCK_IOBUS_ICTC0 = 36,     /* HCLK_MASK1[4] */
-	CLOCK_IOBUS_ICTC1 = 37,     /* HCLK_MASK1[5] */
-	CLOCK_IOBUS_ICTC2 = 38,     /* HCLK_MASK1[6] */
-	CLOCK_IOBUS_ICTC3 = 39,     /* HCLK_MASK1[7] */
-	CLOCK_IOBUS_ICTC4 = 40,     /* HCLK_MASK1[8] */
-	CLOCK_IOBUS_ICTC5 = 41,     /* HCLK_MASK1[9] */
-	CLOCK_IOBUS_ADC0 = 42,      /* HCLK_MASK1[10] */
-	CLOCK_IOBUS_ADC1 = 43,      /* HCLK_MASK1[11] */
-	CLOCK_IOBUS_TIMER0 = 44,    /* HCLK_MASK1[12] */
-	CLOCK_IOBUS_TIMER1 = 45,    /* HCLK_MASK1[13] */
-	CLOCK_IOBUS_TIMER2 = 46,    /* HCLK_MASK1[14] */
-	CLOCK_IOBUS_TIMER3 = 47,    /* HCLK_MASK1[15] */
-	CLOCK_IOBUS_TIMER4 = 48,    /* HCLK_MASK1[16] */
-	CLOCK_IOBUS_TIMER5 = 49,    /* HCLK_MASK1[17] */
-	CLOCK_IOBUS_TIMER6 = 50,    /* HCLK_MASK1[18] */
-	CLOCK_IOBUS_TIMER7 = 51,    /* HCLK_MASK1[19] */
-	CLOCK_IOBUS_TIMER8 = 52,    /* HCLK_MASK1[20] */
-	CLOCK_IOBUS_TIMER9 = 53,    /* HCLK_MASK1[21] */
-	CLOCK_IOBUS_GPSB0 = 54,     /* HCLK_MASK1[22] */
-	CLOCK_IOBUS_GPSB1 = 55,     /* HCLK_MASK1[23] */
-	CLOCK_IOBUS_GPSB2 = 56,     /* HCLK_MASK1[24] */
-	CLOCK_IOBUS_GPSB3 = 57,     /* HCLK_MASK1[25] */
-	CLOCK_IOBUS_GPSB4 = 58,     /* HCLK_MASK1[26] */
-	CLOCK_IOBUS_GPSB_CONF = 59, /* HCLK_MASK1[27] */
-	CLOCK_IOBUS_GPSB_SM = 60,   /* HCLK_MASK1[28] */
-	CLOCK_IOBUS_I2S = 61,       /* HCLK_MASK1[29] */
-	CLOCK_IOBUS_GMAC = 62,      /* HCLK_MASK1[30] */
-	CLOCK_IOBUS_RESERVED = 63,  /* HCLK_MASK1[31] */
-	CLOCK_IOBUS_WDT = 64,       /* HCLK_MASK2[0] */
-	CLOCK_IOBUS_GPIO = 65,      /* HCLK_MASK2[1] */
-	CLOCK_IOBUS_CMU = 66,       /* HCLK_MASK2[2] */
-	CLOCK_IOBUS_SYSSM = 67,     /* HCLK_MASK2[3] */
-	CLOCK_IOBUS_MAX = 68
-} CLOCKIobus_t;
-
-typedef enum CLOCK_PERI { /* Peri. Name */
-	/* MICOM Peri */
-	CLOCK_PERI_SFMC = 0,
-	CLOCK_PERI_CAN0 = 1,
-	CLOCK_PERI_CAN1 = 2,
-	CLOCK_PERI_CAN2 = 3,
-	CLOCK_PERI_GPSB0 = 4,
-	CLOCK_PERI_GPSB1 = 5,
-	CLOCK_PERI_GPSB2 = 6,
-	CLOCK_PERI_GPSB3 = 7,
-	CLOCK_PERI_GPSB4 = 8,
-	CLOCK_PERI_UART0 = 9,
-	CLOCK_PERI_UART1 = 10,
-	CLOCK_PERI_UART2 = 11,
-	CLOCK_PERI_UART3 = 12,
-	CLOCK_PERI_UART4 = 13,
-	CLOCK_PERI_UART5 = 14,
-	CLOCK_PERI_I2C0 = 15,
-	CLOCK_PERI_I2C1 = 16,
-	CLOCK_PERI_I2C2 = 17,
-	CLOCK_PERI_I2C3 = 18,
-	CLOCK_PERI_I2C4 = 19,
-	CLOCK_PERI_I2C5 = 20,
-	CLOCK_PERI_PWM0 = 21,
-	CLOCK_PERI_PWM1 = 22,
-	CLOCK_PERI_PWM2 = 23,
-	CLOCK_PERI_ICTC0 = 24,
-	CLOCK_PERI_ICTC1 = 25,
-	CLOCK_PERI_ICTC2 = 26,
-	CLOCK_PERI_ICTC3 = 27,
-	CLOCK_PERI_ICTC4 = 28,
-	CLOCK_PERI_ICTC5 = 29,
-	CLOCK_PERI_ADC0 = 30,
-	CLOCK_PERI_ADC1 = 31,
-	CLOCK_PERI_TIMER0 = 32,
-	CLOCK_PERI_TIMER1 = 33,
-	CLOCK_PERI_TIMER2 = 34,
-	CLOCK_PERI_TIMER3 = 35,
-	CLOCK_PERI_TIMER4 = 36,
-	CLOCK_PERI_TIMER5 = 37,
-	CLOCK_PERI_TIMER6 = 38,
-	CLOCK_PERI_TIMER7 = 39,
-	CLOCK_PERI_TIMER8 = 40,
-	CLOCK_PERI_TIMER9 = 41,
-	CLOCK_PERI_I2S0 = 42,
-	CLOCK_PERI_I2S1 = 43,
-	CLOCK_PERI_GMAC0 = 44,
-	CLOCK_PERI_GMAC1 = 45,
-	CLOCK_PERI_MAX = 46
-} CLOCKPeri_t;
-
-enum {
-	GDMA_PERI_RX = 0,
-	GDMA_PERI_TX = 1
-};
-
-SALRetCode_t FR_CoreMB(void);
-
-int32_t CLOCK_SetIobusPwdn(int32_t iId, unsigned char bEn);
-
-SALRetCode_t GPIO_Config(uint32_t uiPort, uint32_t uiConfig);
-
-int32_t CLOCK_SetSwReset(int32_t iId, unsigned char bReset);
-uint32_t CLOCK_GetPeriRate(int32_t iId);
-int32_t CLOCK_SetPeriRate(int32_t iId, uint32_t uiRate);
-int32_t CLOCK_EnablePeri(int32_t iId);
-int32_t CLOCK_EnableIobus(int32_t iId, unsigned char bEn);
 #endif /* ZEPHYR_DRIVERS_SERIAL_UART_TCCVCP_H_ */

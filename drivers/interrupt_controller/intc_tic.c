@@ -7,366 +7,295 @@
  * NOTE: This driver implements the GIC400 interfaces.
  */
 
-#include <zephyr/device.h>
-#include <zephyr/arch/cpu.h>
-#include <zephyr/devicetree.h>
-#include <zephyr/sw_isr_table.h>
-//#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
-#include <zephyr/drivers/interrupt_controller/gic.h>
-#include <zephyr/sys/barrier.h>
-
 #define DT_DRV_COMPAT tcc_tic
 
-static GICIntFuncPtr_t GICIsrTable[GIC_INT_SRC_CNT];
+#include <stdint.h>
 
-static uint32_t gCPU_SR = 0;
+#include <zephyr/arch/arm/irq.h>
+#include <zephyr/arch/cpu.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/util_macro.h>
+
+#include <zephyr/dt-bindings/interrupt-controller/tcc-tic.h>
+#include <zephyr/drivers/interrupt_controller/intc_tic.h>
+
+#include <zephyr_rtos.h>
+
+LOG_MODULE_REGISTER(tic);
+
+static tic_irq_func_ptr tic_intr_table[TIC_INT_SRC_CNT];
+
+static uint32_t cpu_status = 0;
 
 static void core_mb(void)
 {
-	CPU_DSB();
+	cpu_dsb();
 }
 
 static void core_critical_enter(void)
 {
-	gCPU_SR = 0;
-	gCPU_SR = CPU_SR_Save();
+	cpu_status = 0;
+	cpu_status = cpu_sr_save();
 }
 
 static void core_critical_exit(void)
 {
-	CPU_SR_Restore(gCPU_SR);
+	cpu_sr_restore(cpu_status);
 }
 
-static void GIC_IntPrioSet_internal(uint32_t uiIntId, uint32_t uiPrio)
+static void tic_irq_pri_set_internal(uint32_t irq, uint32_t pri)
 {
-	uint32_t uiRegOffset;
-	uint32_t uiRegBitField;
-	uint32_t uiGICD_IPRIORITYRn;
+	uint32_t reg_offset;
+	uint32_t reg_bits;
+	uint32_t intr_pri_reg;
 
-	uiRegOffset = 0;
-	uiRegBitField = 0;
-	uiGICD_IPRIORITYRn = 0;
+	reg_offset = 0;
+	reg_bits = 0;
+	intr_pri_reg = 0;
 
-	if ((uiPrio < GIC_PRIORITY_NO_MEAN) && (uiIntId < GIC_INT_SRC_CNT)) {
-		uiRegOffset = (uiIntId >> 2u);
-		uiRegBitField = (uiIntId & 0x03u);
+	if ((pri < TIC_PRIORITY_NO_MEAN) && (irq < TIC_INT_SRC_CNT)) {
+		reg_offset = (irq >> 2u);
+		reg_bits = (irq & 0x03u);
 
-		uiGICD_IPRIORITYRn = GIC_DIST->dIPRIORITYRn[uiRegOffset];
-		uiGICD_IPRIORITYRn =
-			(uint32_t)(uiGICD_IPRIORITYRn & ~((uint32_t)0xFFu << (uiRegBitField * 8u)));
-		uiGICD_IPRIORITYRn = (uint32_t)(uiGICD_IPRIORITYRn |
-						(((uiPrio << 4) & 0xF0u) << (uiRegBitField * 8u)));
+		intr_pri_reg = tic_distributer->dist_intr_pri[reg_offset];
+		intr_pri_reg = (uint32_t)(intr_pri_reg & ~((uint32_t)0xFFu << (reg_bits * 8u)));
+		intr_pri_reg = (uint32_t)(intr_pri_reg | ((pri & 0xFFu) << (reg_bits * 8u)));
 
-		GIC_DIST->dIPRIORITYRn[uiRegOffset] = uiGICD_IPRIORITYRn;
+		tic_distributer->dist_intr_pri[reg_offset] = intr_pri_reg;
 	}
 }
 
-static void GIC_IntConfigSet(uint32_t uiIntId, uint8_t ucIntType)
+static void tic_irq_config_set(uint32_t irq, uint8_t irq_type)
 {
-	uint32_t uiRegOffset;
-	uint32_t uiRegMask;
-	uint32_t uiGICD_ICFGRn;
+	uint32_t reg_offset;
+	uint32_t reg_mask;
+	uint32_t intr_config;
 
-	uiRegOffset = 0;
-	uiRegMask = 0;
-	uiGICD_ICFGRn = 0;
+	reg_offset = 0;
+	reg_mask = 0;
+	intr_config = 0;
 
-	if (uiIntId < GIC_INT_SRC_CNT) {
-		uiRegOffset = (uiIntId >> 4u);
-		uiRegMask = (uint32_t)((uint32_t)0x2u << ((uiIntId & 0xfu) * 2u));
-		uiGICD_ICFGRn = GIC_DIST->dICFGRn[uiRegOffset];
+	if (irq < TIC_INT_SRC_CNT) {
+		reg_offset = (irq >> 4u);
+		reg_mask = (uint32_t)((uint32_t)0x2u << ((irq & 0xfu) * 2u));
+		intr_config = tic_distributer->dist_intr_config[reg_offset];
 
-		if (((ucIntType & (uint8_t)GIC_INT_TYPE_LEVEL_HIGH) ==
-		     (uint8_t)GIC_INT_TYPE_LEVEL_HIGH) ||
-		    ((ucIntType & (uint8_t)GIC_INT_TYPE_LEVEL_LOW) ==
-		     (uint8_t)GIC_INT_TYPE_LEVEL_LOW)) {
-			uiGICD_ICFGRn = (uint32_t)(uiGICD_ICFGRn & ~uiRegMask);
+		if (((irq_type & (uint8_t)TIC_INT_TYPE_LEVEL_HIGH) ==
+		     (uint8_t)TIC_INT_TYPE_LEVEL_HIGH) ||
+		    ((irq_type & (uint8_t)TIC_INT_TYPE_LEVEL_LOW) ==
+		     (uint8_t)TIC_INT_TYPE_LEVEL_LOW)) {
+			intr_config = (uint32_t)(intr_config & ~reg_mask);
 		} else {
-			uiGICD_ICFGRn = (uint32_t)(uiGICD_ICFGRn | uiRegMask);
+			intr_config = (uint32_t)(intr_config | reg_mask);
 		}
 
-		GIC_DIST->dICFGRn[uiRegOffset] = uiGICD_ICFGRn;
+		tic_distributer->dist_intr_config[reg_offset] = intr_config;
 	}
 }
 
-void GIC_IntVectSet(uint32_t uiIntId, uint32_t uiPrio, uint8_t ucIntType, GICIsrFunc fnIntFunc,
-		    void *pIntArg)
+void tic_irq_vector_set(uint32_t irq, uint32_t pri, uint8_t irq_type, tic_isr_func irq_func,
+			void *irq_arg)
 {
-	uint32_t uiRevIntId;
+	uint32_t rsvd_irq;
 
-	uiRevIntId = 0;
+	rsvd_irq = 0;
 
-	if ((uiPrio > GIC_PRIORITY_NO_MEAN) || (uiIntId >= GIC_INT_SRC_CNT)) {
+	if ((pri > TIC_PRIORITY_NO_MEAN) || (irq >= TIC_INT_SRC_CNT)) {
 		return;
 	}
 
 	core_critical_enter(); /* Prevent partially configured interrupts. */
 
-	(void)GIC_IntPrioSet_internal(uiIntId, uiPrio);
-	(void)GIC_IntConfigSet(uiIntId, ucIntType);
+	(void)tic_irq_pri_set_internal(irq, pri);
+	(void)tic_irq_config_set(irq, irq_type);
 
-	GICIsrTable[uiIntId].ifpFunc = fnIntFunc;
-	GICIsrTable[uiIntId].ifpArg = pIntArg;
-	GICIsrTable[uiIntId].ifpIsBothEdge = 0;
+	tic_intr_table[irq].if_func_ptr = irq_func;
+	tic_intr_table[irq].if_arg_ptr = irq_arg;
+	tic_intr_table[irq].if_is_both_edge = 0;
 
-	if ((uiIntId >= (uint32_t)GIC_EINT_START_INT) &&
-	    (uiIntId <= (uint32_t)GIC_EINT_END_INT) /* Set reversed external interrupt */
-	    && (ucIntType == (uint8_t)GIC_INT_TYPE_EDGE_BOTH)) { /* for supporting both edge. */
+	if ((irq >= (uint32_t)TIC_EINT_START_INT) &&
+	    (irq <= (uint32_t)TIC_EINT_END_INT) /* Set reversed external interrupt */
+	    && (irq_type == (uint8_t)TIC_INT_TYPE_EDGE_BOTH)) { /* for supporting both edge. */
 
-		uiRevIntId = (uiIntId + GIC_EINT_NUM); /* add offset of IRQn */
+		rsvd_irq = (irq + TIC_EINT_NUM); /* add offset of IRQn */
 
-		(void)GIC_IntPrioSet_internal(uiRevIntId, uiPrio);
-		(void)GIC_IntConfigSet(uiRevIntId, ucIntType);
+		(void)tic_irq_pri_set_internal(rsvd_irq, pri);
+		(void)tic_irq_config_set(rsvd_irq, irq_type);
 
-		GICIsrTable[uiRevIntId].ifpFunc = fnIntFunc;
-		GICIsrTable[uiRevIntId].ifpArg = pIntArg;
-		GICIsrTable[uiIntId].ifpIsBothEdge = (1U);
+		tic_intr_table[rsvd_irq].if_func_ptr = irq_func;
+		tic_intr_table[rsvd_irq].if_arg_ptr = irq_arg;
+		tic_intr_table[irq].if_is_both_edge = (1U);
 	}
 
 	core_critical_exit();
-}
-
-SALRetCode_t GIC_IntSrcEn ( uint32_t                              uiIntId)
-{
-    z_tic_irq_enable(uiIntId);
-
-    return SAL_RET_SUCCESS;
-}
-
-void GIC_IntSrcDis(uint32_t uiIntId)
-{
-	z_tic_irq_disable(uiIntId);
 }
 
 unsigned int z_tic_irq_get_active(void)
 {
 	uint32_t int_id;
 
-	int_id = GIC_CPU->cIAR;
+	int_id = tic_cpu_if->cpu_intr_ack;
 
 	return (int_id);
 }
 
-void z_tic_irq_enable(unsigned int irq)
+void z_tic_irq_eoi(unsigned int irq)
 {
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
-
-	uiRegOffset = 0;
-	uiBit = 0;
-
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5u); /* Calculate the register offset. */
-		uiBit = (irq & 0x1Fu);     /* Mask bit ID.     */
-
-		GIC_DIST->dISENABLERn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-
-		if (GICIsrTable[irq].ifpIsBothEdge == (1UL)) {
-			uiRegOffset = ((irq + 10UL) >> 5UL); /* Calculate the register offset. */
-			uiBit = ((irq + 10UL) & 0x1FUL);     /* Mask bit ID.     */
-
-			GIC_DIST->dISENABLERn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-		}
-
-		core_mb();
-	}
+	tic_cpu_if->cpu_end_intr = irq;
 }
 
-void z_tic_irq_disable(unsigned int irq)
+void z_tic_irq_init(void)
 {
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
+	unsigned long reg_offset;
 
-	uiRegOffset = 0;
-	uiBit = 0;
+	reg_offset = 0;
 
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5UL); /* Calculate the register offset. */
-		uiBit = (irq & 0x1FUL);     /* Mask bit ID.     */
+	/* Global TIC disable -> enable. */
+	tic_distributer->dist_ctrl &= (unsigned long)(~ARM_BIT_TIC_DIST_ICDDCR_EN);
+	tic_distributer->dist_ctrl |= (unsigned long)ARM_BIT_TIC_DIST_ICDDCR_EN;
 
-		GIC_DIST->dICENABLERn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-
-		if (GICIsrTable[irq].ifpIsBothEdge == (1UL)) {
-			uiRegOffset = ((irq + 10UL) >> 5UL); /* Calculate the register offset. */
-			uiBit = ((irq + 10UL) & 0x1FUL);     /* Mask bit ID.     */
-
-			GIC_DIST->dICENABLERn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-		}
-	}
-}
-
-bool z_tic_irq_is_enabled(unsigned int irq)
-{
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
-	uint32_t enabler;
-
-	uiRegOffset = 0;
-	uiBit = 0;
-
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5u); /* Calculate the register offset. */
-		uiBit = (irq & 0x1Fu);     /* Mask bit ID.     */
-
-		enabler = GIC_DIST->dISENABLERn[uiRegOffset];
-
-		return (enabler & (1 << uiBit)) != 0;
+	for (; reg_offset <= ((unsigned long)(TIC_INT_SRC_CNT - 1UL) / 4UL); reg_offset++) {
+		tic_distributer->dist_intr_pri[reg_offset] = 0xFAFAFAFAUL;
 	}
 
-	return false;
-}
+	tic_cpu_if->cpu_pri_mask = UNMASK_VALUE;
+	tic_cpu_if->cpu_ctlr |=
+		(TIC_CPUIF_CTRL_ENABLEGRP0 | TIC_CPUIF_CTRL_ENABLEGRP1 | TIC_CPUIF_CTRL_ACKCTL);
 
-bool z_tic_irq_is_pending(unsigned int irq)
-{
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
-	uint32_t enabler;
+	core_mb();
 
-	uiRegOffset = 0;
-	uiBit = 0;
-
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5u); /* Calculate the register offset. */
-		uiBit = (irq & 0x1Fu);     /* Mask bit ID.     */
-
-		enabler = GIC_DIST->dISPENDRn[uiRegOffset];
-
-		return (enabler & (1 << uiBit)) != 0;
-	}
-
-	return false;
-}
-
-void z_tic_irq_set_pending(unsigned int irq)
-{
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
-
-	uiRegOffset = 0;
-	uiBit = 0;
-
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5u); /* Calculate the register offset. */
-		uiBit = (irq & 0x1Fu);     /* Mask bit ID.     */
-
-		GIC_DIST->dISPENDRn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-
-		if (GICIsrTable[irq].ifpIsBothEdge == (1UL)) {
-			uiRegOffset = ((irq + 10UL) >> 5UL); /* Calculate the register offset. */
-			uiBit = ((irq + 10UL) & 0x1FUL);     /* Mask bit ID.     */
-
-			GIC_DIST->dISPENDRn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-		}
-
-		core_mb();
-	}
-}
-
-void z_tic_irq_clear_pending(unsigned int irq)
-{
-	uint32_t uiRegOffset;
-	uint32_t uiBit;
-
-	uiRegOffset = 0;
-	uiBit = 0;
-
-	if (irq < GIC_INT_SRC_CNT) {
-		uiRegOffset = (irq >> 5UL); /* Calculate the register offset. */
-		uiBit = (irq & 0x1FUL);     /* Mask bit ID.     */
-
-		GIC_DIST->dICPENDRn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-
-		if (GICIsrTable[irq].ifpIsBothEdge == (1UL)) {
-			uiRegOffset = ((irq + 10UL) >> 5UL); /* Calculate the register offset. */
-			uiBit = ((irq + 10UL) & 0x1FUL);     /* Mask bit ID.     */
-
-			GIC_DIST->dICPENDRn[uiRegOffset] = ((uint32_t)1UL << uiBit);
-		}
-	}
-}
-
-static void tic_irq_priority_set_internal(uint32_t uiIntId, uint32_t uiPrio)
-{
-	uint32_t uiRegOffset;
-	uint32_t uiRegBitField;
-	uint32_t uiGICD_IPRIORITYRn;
-
-	uiRegOffset = 0;
-	uiRegBitField = 0;
-	uiGICD_IPRIORITYRn = 0;
-
-	if ((uiPrio < GIC_PRIORITY_NO_MEAN) && (uiIntId < GIC_INT_SRC_CNT)) {
-		uiRegOffset = (uiIntId >> 2u);
-		uiRegBitField = (uiIntId & 0x03u);
-
-		uiGICD_IPRIORITYRn = GIC_DIST->dIPRIORITYRn[uiRegOffset];
-		uiGICD_IPRIORITYRn =
-			(uint32_t)(uiGICD_IPRIORITYRn & ~((uint32_t)0xFFu << (uiRegBitField * 8u)));
-		uiGICD_IPRIORITYRn = (uint32_t)(uiGICD_IPRIORITYRn |
-						(((uiPrio << 4) & 0xF0u) << (uiRegBitField * 8u)));
-
-		GIC_DIST->dIPRIORITYRn[uiRegOffset] = uiGICD_IPRIORITYRn;
-	}
+	LOG_DBG("TIC: Number of IRQs = %lu\n", (unsigned long)TIC_INT_SRC_CNT);
 }
 
 void z_tic_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 {
 	core_critical_enter();
-	tic_irq_priority_set_internal(irq, prio);
+	tic_irq_pri_set_internal(irq, prio);
 	core_critical_exit();
 }
 
-void z_tic_irq_eoi(unsigned int irq)
+void z_tic_irq_enable(unsigned int irq)
 {
-	GIC_CPU->cEOIR = irq;
-}
+	uint32_t reg_offset;
+	uint32_t mask_bit_id;
 
-void tic_raise_sgi(unsigned int sgi_id, uint64_t target_aff, uint16_t target_list)
-{
-	uint32_t uiTargetListFilter;
-	uint32_t uiCPUTargetList;
-	uint32_t uiNASTT;
+	reg_offset = 0;
+	mask_bit_id = 0;
 
-	uiTargetListFilter = GIC_SGI_TO_TARGETLIST;
-	uiCPUTargetList = 0x1UL; /* bitfiled 0 : cpu #0, bitfield n : cpu #n, n : 0 ~ 7          */
-	uiNASTT = 0UL;           /* 0 : group 0 , 1: group 1                                     */
+	if (irq < TIC_INT_SRC_CNT) {
+		reg_offset = (irq >> 5u);    /* Calculate the register offset. */
+		mask_bit_id = (irq & 0x1Fu); /* Mask bit ID. */
 
-	if (sgi_id <= 15UL) {
-		GIC_DIST->dSGIR = (uint32_t)((uiTargetListFilter & 0x3UL) << 24) |
-				  ((uiCPUTargetList & 0xffUL) << 16) | ((uiNASTT & 0x1UL) << 15) |
-				  (sgi_id & 0xfUL);
+		tic_distributer->dist_intr_set_en[reg_offset] = ((uint32_t)1UL << mask_bit_id);
+
+		if (tic_intr_table[irq].if_is_both_edge == (1UL)) {
+			reg_offset = ((irq + 10UL) >> 5UL);    /* Calculate the register offset. */
+			mask_bit_id = ((irq + 10UL) & 0x1FUL); /* Mask bit ID. */
+
+			tic_distributer->dist_intr_set_en[reg_offset] =
+				((uint32_t)1UL << mask_bit_id);
+		}
+
+		core_mb();
+	} else {
+		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
+		return;
 	}
 }
 
-void z_tic_irq_init(void)
+void z_tic_irq_disable(unsigned int irq)
 {
-	unsigned long uiRegOffset;
+	uint32_t reg_offset;
+	uint32_t mask_bit_id;
 
-	uiRegOffset = 0;
+	reg_offset = 0;
+	mask_bit_id = 0;
 
-	/* Global GIC disable -> enable. */
-	GIC_DIST->dCTRL &= (unsigned long)(~ARM_BIT_GIC_DIST_ICDDCR_EN);
-	GIC_DIST->dCTRL |= (unsigned long)ARM_BIT_GIC_DIST_ICDDCR_EN;
+	if (irq < TIC_INT_SRC_CNT) {
+		reg_offset = (irq >> 5UL);    /* Calculate the register offset. */
+		mask_bit_id = (irq & 0x1FUL); /* Mask bit ID. */
 
-	for (; uiRegOffset <= ((unsigned long)(GIC_INT_SRC_CNT - 1UL) / 4UL); uiRegOffset++) {
-		GIC_DIST->dIPRIORITYRn[uiRegOffset] = 0xA0A0A0A0UL;
+		tic_distributer->dist_intr_clr_en[reg_offset] = ((uint32_t)1UL << mask_bit_id);
+
+		if (tic_intr_table[irq].if_is_both_edge == (1UL)) {
+			reg_offset = ((irq + 10UL) >> 5UL);    /* Calculate the register offset. */
+			mask_bit_id = ((irq + 10UL) & 0x1FUL); /* Mask bit ID. */
+
+			tic_distributer->dist_intr_clr_en[reg_offset] =
+				((uint32_t)1UL << mask_bit_id);
+		}
+	} else {
+		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
+		return;
+	}
+}
+
+bool z_tic_irq_is_enabled(unsigned int irq)
+{
+	uint32_t reg_offset;
+	uint32_t mask_bit_id;
+	uint32_t enabler;
+
+	reg_offset = 0;
+	mask_bit_id = 0;
+
+	if (irq < TIC_INT_SRC_CNT) {
+		reg_offset = (irq >> 5u);    /* Calculate the register offset. */
+		mask_bit_id = (irq & 0x1Fu); /* Mask bit ID. */
+
+		enabler = tic_distributer->dist_intr_set_en[reg_offset];
+
+		return (enabler & (1 << mask_bit_id)) != 0;
+	} else {
+		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
+		return -EINVAL;
+	}
+}
+
+void z_tic_arm_enter_irq(int irq)
+{
+	uint32_t target_list_filter;
+	uint32_t cpu_target_list;
+	uint32_t group_id;
+
+	target_list_filter = TIC_SGI_TO_TARGETLIST;
+	cpu_target_list = 0x1UL; /* bitfiled 0 : cpu #0, bitfield n : cpu #n, n : 0 ~ 7 */
+	group_id = 0UL;          /* 0 : group 0 , 1: group 1 */
+
+	if (irq <= 15UL) {
+		tic_distributer->dist_sw_gen_intr = (uint32_t)((target_list_filter & 0x3UL) << 24) |
+						    ((cpu_target_list & 0xffUL) << 16) |
+						    ((group_id & 0x1UL) << 15) | (irq & 0xfUL);
+	} else {
+		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
+	}
+}
+
+void tic_irq_handler(void *arg)
+{
+	uint32_t intr_ack_reg;
+	uint32_t irq;
+	tic_isr_func func_isr;
+	void *intr_arg_ptr;
+
+	intr_ack_reg = z_tic_irq_get_active();
+	irq = intr_ack_reg & 0x3FFU; /* Mask away the CPUID. */
+	func_isr = (tic_isr_func)NULL;
+	intr_arg_ptr = NULL_PTR;
+
+	if (irq < TIC_INT_SRC_CNT) {
+		func_isr = tic_intr_table[irq].if_func_ptr; /* Fetch ISR handler. */
+		intr_arg_ptr = tic_intr_table[irq].if_arg_ptr;
+
+		if (func_isr != (tic_isr_func)NULL) {
+			(*func_isr)(intr_arg_ptr); /* Call ISR handler. */
+		}
+
+		core_mb(); /* Memory barrier before ending the interrupt. */
+		z_tic_irq_eoi(intr_ack_reg);
 	}
 
-	GIC_CPU->cPMR = 0xFFUL;
-	GIC_CPU->cCTLR |= GIC_CPUIF_CTRL_ENABLEGRP0;
-
-	core_mb();
+	return;
 }
-
-/**
- * @brief Initialize the GIC device driver
- */
-int z_tic_init(const struct device *dev)
-{
-	z_tic_irq_init();
-
-	return 0;
-}
-
-DEVICE_DT_INST_DEFINE(0, z_tic_init, NULL, NULL, NULL, PRE_KERNEL_1, CONFIG_INTC_INIT_PRIORITY,
-		      NULL);

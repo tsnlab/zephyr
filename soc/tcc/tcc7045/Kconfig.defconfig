@@ -7,12 +7,10 @@ config SHARED_INTERRUPTS
     def_bool y
 
 config NUM_IRQS
-	# must be >= the highest interrupt number used
-	# - include the UART interrupts
 	default 220
 
 config TICKLESS_KERNEL
-    def_bool y
+    def_bool n
 
 config TCCVCP_CONSOLE
     def_bool y
@@ -22,7 +20,6 @@ config REQUIRES_FULL_LIBC
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
 	default 12000000
-#	default 300000000
 
 # Workaround for not being able to have commas in macro arguments
 DT_CHOSEN_Z_FLASH := zephyr,flash

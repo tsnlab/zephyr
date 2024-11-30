@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef TCC_TIC_ENUM_HEADER
 #define TCC_TIC_ENUM_HEADER
 
@@ -13,20 +18,14 @@
 #define TIC_INT_TYPE_EDGE_FALLING (0x8U)
 #define TIC_INT_TYPE_EDGE_BOTH    (TIC_INT_TYPE_EDGE_RISING | TIC_INT_TYPE_EDGE_FALLING)
 
-#define IRQ_DEFAULT_PRIORITY (0xaU)
-#define TIC_PRIORITY_NO_MEAN (16UL)
+#define TIC_IRQ_DEFAULT_PRIORITY (0xFAUL)
+#define TIC_PRIORITY_NO_MEAN     (0x100UL)
 
 #define TIC_SPI 0x0
 #define TIC_PPI 0x1
 
 #define TIC_PPI_START (16UL)
 #define TIC_SPI_START (32UL)
-
-#define TIC_EINT_START_INT (TIC_EXT0)
-#define TIC_EINT_END_INT   (TIC_EXT9)
-#define TIC_EINT_NUM       ((unsigned long)TIC_EXTn0 - (unsigned long)TIC_EXT0)
-
-#define TIC_INT_SRC_CNT (TIC_SPU + 1UL)
 
 #define TIC_CAN0_0                (TIC_SPI_START + 0UL)
 #define TIC_CAN0_1                (TIC_SPI_START + 1UL)
@@ -74,7 +73,7 @@
 #define TIC_ICTC1                 (TIC_SPI_START + 43UL)
 #define TIC_ICTC2                 (TIC_SPI_START + 44UL)
 #define TIC_ICTC3                 (TIC_SPI_START + 45UL)
-#define TIC_ICTC4                 (GIC_SPI_START + 46UL)
+#define TIC_ICTC4                 (TIC_SPI_START + 46UL)
 #define TIC_ICTC5                 (TIC_SPI_START + 47UL)
 #define TIC_RED_ICTC0             (TIC_SPI_START + 48UL)
 #define TIC_RED_ICTC1             (TIC_SPI_START + 49UL)
@@ -150,5 +149,11 @@
 #define TIC_GMAC_RX2              (TIC_SPI_START + 119UL)
 #define TIC_SFMC1                 (TIC_SPI_START + 120UL)
 #define TIC_SPU                   (TIC_SPI_START + 121UL)
+
+#define TIC_EINT_START_INT (TIC_EXT0)
+#define TIC_EINT_END_INT   (TIC_EXT9)
+#define TIC_EINT_NUM       ((unsigned long)TIC_EXTn0 - (unsigned long)TIC_EXT0)
+
+#define TIC_INT_SRC_CNT (TIC_SPU + 1UL)
 
 #endif // TCC_TIC_ENUM_HEADER

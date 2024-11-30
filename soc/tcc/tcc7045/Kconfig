@@ -14,6 +14,8 @@ config SOC_TCC7045
     select SOC_EARLY_INIT_HOOK
     select TIC
     select TCC_VCPTTC_TIMER
+    select CLOCK_CONTROL
+    select CLOCK_CONTROL_TCC_CCU
 #    select ARMV7_EXCEPTION_STACK_SIZE
 #    select ARMV7_FIQ_STACK_SIZE
 #    select ARMV7_SVC_STACK_SIZE
