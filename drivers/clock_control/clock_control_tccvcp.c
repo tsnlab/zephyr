@@ -96,7 +96,7 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 			}
 
 			sys_write32(sys_read32(reg) |
-					(((en) & 1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
+					    (((en) & 1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
 				    reg);
 
 			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) ==
