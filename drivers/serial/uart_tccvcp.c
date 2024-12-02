@@ -32,8 +32,7 @@ static struct uart_status uart[UART_CH_MAX];
 
 static void uart_write_reg(uint8_t chan, uint32_t addr, uint32_t set_value)
 {
-	uint32_t base_addr;
-	uint32_t reg_addr;
+	uint32_t base_addr, reg_addr;
 
 	if (uart[chan].status_base == 0UL) {
 		uart[chan].status_base = UART_GET_BASE(chan);
@@ -47,10 +46,8 @@ static void uart_write_reg(uint8_t chan, uint32_t addr, uint32_t set_value)
 
 static uint32_t uart_clear_gpio(uint8_t chan)
 {
-	uint32_t gpio_tx = 0;
-	uint32_t gpio_rx = 0;
-	uint32_t gpio_clr2send = 0;
-	uint32_t gpio_req2send = 0;
+	uint32_t gpio_tx = 0, gpio_rx = 0;
+	uint32_t gpio_clr2send = 0, gpio_req2send = 0;
 	uint32_t ret, ret1, ret2;
 
 	ret = 0;
@@ -107,8 +104,7 @@ static uint32_t uart_clear_gpio(uint8_t chan)
 static uint32_t uart_reset(uint8_t chan)
 {
 	uint32_t ret;
-	int32_t clk_ret;
-	int32_t clk_bus_id;
+	int32_t clk_ret, clk_bus_id;
 
 	ret = 0;
 	clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
@@ -178,10 +174,7 @@ static void uart_status_init(uint8_t chan)
 static int32_t uart_set_gpio(uint8_t chan, const struct uart_board_port *port_info)
 {
 	int32_t ret;
-	uint32_t ret1;
-	uint32_t ret2;
-	uint32_t ret3;
-	uint32_t ret4;
+	uint32_t ret1, ret2, ret3, ret4;
 	uint32_t ret_cfg;
 
 	ret = -2;
@@ -318,11 +311,7 @@ static int32_t uart_set_port_config(uint8_t chan, uint32_t port)
 
 static int32_t uart_set_baud_rate(uint8_t chan, uint32_t baud)
 {
-	uint32_t divider;
-	uint32_t mod;
-	uint32_t brd_i;
-	uint32_t brd_f;
-	uint32_t pclk;
+	uint32_t divider, mod, brd_i, brd_f, pclk;
 	int32_t ret;
 
 	if (chan >= UART_CH_MAX) {
@@ -356,11 +345,8 @@ static int32_t uart_set_chan_config(struct uart_param *uart_cfg)
 {
 	uint8_t chan;
 	uint8_t word_len = (uint8_t)uart_cfg->word_length;
-	uint32_t cr_data = 0;
-	uint32_t lcr_data = 0;
-	int32_t ret;
-	int32_t clk_bus_id;
-	int32_t clk_peri_id;
+	uint32_t cr_data = 0, lcr_data = 0;
+	int32_t ret, clk_bus_id, clk_peri_id;
 
 	chan = uart_cfg->channel;
 	/* Enable the UART controller peri clock */
@@ -426,9 +412,7 @@ static int32_t uart_set_chan_config(struct uart_param *uart_cfg)
 
 static uint32_t uart_read_reg(uint8_t chan, uint32_t addr)
 {
-	uint32_t ret;
-	uint32_t base_addr;
-	uint32_t reg_addr;
+	uint32_t ret, base_addr, reg_addr;
 
 	ret = 0;
 
@@ -511,8 +495,7 @@ static int uart_tccvcp_init(const struct device *dev)
 int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 {
 	uint8_t chan;
-	uint32_t data;
-	uint32_t repeat = 0;
+	uint32_t data, repeat = 0;
 
 	chan = (uint8_t)((UART_BASE_ADDR - 0xA0200000) / 0x10000);
 

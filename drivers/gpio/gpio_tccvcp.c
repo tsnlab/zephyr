@@ -35,10 +35,7 @@ int mfio_ch_cfg_flag[3] = {
 
 uint32_t vcp_gpio_set(uint32_t port, uint32_t data)
 {
-	uint32_t bit;
-	uint32_t data_or;
-	uint32_t data_bic;
-	uint32_t ret;
+	uint32_t bit, data_or, data_bic, ret;
 
 	ret = 0;
 
@@ -62,8 +59,7 @@ uint32_t vcp_gpio_set(uint32_t port, uint32_t data)
 
 static void vcp_gpio_set_register(uint32_t addr, uint32_t bit, uint32_t enable)
 {
-	uint32_t base_val;
-	uint32_t set_val;
+	uint32_t base_val, set_val;
 
 	base_val = sys_read32(addr);
 	set_val = 0UL;
@@ -79,11 +75,8 @@ static void vcp_gpio_set_register(uint32_t addr, uint32_t bit, uint32_t enable)
 
 uint32_t vcp_gpio_peri_chan_sel(uint32_t peri_chan_sel, uint32_t chan)
 {
-	uint32_t peri_sel_addr;
-	uint32_t clear_bit;
-	uint32_t set_bit;
-	uint32_t base_val;
-	uint32_t comp_val;
+	uint32_t peri_sel_addr, clear_bit;
+	uint32_t set_bit, base_val, comp_val;
 
 	peri_sel_addr = GPIO_PERICH_SEL;
 	base_val = sys_read32(peri_sel_addr);
@@ -129,22 +122,10 @@ uint32_t vcp_gpio_peri_chan_sel(uint32_t peri_chan_sel, uint32_t chan)
 
 uint32_t vcp_gpio_config(uint32_t port, uint32_t config)
 {
-	uint32_t pin;
-	uint32_t bit;
-	uint32_t func;
-	uint32_t pull;
-	uint32_t ds;
-	uint32_t ien;
-	uint32_t base_val;
-	uint32_t comp_val;
-	uint32_t set_val;
-	uint32_t reg_fn;
-	uint32_t pullen_addr;
-	uint32_t pullsel_addr;
-	uint32_t cd_addr;
-	uint32_t outen_addr;
-	uint32_t ien_addr;
-	uint32_t ret;
+	uint32_t pin, bit, func, pull, ds, ien;
+	uint32_t base_val, comp_val, set_val, reg_fn;
+	uint32_t pullen_addr, pullsel_addr, cd_addr;
+	uint32_t outen_addr, ien_addr, ret;
 
 	ret = 0;
 	pin = port & (uint32_t)GPIO_PIN_MASK;
@@ -263,10 +244,7 @@ uint32_t vcp_gpio_config(uint32_t port, uint32_t config)
 uint32_t vcp_gpio_mfio_config(uint32_t peri_sel, uint32_t peri_type, uint32_t chan_sel,
 			      uint32_t chan_num)
 {
-	uint32_t base_val;
-	uint32_t set_val;
-	uint32_t clear_bit;
-	uint32_t comp_val;
+	uint32_t base_val, set_val, clear_bit, comp_val;
 
 	if (peri_sel == GPIO_MFIO_CFG_PERI_SEL0) {
 		if (chan_sel == GPIO_MFIO_CFG_CH_SEL0) {

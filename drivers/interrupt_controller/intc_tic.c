@@ -47,9 +47,7 @@ static void core_critical_exit(void)
 
 static void tic_irq_pri_set_internal(uint32_t irq, uint32_t pri)
 {
-	uint32_t reg_offset;
-	uint32_t reg_bits;
-	uint32_t intr_pri_reg;
+	uint32_t reg_offset, reg_bits, intr_pri_reg;
 
 	reg_offset = 0;
 	reg_bits = 0;
@@ -69,9 +67,7 @@ static void tic_irq_pri_set_internal(uint32_t irq, uint32_t pri)
 
 static void tic_irq_config_set(uint32_t irq, uint8_t irq_type)
 {
-	uint32_t reg_offset;
-	uint32_t reg_mask;
-	uint32_t intr_config;
+	uint32_t reg_offset, reg_mask, intr_config;
 
 	reg_offset = 0;
 	reg_mask = 0;
@@ -178,8 +174,7 @@ void z_tic_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 
 void z_tic_irq_enable(unsigned int irq)
 {
-	uint32_t reg_offset;
-	uint32_t mask_bit_id;
+	uint32_t reg_offset, mask_bit_id;
 
 	reg_offset = 0;
 	mask_bit_id = 0;
@@ -207,8 +202,7 @@ void z_tic_irq_enable(unsigned int irq)
 
 void z_tic_irq_disable(unsigned int irq)
 {
-	uint32_t reg_offset;
-	uint32_t mask_bit_id;
+	uint32_t reg_offset, mask_bit_id;
 
 	reg_offset = 0;
 	mask_bit_id = 0;
@@ -234,9 +228,7 @@ void z_tic_irq_disable(unsigned int irq)
 
 bool z_tic_irq_is_enabled(unsigned int irq)
 {
-	uint32_t reg_offset;
-	uint32_t mask_bit_id;
-	uint32_t enabler;
+	uint32_t reg_offset, mask_bit_id, enabler;
 
 	reg_offset = 0;
 	mask_bit_id = 0;
@@ -257,8 +249,7 @@ bool z_tic_irq_is_enabled(unsigned int irq)
 void z_tic_arm_enter_irq(int irq)
 {
 	uint32_t target_list_filter;
-	uint32_t cpu_target_list;
-	uint32_t group_id;
+	uint32_t cpu_target_list, group_id;
 
 	target_list_filter = TIC_SGI_TO_TARGETLIST;
 	cpu_target_list = 0x1UL; /* bitfiled 0 : cpu #0, bitfield n : cpu #n, n : 0 ~ 7 */
@@ -275,8 +266,7 @@ void z_tic_arm_enter_irq(int irq)
 
 void tic_irq_handler(void *arg)
 {
-	uint32_t intr_ack_reg;
-	uint32_t irq;
+	uint32_t intr_ack_reg, irq;
 	tic_isr_func func_isr;
 	void *intr_arg_ptr;
 

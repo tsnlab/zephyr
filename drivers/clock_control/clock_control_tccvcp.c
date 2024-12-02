@@ -95,10 +95,12 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 				; /* if cpu clokc is 1HGz then loop 100. */
 			}
 
-			sys_write32(sys_read32(reg) |
-								(((en)&1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT), reg);
+			sys_write32(sys_read32(reg) | 
+								(((en)&1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
+				    reg);
 
-			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) == 0UL) {
+			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) ==
+			       0UL) {
 				try_count++;
 
 				if (try_count > timeout) {
@@ -107,7 +109,8 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 			}
 		} else {
 			sys_write32((uint32_t)(sys_read32(reg)) &
-					    (~(1UL << (uint32_t)CLOCK_PLL_EN_SHIFT)), reg);
+					    (~(1UL << (uint32_t)CLOCK_PLL_EN_SHIFT)),
+				    reg);
 		}
 	}
 }
@@ -141,15 +144,19 @@ static void clock_dev_write_pclk_ctrl(uint32_t reg, uint32_t md, uint32_t en, ui
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK
 						 << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT)) |
 				    ((divider & (uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK)
-				     << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT), reg);
+				     << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT),
+			    reg);
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_SEL_MASK
 						 << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT)) |
 				    ((sel & (uint32_t)CLOCK_PCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT), reg);
+				     << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT),
+			    reg);
 		sys_write32((sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT)) |
-				    ((md & 1UL) << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT), reg);
+				    ((md & 1UL) << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT),
+			    reg);
 		sys_write32((sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT)) |
-				    ((en & 1UL) << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT), reg);
+				    ((en & 1UL) << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT),
+			    reg);
 	}
 }
 
@@ -165,7 +172,8 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT))) |
 				    ((conf & (uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT), reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT),
+			    reg);
 		try_count = 0;
 
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -179,7 +187,8 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_SEL_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT))) |
 				    ((sel & (uint32_t)CLOCK_MCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT), reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT),
+			    reg);
 		try_count = 0;
 
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -193,7 +202,8 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_SEL_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT))) |
 				    ((sel & (uint32_t)CLOCK_MCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT), reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT),
+			    reg);
 
 		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -207,7 +217,8 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT))) |
 				    ((conf & (uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT), reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT),
+			    reg);
 
 		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -221,7 +232,8 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 
 	if (en != 0UL) {
 		sys_write32((sys_read32(reg) & (~(1UL << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT))) |
-				    ((en & 1UL) << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT), reg);
+				    ((en & 1UL) << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT),
+			    reg);
 
 		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_DIVSTS_SHIFT)) != 0UL) {

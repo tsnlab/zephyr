@@ -79,8 +79,7 @@ static void ttc_timer_compare_isr(const void *arg)
 void sys_clock_set_timeout(int32_t ticks, bool idle)
 {
 #ifdef CONFIG_TICKLESS_KERNEL
-	uint32_t cycles;
-	uint32_t next_cycles;
+	uint32_t cycles, next_cycles;
 
 	/* Read counter value */
 	cycles = read_count();
@@ -120,8 +119,7 @@ uint32_t sys_clock_cycle_get_32(void)
 
 uint32_t vcp_timer_irq_clear(enum timer_channel channel)
 {
-	uint32_t reg;
-	uint32_t clr_ctl;
+	uint32_t reg, clr_ctl;
 
 	reg = TIMER_BASE_ADDR + TMR_IRQ_CTRL;
 	clr_ctl = sys_read32(reg);
@@ -233,8 +231,7 @@ static uint32_t vcp_timer_enable_comp0(const struct vcp_timer_config *cfg_ptr)
 static uint32_t vcp_timer_enable_comp1(const struct vcp_timer_config *cfg_ptr)
 {
 	uint32_t tmpval = 0x0UL;
-	uint32_t rate_factor;
-	uint32_t mainval;
+	uint32_t rate_factor, mainval;
 	uint32_t cmpval0 = 0x0UL;
 	uint32_t cmpval1 = 0x0UL;
 	uint32_t reg_cfgval = 0x0UL;
@@ -413,10 +410,7 @@ uint32_t vcp_timer_enable(uint32_t channel, uint32_t u_sec, vcp_timer_handler_fn
 
 uint32_t vcp_timer_init(void)
 {
-	uint32_t reg;
-	uint32_t resIndex;
-	uint32_t reg_val;
-	uint32_t ret;
+	uint32_t reg, resIndex, reg_val, ret;
 
 	ret = 0;
 
@@ -449,8 +443,7 @@ uint32_t vcp_timer_init(void)
 
 static int sys_clock_driver_init(void)
 {
-	uint32_t timer_channel;
-	uint32_t tic_to_sec;
+	uint32_t timer_channel, tic_to_sec;
 
 	vcp_timer_init();
 
