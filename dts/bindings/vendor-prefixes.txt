@@ -248,7 +248,6 @@ fsl	Freescale Semiconductor
 ftdi	Future Technology Devices International Ltd.
 fujitsu	Fujitsu Ltd.
 futaba	Futaba Corporation
-fysetc	Shenzhen Fuyuansheng Electronic Technology Co., Ltd.
 gaisler	Gaisler
 galaxycore	Galaxycore, Inc.
 gardena	GARDENA GmbH
@@ -653,6 +652,7 @@ syna	Synaptics Inc.
 synology	Synology, Inc.
 tbs	TBS Technologies
 tbs-biometrics	Touchless Biometric Systems AG
+tcc	Telechips
 tcg	Trusted Computing Group
 tcl	Toby Churchill Ltd.
 tcs	Shenzhen City Tang Cheng Technology Co., Ltd.

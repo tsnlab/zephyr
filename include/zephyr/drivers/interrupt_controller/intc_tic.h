@@ -103,7 +103,7 @@ typedef struct tic_irq_func_ptr {
 #define MAX_BINARY_POINT_VALUE 0
 #else
 #error Invalid UNIQUE_INTERRUPT_PRIORITIES setting.  UNIQUE_INTERRUPT_PRIORITIES must be \
- set to the number of unique priorities implemented by the target hardware
+set to the number of unique priorities implemented by the target hardware
 #endif
 
 #define cpu_irq_disable()                                                                          \

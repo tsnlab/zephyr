@@ -74,8 +74,7 @@ static void clock_dev_reset_clk_src(signed long iId);
 static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t m, uint32_t s)
 {
 	const uint32_t timeout = 4000000000UL;
-	uint32_t delay;
-	uint32_t try_count;
+	uint32_t delay, try_count;
 
 	delay = 0;
 	try_count = 0;
@@ -97,11 +96,9 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 			}
 
 			sys_write32(sys_read32(reg) |
-								(((en)&1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
-				    reg);
+								(((en)&1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT), reg);
 
-			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) ==
-			       0UL) {
+			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) == 0UL) {
 				try_count++;
 
 				if (try_count > timeout) {
@@ -110,8 +107,7 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 			}
 		} else {
 			sys_write32((uint32_t)(sys_read32(reg)) &
-					    (~(1UL << (uint32_t)CLOCK_PLL_EN_SHIFT)),
-				    reg);
+					    (~(1UL << (uint32_t)CLOCK_PLL_EN_SHIFT)), reg);
 		}
 	}
 }
@@ -145,27 +141,22 @@ static void clock_dev_write_pclk_ctrl(uint32_t reg, uint32_t md, uint32_t en, ui
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK
 						 << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT)) |
 				    ((divider & (uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK)
-				     << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT),
-			    reg);
+				     << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT), reg);
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_SEL_MASK
 						 << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT)) |
 				    ((sel & (uint32_t)CLOCK_PCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT),
-			    reg);
+				     << (uint32_t)CLOCK_PCLKCTRL_SEL_SHIFT), reg);
 		sys_write32((sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT)) |
-				    ((md & 1UL) << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT),
-			    reg);
+				    ((md & 1UL) << (uint32_t)CLOCK_PCLKCTRL_MD_SHIFT), reg);
 		sys_write32((sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT)) |
-				    ((en & 1UL) << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT),
-			    reg);
+				    ((en & 1UL) << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT), reg);
 	}
 }
 
 static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, uint32_t sel)
 {
 	const uint32_t timeout = 4000000000;
-	uint32_t cur_conf;
-	uint32_t try_count;
+	uint32_t cur_conf, try_count;
 
 	cur_conf = (sys_read32(reg) >> (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT) &
 		   (uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK;
@@ -174,8 +165,7 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT))) |
 				    ((conf & (uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT),
-			    reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT), reg);
 		try_count = 0;
 
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -189,8 +179,7 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_SEL_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT))) |
 				    ((sel & (uint32_t)CLOCK_MCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT),
-			    reg);
+				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT), reg);
 		try_count = 0;
 
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
@@ -204,10 +193,9 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_SEL_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT))) |
 				    ((sel & (uint32_t)CLOCK_MCLKCTRL_SEL_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT),
-			    reg);
-		try_count = 0;
+				     << (uint32_t)CLOCK_MCLKCTRL_SEL_SHIFT), reg);
 
+		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
 			try_count++;
 
@@ -219,10 +207,9 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 		sys_write32((sys_read32(reg) & (~((uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK
 						  << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT))) |
 				    ((conf & (uint32_t)CLOCK_MCLKCTRL_CONFIG_MASK)
-				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT),
-			    reg);
-		try_count = 0;
+				     << (uint32_t)CLOCK_MCLKCTRL_CONFIG_SHIFT), reg);
 
+		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_CLKCHG_SHIFT)) != 0UL) {
 			try_count++;
 
@@ -234,10 +221,9 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 
 	if (en != 0UL) {
 		sys_write32((sys_read32(reg) & (~(1UL << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT))) |
-				    ((en & 1UL) << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT),
-			    reg);
-		try_count = 0;
+				    ((en & 1UL) << (uint32_t)CLOCK_MCLKCTRL_EN_SHIFT), reg);
 
+		try_count = 0;
 		while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_MCLKCTRL_DIVSTS_SHIFT)) != 0UL) {
 			try_count++;
 
@@ -250,17 +236,9 @@ static void clock_dev_write_clk_ctrl(uint32_t reg, uint32_t en, uint32_t conf, u
 
 static signed long clock_dev_find_pms(struct clock_pms *pll_ptr, uint32_t src_freq)
 {
-	unsigned long long pll;
-	unsigned long long src;
-	unsigned long long fvco;
-	unsigned long long srch_p;
-	unsigned long long srch_m;
-	unsigned long long temp;
-	unsigned long long src_pll;
-
-	uint32_t err;
-	uint32_t srch_err;
-
+	unsigned long long pll, src, fvco;
+	unsigned long long srch_p, srch_m, temp, src_pll;
+	uint32_t err, srch_err;
 	signed long srch_s;
 
 	if (pll_ptr == NULL) {
@@ -378,9 +356,7 @@ static uint32_t clock_dev_get_pll_div(signed long id)
 {
 	uint32_t ret;
 	CLOCKMpll_t m_pll_id;
-	uint32_t reg;
-	uint32_t offset;
-	uint32_t reg_val;
+	uint32_t reg, offset, reg_val;
 
 	ret = 0;
 	m_pll_id = (CLOCKMpll_t)id;
@@ -416,13 +392,10 @@ static uint32_t clock_dev_get_pll_div(signed long id)
 
 static uint32_t clock_dev_cal_pclk_div(const struct clock_pclk_ctrl *pclk_ctrl_ptr,
 				       uint32_t *clk_div_ptr, const uint32_t src_clk,
-				       /*uint32_t                              div_min,*/
 				       uint32_t div_max)
 {
-	uint32_t clk_rate1;
-	uint32_t clk_rate2;
-	uint32_t err1;
-	uint32_t err2;
+	uint32_t clk_rate1, clk_rate2;
+	uint32_t err1, err2;
 
 	if (pclk_ctrl_ptr == NULL) {
 		return 0;
@@ -460,13 +433,8 @@ static uint32_t clock_dev_cal_pclk_div(const struct clock_pclk_ctrl *pclk_ctrl_p
 static signed long clock_dev_find_pclk(struct clock_pclk_ctrl *pclk_ctrl_ptr,
 				       enum clock_pclk_ctrl_type type)
 {
-	signed long ret;
-	signed long last_idx;
-	signed long idx;
-	uint32_t div_max;
-	uint32_t srch_src;
-	uint32_t err_div;
-	uint32_t md;
+	signed long ret, last_idx, idx;
+	uint32_t div_max, srch_src, err_div, md;
 	uint32_t divider[CLOCK_SRC_MAX_NUM];
 	uint32_t err[CLOCK_SRC_MAX_NUM];
 	uint32_t div_div;
@@ -605,11 +573,8 @@ void vcp_clock_init(void)
 
 signed long clock_set_pll_div(signed long id, uint32_t pll_div)
 {
-	uint32_t reg;
 	CLOCKMpll_t mpll_id;
-	uint32_t offset;
-	uint32_t reg_val;
-	uint32_t real_pll_div;
+	uint32_t reg, offset, reg_val, real_pll_div;
 
 	reg = (uint32_t)CLOCK_BASE_ADDR + (uint32_t)CLOCK_MCKC_CLKDIVC;
 	mpll_id = (CLOCKMpll_t)id;
@@ -707,12 +672,9 @@ signed long clock_set_pll_rate(signed long id, uint32_t rate)
 static signed long clock_dev_find_clk_ctrl(struct clock_clk_ctrl *clk_ctrl)
 {
 	signed long ret;
-	uint32_t idx;
 	uint32_t div_table[CLOCK_SRC_MAX_NUM];
 	uint32_t err[CLOCK_SRC_MAX_NUM];
-	uint32_t srch_src;
-	uint32_t clk_rate;
-	uint32_t xin_freq;
+	uint32_t idx, srch_src, clk_rate, xin_freq;
 
 	ret = 0;
 	xin_freq = 0;
@@ -875,12 +837,9 @@ signed long clock_set_clk_ctrl_rate(signed long id, uint32_t rate)
 
 uint32_t clock_get_clk_ctrl_rate(signed long id)
 {
-	uint32_t reg;
 	struct clock_clk_ctrl clk_ctrl;
 	enum clock_mclk_ctrl_sel mclk_sel;
-	uint32_t reg_val;
-	uint32_t src_freq;
-	uint32_t ret;
+	uint32_t reg, reg_val, src_freq, ret;
 
 	reg = (uint32_t)CLOCK_BASE_ADDR + (uint32_t)CLOCK_MCKC_CLKCTRL + ((uint32_t)id * 4UL);
 	reg_val = 0;
@@ -980,10 +939,7 @@ signed long clock_disable_peri(signed long id)
 uint32_t clock_get_peri_rate(signed long id)
 {
 	CLOCKPeri_t peri_offset;
-	uint32_t reg;
-	uint32_t reg_va;
-	uint32_t src_freq;
-	uint32_t ret;
+	uint32_t reg, reg_va, src_freq, ret;
 	struct clock_pclk_ctrl pclk_ctrl;
 	CLOCKPclkctrlSel_t pclk_sel;
 

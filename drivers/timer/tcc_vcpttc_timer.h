@@ -41,7 +41,7 @@
 
 /*
  * 0: Reading this register to be cleared,
- * 1: Writing a non-zero value to MASKED_IRQ_STATUS to be cleared
+ * 1: Writing a non-zero value to MASKED_IRQ_STATUS to be cleared.
  */
 #define TMR_IRQ_CLR_CTRL_WRITE (1UL << 31UL)
 #define TMR_IRQ_CLR_CTRL_READ  (0UL << 31UL)
