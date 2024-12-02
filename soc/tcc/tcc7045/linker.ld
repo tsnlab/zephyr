@@ -12,18 +12,10 @@
 #include <zephyr/linker/linker-tool.h>
 
 /* physical address of RAM */
-#ifdef CONFIG_XIP
-  #define ROMABLE_REGION FLASH
-#else
-  #define ROMABLE_REGION REMAP_FLASH
-#endif
+#define ROMABLE_REGION REMAP_FLASH
 #define RAMABLE_REGION RAM
 
-#if !defined(CONFIG_XIP) && (CONFIG_FLASH_SIZE == 0)
-  #define ROM_ADDR RAM_ADDR
-#else
-  #define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
-#endif
+#define ROM_ADDR (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)
 
 #if defined(CONFIG_ROM_END_OFFSET)
 #define ROM_END_OFFSET CONFIG_ROM_END_OFFSET
@@ -37,19 +29,8 @@
   #define ROM_SIZE (CONFIG_FLASH_SIZE*1K - CONFIG_FLASH_LOAD_OFFSET - ROM_END_OFFSET)
 #endif
 
-#if defined(CONFIG_XIP)
-  #if defined(CONFIG_IS_BOOTLOADER)
-    #define RAM_SIZE (CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
-    #define RAM_ADDR (CONFIG_SRAM_BASE_ADDRESS + \
-                     (CONFIG_SRAM_SIZE * 1K - RAM_SIZE))
-  #else
-    #define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
-    #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
-  #endif
-#else
-  #define RAM_SIZE (CONFIG_SRAM_SIZE * 1K - CONFIG_BOOTLOADER_SRAM_SIZE * 1K)
-  #define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
-#endif
+#define RAM_SIZE (CONFIG_SRAM_SIZE * 1K)
+#define RAM_ADDR CONFIG_SRAM_BASE_ADDRESS
 
 /* Set alignment to CONFIG_ARM_MPU_REGION_MIN_ALIGN_AND_SIZE
  * to make linker section alignment comply with MPU granularity.
@@ -115,20 +96,16 @@ SECTIONS
 
     GROUP_START(ROMABLE_REGION)
 
-#if defined(CONFIG_XIP)
-    __rom_region_start = ROM_ADDR;
-#else
-    __rom_region_start = RAM_ADDR;
-#endif
+__rom_region_start = RAM_ADDR;
 
     SECTION_PROLOGUE(rom_start,,)
-    { 
+    {
 
 /* Located in generated directory. This file is populated by calling
  * zephyr_linker_sources(ROM_START ...). This typically contains the vector
  * table and debug information.
  */
-#include <snippets-rom-start.ld> 
+#include <snippets-rom-start.ld>
 
     } GROUP_LINK_IN(ROMABLE_REGION)
 
@@ -142,9 +119,7 @@ SECTIONS
     {
         . = ALIGN(_region_min_align);
         __text_region_start = .;
-#ifndef CONFIG_XIP
         z_mapped_start = .;
-#endif
 
 #include <zephyr/linker/kobject-text.ld>
 
@@ -260,9 +235,6 @@ SECTIONS
      */
     . = ALIGN(_region_min_align);
     _image_ram_start = .;
-#ifdef CONFIG_XIP
-    z_mapped_start = .;
-#endif
 
 /* Located in generated directory. This file is populated by the
  * zephyr_linker_sources() Cmake function.

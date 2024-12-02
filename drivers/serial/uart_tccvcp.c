@@ -23,9 +23,6 @@
 #include <zephyr/drivers/clock_control/clock_control_tcc_ccu.h>
 #include <zephyr/drivers/clock_control/clock_control_tccvcp.h>
 
-
-//#include <clock_dev.h>
-//#include <clock.h>
 #include <soc.h>
 
 #include "uart_tccvcp.h"
@@ -321,7 +318,7 @@ static int32_t uart_set_port_config(uint8_t chan, uint32_t port)
 
 static int32_t uart_set_baud_rate(uint8_t chan, uint32_t baud)
 {
-	uint32_t div;
+	uint32_t divider;
 	uint32_t mod;
 	uint32_t brd_i;
 	uint32_t brd_f;
@@ -338,16 +335,16 @@ static int32_t uart_set_baud_rate(uint8_t chan, uint32_t baud)
 			ret = -1;
 		} else {
 			/* calculate integer baud rate divisor */
-			div = 16UL * baud;
-			brd_i = pclk / div;
+			divider = 16UL * baud;
+			brd_i = pclk / divider;
 			uart_write_reg(chan, UART_REG_IBRD, brd_i);
 
 			/* calculate faction baud rate divisor */
 			/* NOTICE : fraction maybe need sampling */
 			baud &= 0xFFFFFFU;
 			mod = (pclk % (16UL * baud)) & 0xFFFFFFU;
-			div = ((((1UL << 3UL) * 16UL) * mod) / (16UL * baud));
-			brd_f = div / 2UL;
+			divider = ((((1UL << 3UL) * 16UL) * mod) / (16UL * baud));
+			brd_f = divider / 2UL;
 			uart_write_reg(chan, UART_REG_FBRD, brd_f);
 			ret = (int32_t)0;
 		}
@@ -521,20 +518,20 @@ int uart_tccvcp_poll_in(const struct device *dev, unsigned char *c)
 
 	if (chan >= UART_CH_MAX) {
 		return -1;
-	} else {
-		while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) != 0UL) {
-			if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) == 0UL) {
-				break;
-			}
-			repeat++;
-			if (repeat > 100) {
-				return -1;
-			}
-		}
-
-		data = uart_read_reg(chan, UART_REG_DR);
-		*c = (unsigned char)(data & 0xFFUL);
 	}
+
+	while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) != 0UL) {
+		if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_RXFE) == 0UL) {
+			break;
+		}
+		repeat++;
+		if (repeat > 100) {
+			return -1;
+		}
+	}
+
+	data = uart_read_reg(chan, UART_REG_DR);
+	*c = (unsigned char)(data & 0xFFUL);
 
 	return 0;
 }
@@ -548,18 +545,18 @@ void uart_tccvcp_poll_out(const struct device *dev, unsigned char c)
 
 	if (chan >= UART_CH_MAX) {
 		return;
-	} else {
-		while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) != 0UL) {
-			if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) == 0UL) {
-				break;
-			}
-			repeat++;
-			if (repeat > 100) {
-				return;
-			}
-		}
-		uart_write_reg(chan, UART_REG_DR, c);
 	}
+
+	while ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) != 0UL) {
+		if ((uart_read_reg(chan, UART_REG_FR) & UART_FR_TXFF) == 0UL) {
+			break;
+		}
+		repeat++;
+		if (repeat > 100) {
+			return;
+		}
+	}
+	uart_write_reg(chan, UART_REG_DR, c);
 }
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE

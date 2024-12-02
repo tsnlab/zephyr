@@ -1,3 +1,10 @@
+/*
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
+
 #ifndef TCC_SOC_REG_PHYS_HEADER
 #define TCC_SOC_REG_PHYS_HEADER
 
@@ -35,4 +42,4 @@
 #define MCU_BSP_RTC_BASE     (0xA0F28C00UL)
 #define MCU_BSP_TIMER_BASE   (0xA0F2A000UL)
 
-#endif // TCC_SOC_REG_PHYS_HEADER
+#endif /* TCC_SOC_REG_PHYS_HEADER */

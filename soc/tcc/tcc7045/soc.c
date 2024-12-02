@@ -59,15 +59,7 @@ int z_soc_irq_is_enabled(unsigned int irq)
 void soc_enable_system_pwr(void);
 void soc_reset_hook(void)
 {
-	/*
-	 * Use normal exception vectors address range (0x0-0x1C).
-	 */
-#if 0
-	unsigned int sctlr = __get_SCTLR();
-
-	sctlr &= ~SCTLR_V_Msk;
-	__set_SCTLR(sctlr);
-#endif
+	;
 }
 
 /**
@@ -89,34 +81,34 @@ uint32_t soc_cpu_dsb(void)
 	return 0;
 }
 
-uint32_t soc_div64_to_32(unsigned long long *pullDividend, uint32_t uiDivisor, uint32_t *puiRem)
+uint32_t soc_div64_to_32(unsigned long long *dividend_ptr, uint32_t divisor, uint32_t *rem_ptr)
 {
-	uint32_t retVal = 0;
+	uint32_t ret_val = 0;
 	unsigned long long rem = 0;
-	unsigned long long b = uiDivisor;
+	unsigned long long b = divisor;
 	unsigned long long d = 1;
 	unsigned long long res = 0;
 	uint32_t high = 0;
 
-	if (pullDividend != NULL_PTR) {
-		rem = *pullDividend;
+	if (dividend_ptr != NULL_PTR) {
+		rem = *dividend_ptr;
 		high = (uint32_t)(rem >> 32ULL);
 
 		/* Reduce the thing a bit first */
-		if (high >= uiDivisor) {
-			high /= uiDivisor;
+		if (high >= divisor) {
+			high /= divisor;
 			res = ((unsigned long long)high) << 32ULL;
 
-			if ((uiDivisor > 0UL) &&
-			    ((rem / (unsigned long long)uiDivisor) >= (unsigned long long)high)) {
-				retVal = 1;
+			if ((divisor > 0UL) &&
+			    ((rem / (unsigned long long)divisor) >= (unsigned long long)high)) {
+				ret_val = 1;
 			} else {
-				rem -= (((unsigned long long)high * (unsigned long long)uiDivisor)
+				rem -= (((unsigned long long)high * (unsigned long long)divisor)
 					<< 32ULL);
 			}
 		}
 
-		if (retVal == 0) {
+		if (ret_val == 0) {
 			while (((b > 0ULL) && (b < rem))) {
 				b = b + b;
 				d = d + d;
@@ -127,7 +119,7 @@ uint32_t soc_div64_to_32(unsigned long long *pullDividend, uint32_t uiDivisor, u
 					rem -= b;
 
 					if ((0xFFFFFFFFFFFFFFFFULL - d) < res) {
-						retVal = 1;
+						ret_val = 1;
 						break;
 					} else {
 						res += d;
@@ -138,19 +130,19 @@ uint32_t soc_div64_to_32(unsigned long long *pullDividend, uint32_t uiDivisor, u
 				d >>= 1UL;
 			} while (d != 0ULL);
 
-			if (retVal == 0) {
-				*pullDividend = res;
+			if (ret_val == 0) {
+				*dividend_ptr = res;
 			}
 		}
 	} else {
-		retVal = 1;
+		ret_val = 1;
 	}
 
-	if (puiRem != NULL_PTR) {
-		*puiRem = (uint32_t)rem;
+	if (rem_ptr != NULL_PTR) {
+		*rem_ptr = (uint32_t)rem;
 	}
 
-	return retVal;
+	return ret_val;
 }
 
 void soc_enable_system_pwr(void)

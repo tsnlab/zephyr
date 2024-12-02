@@ -124,9 +124,9 @@
 #define GPIO_PMGPIO_BASE (MCU_BSP_PMIO_BASE)
 
 #define GPIO_REG_BASE(x)                                                                           \
-	(MCU_BSP_GPIO_BASE + ((((x)&GPIO_PORT_MASK) >> (uint32_t)GPIO_PORT_SHIFT) * 0x40UL))
+	(MCU_BSP_GPIO_BASE + ((((x) & GPIO_PORT_MASK) >> (uint32_t)GPIO_PORT_SHIFT) * 0x40UL))
 
-#define GPIO_IS_GPIOK(x) (boolean)((((x)&GPIO_PORT_MASK) == GPIO_PORT_K) ? 1 : 0)
+#define GPIO_IS_GPIOK(x) (boolean)((((x) & GPIO_PORT_MASK) == GPIO_PORT_K) ? 1 : 0)
 
 #define GPIO_REG_DATA(x)     (GPIO_REG_BASE(x) + 0x00UL)
 #define GPIO_REG_OUTEN(x)    (GPIO_REG_BASE(x) + 0x04UL)

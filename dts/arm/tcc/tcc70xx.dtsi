@@ -19,12 +19,12 @@
 
 		ram_ilm: memory@0 {
 			compatible = "mmio-sram";
-            reg = <0 DT_SIZE_K(512)>;
+			reg = <0 DT_SIZE_K(512)>;
 		};
 
 		ram_dlm: memory@1043000 {
 			compatible = "mmio-sram";
-            reg = <0x1043000 DT_SIZE_K(128)>;
+			reg = <0x1043000 DT_SIZE_K(128)>;
 		};
 
 		syscon: syscon@a0f24000 {
@@ -43,7 +43,7 @@
 			interrupts = <TIC_SPI TIC_UART0 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart0";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		uart1: uart@a0210000 {
@@ -53,7 +53,7 @@
 			interrupts = <TIC_SPI TIC_UART1 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart1";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		uart2: uart@a0220000 {
@@ -63,7 +63,7 @@
 			interrupts = <TIC_SPI TIC_UART2 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart2";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		uart3: uart@a0230000 {
@@ -73,7 +73,7 @@
 			interrupts = <TIC_SPI TIC_UART3 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart3";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		uart4: uart@a0240000 {
@@ -83,7 +83,7 @@
 			interrupts = <TIC_SPI TIC_UART4 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart4";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		uart5: uart@a0250000 {
@@ -93,7 +93,7 @@
 			interrupts = <TIC_SPI TIC_UART5 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_uart5";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 		};
 
 		systick_timer: timer@a0f2a000 {
@@ -102,7 +102,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_0 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer0";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a000 0x20>;
 		};
 
@@ -112,7 +112,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_1 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer1";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a100 0x20>;
 		};
 
@@ -122,7 +122,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_2 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer2";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a200 0x20>;
 		};
 
@@ -132,7 +132,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_3 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer3";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a300 0x20>;
 		};
 
@@ -142,7 +142,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_4 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer4";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a400 0x20>;
 		};
 
@@ -152,7 +152,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_5 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer5";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a500 0x20>;
 		};
 
@@ -162,7 +162,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_6 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer6";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a600 0x20>;
 		};
 
@@ -172,7 +172,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_7 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer7";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a700 0x20>;
 		};
 
@@ -182,7 +182,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_8 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer8";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a800 0x20>;
 		};
 
@@ -192,7 +192,7 @@
 			interrupts = <TIC_SPI TIC_TIMER_9 TIC_INT_TYPE_LEVEL_HIGH
 						TIC_IRQ_DEFAULT_PRIORITY>;
 			interrupt-names = "irq_timer9";
-            interrupt-parent = <&tic>;
+			interrupt-parent = <&tic>;
 			reg = <0xa0f2a900 0x20>;
 		};
 
@@ -210,6 +210,15 @@
 
 			#address-cells = <1>;
 			#size-cells = <0>;
+
+			gio_aon: gpio@0 {
+				compatible = "tcc,tccvcp-gpio";
+				reg = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <29>;
+				status = "disabled";
+			};
 		};
 
 		gpioc@a0f22080 {
@@ -218,15 +227,6 @@
 
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			gio_aon: gpio@0 {
-				compatible = "tcc,tccvcp-gpio";
-				reg = <0>;
-				gpio-controller;
-				#gpio-cells = <2>;
-				ngpios = <22>;
-				status = "disabled";
-			};
 		};
 
 		gpiok@a0f220c0 {

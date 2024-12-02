@@ -22,10 +22,9 @@ LOG_MODULE_REGISTER(clock_control_tcc_ccu);
 #include <soc_reg_phys.h>
 
 /*
-***************************************************************************************************
-*                                             DEFINITIONS
-***************************************************************************************************
-*/
+ * DEFINITIONS
+ *
+ */
 
 struct clock_tcc_config {
 	const struct device *syscon;
@@ -33,17 +32,17 @@ struct clock_tcc_config {
 
 #define DEV_CFG(dev) ((const struct clock_tcc_config *const)(dev)->config)
 
-/***************************************************************************************************
- *                                             LOCAL VARIABLES
- ***************************************************************************************************/
+/*
+ * LOCAL VARIABLES
+ *
+ */
 
 static uint32_t micom_clock_source[CLOCK_SRC_MAX_NUM];
 
 /*
-***************************************************************************************************
-*                                         FUNCTION PROTOTYPES
-***************************************************************************************************
-*/
+ * FUNCTION PROTOTYPES
+ *
+ */
 
 static void clock_dev_write_pll(uint32_t uiReg, uint32_t en, uint32_t p, uint32_t m, uint32_t s);
 
@@ -117,7 +116,7 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 }
 
 static void clock_dev_write_pclk_ctrl(uint32_t reg, uint32_t md, uint32_t en, uint32_t sel,
-				      uint32_t div, uint32_t type)
+				      uint32_t divider, uint32_t type)
 {
 	if (type == (uint32_t)CLOCK_PCLKCTRL_TYPE_XXX) {
 		sys_write32(sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_OUTEN_SHIFT), reg);
@@ -129,7 +128,7 @@ static void clock_dev_write_pclk_ctrl(uint32_t reg, uint32_t md, uint32_t en, ui
 						 << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT)),
 			    reg);
 
-		sys_write32((sys_read32(reg) | ((div & (uint32_t)CLOCK_PCLKCTRL_DIV_XXX_MASK)
+		sys_write32((sys_read32(reg) | ((divider & (uint32_t)CLOCK_PCLKCTRL_DIV_XXX_MASK)
 						<< (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT)),
 			    reg);
 		sys_write32((sys_read32(reg) | ((sel & (uint32_t)CLOCK_PCLKCTRL_SEL_MASK)
@@ -144,7 +143,7 @@ static void clock_dev_write_pclk_ctrl(uint32_t reg, uint32_t md, uint32_t en, ui
 		sys_write32(sys_read32(reg) & ~(1UL << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT), reg);
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK
 						 << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT)) |
-				    ((div & (uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK)
+				    ((divider & (uint32_t)CLOCK_PCLKCTRL_DIV_YYY_MASK)
 				     << (uint32_t)CLOCK_PCLKCTRL_DIV_SHIFT),
 			    reg);
 		sys_write32((sys_read32(reg) & ~((uint32_t)CLOCK_PCLKCTRL_SEL_MASK
@@ -338,7 +337,6 @@ static signed long clock_dev_set_pll_rate(uint32_t reg, uint32_t rate)
 	pll.fpll = rate;
 
 	if (clock_dev_find_pms(&pll, CLOCK_XIN_CLK_RATE) != 0L) {
-		// goto tcc_ckc_setpll2_failed;
 		cal_m = (unsigned long long)CLOCK_PLL_P_MIN * (unsigned long long)CLOCK_PLL_VCO_MIN;
 		cal_m += (unsigned long long)CLOCK_XIN_CLK_RATE;
 		cal_m /= (unsigned long long)CLOCK_XIN_CLK_RATE;
@@ -360,9 +358,9 @@ static uint32_t clock_dev_get_pll_rate(uint32_t reg)
 
 	if (reg == 0UL) {
 		return 0;
-	} else {
-		reg_val = sys_read32(reg);
 	}
+
+	reg_val = sys_read32(reg);
 
 	pll_cfg.p = (reg_val >> (uint32_t)CLOCK_PLL_P_SHIFT) & ((uint32_t)CLOCK_PLL_P_MASK);
 	pll_cfg.m = (reg_val >> (uint32_t)CLOCK_PLL_M_SHIFT) & ((uint32_t)CLOCK_PLL_M_MASK);
@@ -468,7 +466,7 @@ static signed long clock_dev_find_pclk(struct clock_pclk_ctrl *pclk_ctrl_ptr,
 	uint32_t srch_src;
 	uint32_t err_div;
 	uint32_t md;
-	uint32_t div[CLOCK_SRC_MAX_NUM];
+	uint32_t divider[CLOCK_SRC_MAX_NUM];
 	uint32_t err[CLOCK_SRC_MAX_NUM];
 	uint32_t div_div;
 	enum clock_pclk_ctrl_mode pclk_sel;
@@ -484,7 +482,7 @@ static signed long clock_dev_find_pclk(struct clock_pclk_ctrl *pclk_ctrl_ptr,
 	pclk_ctrl_ptr->md = (uint32_t)pclk_sel;
 	div_max = CLOCK_PCLKCTRL_DIV_XXX_MAX;
 
-	(void)memset((void *)div, 0x00U, sizeof(div));
+	(void)memset((void *)divider, 0x00U, sizeof(divider));
 	srch_src = 0xFFFFFFFFUL;
 	last_idx = (signed long)CLOCK_SRC_MAX_NUM - 1L;
 
@@ -505,7 +503,7 @@ static signed long clock_dev_find_pclk(struct clock_pclk_ctrl *pclk_ctrl_ptr,
 			div_max + 1UL);
 
 		err[idx] = err_div;
-		div[idx] = div_div;
+		divider[idx] = div_div;
 		md = (uint32_t)pclk_sel;
 
 		if (srch_src == 0xFFFFFFFFUL) {
@@ -554,7 +552,7 @@ static signed long clock_dev_find_pclk(struct clock_pclk_ctrl *pclk_ctrl_ptr,
 		return -1;
 	}
 
-	pclk_ctrl_ptr->div_val = div[srch_src];
+	pclk_ctrl_ptr->div_val = divider[srch_src];
 
 	if ((pclk_ctrl_ptr->div_val >= ((uint32_t)CLOCK_PCLKCTRL_DIV_MIN + 1UL)) &&
 	    (pclk_ctrl_ptr->div_val <= (div_max + 1UL))) {
@@ -583,7 +581,7 @@ static void clock_dev_reset_clk_src(signed long id)
 
 void vcp_clock_init(void)
 {
-	static signed long initialized = 0;
+	static signed long initialized = -1;
 	signed long idx;
 
 	if (initialized == 1L) {
@@ -1186,7 +1184,10 @@ signed long clock_set_sw_reset(signed long id, boolean reset)
 static int tcc_clock_control_get_rate(const struct device *dev, clock_control_subsys_t sys,
 				      uint32_t *rate)
 {
-	*rate = clock_get_clk_ctrl_rate(0);
+	/*	const struct device *syscon = DEV_CFG(dev)->syscon; */
+	uint32_t clk_id = (uint32_t)sys;
+
+	*rate = clock_get_clk_ctrl_rate(clk_id);
 
 	return 0;
 }

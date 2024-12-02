@@ -21,12 +21,12 @@
 	soc {
 
 		tic: interrupt-controller@a0f10000 {
-            compatible = "tcc,tic";
+			compatible = "tcc,tic";
 			reg = <0xa0f10000 0x1000>,
 				<0xa0f20000 0x20000>;
 			interrupt-controller;
 			#interrupt-cells = <4>;
-			#address-cells = <0>;
+			#address-cells = <1>;
 			status = "okay";
 		};
 	};

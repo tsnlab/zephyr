@@ -27,7 +27,7 @@ LOG_MODULE_REGISTER(tic);
 
 static tic_irq_func_ptr tic_intr_table[TIC_INT_SRC_CNT];
 
-static uint32_t cpu_status = 0;
+static uint32_t cpu_status = 0xFF;
 
 static void core_mb(void)
 {
@@ -138,7 +138,7 @@ unsigned int z_tic_irq_get_active(void)
 
 	int_id = tic_cpu_if->cpu_intr_ack;
 
-	return (int_id);
+	return int_id;
 }
 
 void z_tic_irq_eoi(unsigned int irq)
@@ -248,10 +248,10 @@ bool z_tic_irq_is_enabled(unsigned int irq)
 		enabler = tic_distributer->dist_intr_set_en[reg_offset];
 
 		return (enabler & (1 << mask_bit_id)) != 0;
-	} else {
-		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
-		return -EINVAL;
 	}
+
+	LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
+	return -EINVAL;
 }
 
 void z_tic_arm_enter_irq(int irq)
@@ -296,6 +296,4 @@ void tic_irq_handler(void *arg)
 		core_mb(); /* Memory barrier before ending the interrupt. */
 		z_tic_irq_eoi(intr_ack_reg);
 	}
-
-	return;
 }
