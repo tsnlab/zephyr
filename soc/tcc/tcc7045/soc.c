@@ -121,9 +121,9 @@ uint32_t soc_div64_to_32(unsigned long long *dividend_ptr, uint32_t divisor, uin
 					if ((0xFFFFFFFFFFFFFFFFULL - d) < res) {
 						ret_val = 1;
 						break;
-					} else {
-						res += d;
 					}
+
+					res += d;
 				}
 
 				b >>= 1UL;

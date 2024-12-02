@@ -65,7 +65,7 @@ static void ttc_timer_compare_isr(const void *arg)
 	tic_cpu_if->cpu_pri_mask = (uint32_t)(MAX_API_CALL_INTERRUPT_PRIORITY << PRIORITY_SHIFT);
 
 	__asm volatile("dsb\n"
-				"isb\n");
+		       "isb\n");
 
 	cpu_irq_enable();
 

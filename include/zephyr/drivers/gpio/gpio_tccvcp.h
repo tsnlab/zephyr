@@ -8,10 +8,9 @@
 #define TCC_VCP_GPIO_HEADER
 
 /*
-***************************************************************************************************
-*                                            GLOBAL DEFINITIONS
-***************************************************************************************************
-*/
+ * GLOBAL DEFINITIONS
+ *
+ */
 
 /*
  * gpio cfg structures
@@ -124,9 +123,9 @@
 #define GPIO_PMGPIO_BASE (MCU_BSP_PMIO_BASE)
 
 #define GPIO_REG_BASE(x)                                                                           \
-	(MCU_BSP_GPIO_BASE + ((((x) & GPIO_PORT_MASK) >> (uint32_t)GPIO_PORT_SHIFT) * 0x40UL))
+	(MCU_BSP_GPIO_BASE + ((((x)&GPIO_PORT_MASK) >> (uint32_t)GPIO_PORT_SHIFT) * 0x40UL))
 
-#define GPIO_IS_GPIOK(x) (boolean)((((x) & GPIO_PORT_MASK) == GPIO_PORT_K) ? 1 : 0)
+#define GPIO_IS_GPIOK(x) (boolean)((((x)&GPIO_PORT_MASK) == GPIO_PORT_K) ? 1 : 0)
 
 #define GPIO_REG_DATA(x)     (GPIO_REG_BASE(x) + 0x00UL)
 #define GPIO_REG_OUTEN(x)    (GPIO_REG_BASE(x) + 0x04UL)
@@ -150,70 +149,55 @@
 #define GPIO_LIST_NUM (6)
 
 /*
-***************************************************************************************************
-*                                         FUNCTION PROTOTYPES
-***************************************************************************************************
-*/
+ * FUNCTION PROTOTYPES
+ *
+ */
 
 /*
-***************************************************************************************************
-*                                          vcp_gpio_config
-*
-*
-* @param    [In] uiPort     :   Gpio port index, GPIO_GPX(X)
-* @param    [In] uiConfig   :   Gpio configuration options
-* @return
-*
-* Notes
-*
-***************************************************************************************************
-*/
+ * vcp_gpio_config
+ *
+ * @param    [In] uiPort     :   Gpio port index, GPIO_GPX(X)
+ * @param    [In] uiConfig   :   Gpio configuration options
+ * @return
+ *
+ * Notes
+ */
 uint32_t vcp_gpio_config(uint32_t uiPort, uint32_t uiConfig);
 
 /*
-***************************************************************************************************
-*                                          vcp_gpio_set
-*
-*
-* @param    [In] uiPort     :   Gpio port index, GPIO_GPX(X)
-* @param    [In] uiData     :   Gpio data value, (0 or 1)
-* @return   0 or 1
-*
-* Notes
-*
-***************************************************************************************************
-*/
+ * vcp_gpio_set
+ *
+ * @param    [In] uiPort     :   Gpio port index, GPIO_GPX(X)
+ * @param    [In] uiData     :   Gpio data value, (0 or 1)
+ * @return   0 or 1
+ *
+ * Notes
+ */
 uint32_t vcp_gpio_set(uint32_t uiPort, uint32_t uiData);
 
 /*
-***************************************************************************************************
-*                                          vcp_gpio_peri_chan_sel
-*
-* @param    [In] uiPerichSel    : Gpio peri select index
-* @param    [In] uiCh           : Gpio peri select channel index
-* @return   0 or 1
-*
-* Notes
-*
-***************************************************************************************************
-*/
+ * vcp_gpio_peri_chan_sel
+ *
+ * @param    [In] uiPerichSel    : Gpio peri select index
+ * @param    [In] uiCh           : Gpio peri select channel index
+ * @return   0 or 1
+ *
+ * Notes
+ */
 uint32_t vcp_gpio_peri_chan_sel(uint32_t uiPerichSel, uint32_t uiCh);
 
 /*
-***************************************************************************************************
-*                                          vcp_gpio_mfio_config
-*
-* @param    [In] uiPeriSel      :   MFIO peri select index
-* @param    [In] uiPeriType     :   MFIO peri select type (Disable/GPSB/UART/I2C)
-* @param    [In] uiChSel        :   MFIO channel select index
-* @param    [In] uiChNum        :   MFIO channel select value
-* @return   0 or 1
-*
-* Notes
-*
-***************************************************************************************************
-*/
+ * vcp_gpio_mfio_config
+ *
+ * @param    [In] uiPeriSel      :   MFIO peri select index
+ * @param    [In] uiPeriType     :   MFIO peri select type (Disable/GPSB/UART/I2C)
+ * @param    [In] uiChSel        :   MFIO channel select index
+ * @param    [In] uiChNum        :   MFIO channel select value
+ * @return   0 or 1
+ *
+ * Notes
+ */
 uint32_t vcp_gpio_mfio_config(uint32_t uiPeriSel, uint32_t uiPeriType, uint32_t uiChSel,
 			      uint32_t uiChNum);
 
-#endif // TCC_VCP_GPIO_HEADER
+#endif /* TCC_VCP_GPIO_HEADER */

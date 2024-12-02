@@ -11,6 +11,6 @@
 void cpu_dsb(void);
 
 uint32_t cpu_sr_save(void);
-void cpu_sr_restore(uint32_t);
+void cpu_sr_restore(uint32_t s);
 
 #endif /* ZEPHYR_RTOS_H */

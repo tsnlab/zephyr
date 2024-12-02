@@ -7,16 +7,11 @@ config SOC_TCC7045
 	select CPU_HAS_ARM_MPU
 	select VFP_DP_D16
 	select CPU_HAS_FPU
-    select ARMV7_R
-    select ARMV7_R_FP
+	select ARMV7_R
+	select ARMV7_R_FP
 	select SOC_RESET_HOOK
-#    select SOC_PREP_HOOK
-    select SOC_EARLY_INIT_HOOK
-    select TIC
-    select TCC_VCPTTC_TIMER
-    select CLOCK_CONTROL
-    select CLOCK_CONTROL_TCC_CCU
-#    select ARMV7_EXCEPTION_STACK_SIZE
-#    select ARMV7_FIQ_STACK_SIZE
-#    select ARMV7_SVC_STACK_SIZE
-#    select ARMV7_SYS_STACK_SIZE
+	select SOC_EARLY_INIT_HOOK
+	select TIC
+	select TCC_VCPTTC_TIMER
+	select CLOCK_CONTROL
+	select CLOCK_CONTROL_TCC_CCU

@@ -307,4 +307,4 @@ struct clock_pclk_ctrl {
 	uint32_t div_val;
 };
 
-#endif // CLOCK_CONTROL_TCCVCP_HEADER
+#endif /* CLOCK_CONTROL_TCCVCP_HEADER */

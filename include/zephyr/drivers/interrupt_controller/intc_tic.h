@@ -84,7 +84,8 @@ typedef struct tic_irq_func_ptr {
 #define UNIQUE_INTERRUPT_PRIORITIES 32
 
 /* The number of bits to shift for an interrupt priority is dependent on the
-number of bits implemented by the interrupt controller. */
+ * number of bits implemented by the interrupt controller.
+ */
 #if UNIQUE_INTERRUPT_PRIORITIES == 16
 #define PRIORITY_SHIFT         4
 #define MAX_BINARY_POINT_VALUE 3
@@ -101,7 +102,8 @@ number of bits implemented by the interrupt controller. */
 #define PRIORITY_SHIFT         0
 #define MAX_BINARY_POINT_VALUE 0
 #else
-#error Invalid UNIQUE_INTERRUPT_PRIORITIES setting.  UNIQUE_INTERRUPT_PRIORITIES must be set to the number of unique priorities implemented by the target hardware
+#error Invalid UNIQUE_INTERRUPT_PRIORITIES setting.  UNIQUE_INTERRUPT_PRIORITIES must be \
+ set to the number of unique priorities implemented by the target hardware
 #endif
 
 #define cpu_irq_disable()                                                                          \
@@ -120,8 +122,8 @@ number of bits implemented by the interrupt controller. */
 	{                                                                                          \
 		cpu_irq_disable();                                                                 \
 		tic_cpu_if->cpu_pri_mask = UNMASK_VALUE;                                           \
-		__asm volatile("DSB     \n"                                                        \
-			       "ISB     \n");                                                      \
+		__asm volatile("DSB\n"                                                             \
+			       "ISB\n");                                                           \
 		cpu_irq_enable();                                                                  \
 	}
 

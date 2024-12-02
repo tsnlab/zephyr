@@ -13,9 +13,9 @@ cpu_dsb:
 
 cpu_sr_save:
         MRS     R0, CPSR
-        CPSID   IF                                              @ Set IRQ & FIQ bits in CPSR to DISABLE all interrupts
+        CPSID   IF       @ Set IRQ & FIQ bits in CPSR to DISABLE all interrupts
         DSB
-        BX      LR                                              @ DISABLED, return the original CPSR contents in R0
+        BX      LR       @ DISABLED, return the original CPSR contents in R0
 
 cpu_sr_restore:
         DSB

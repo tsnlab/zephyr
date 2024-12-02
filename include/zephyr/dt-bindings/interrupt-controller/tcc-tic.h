@@ -7,10 +7,9 @@
 #define TCC_TIC_ENUM_HEADER
 
 /*
-***************************************************************************************************
-*                                             DEFINITIONS
-***************************************************************************************************
-*/
+ * DEFINITIONS
+ *
+ */
 
 #define TIC_INT_TYPE_LEVEL_HIGH   (0x1U)
 #define TIC_INT_TYPE_LEVEL_LOW    (0x2U)
@@ -156,4 +155,4 @@
 
 #define TIC_INT_SRC_CNT (TIC_SPU + 1UL)
 
-#endif // TCC_TIC_ENUM_HEADER
+#endif /* TCC_TIC_ENUM_HEADER */

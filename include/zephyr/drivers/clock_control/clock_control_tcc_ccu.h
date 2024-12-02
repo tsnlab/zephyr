@@ -13,7 +13,7 @@
  *
  */
 
-#define CKC_MHZ(x) (uint32_t)((x) * 1000000)
+#define CKC_MHZ(x) (uint32_t)((x)*1000000)
 
 /*
  * FUNCTION PROTOTYPES
@@ -50,4 +50,4 @@ signed long clock_set_iobus_pwdn(signed long id, unsigned char en);
 
 signed long clock_set_sw_reset(signed long id, unsigned char reset);
 
-#endif // CLOCK_CONTROL_TCC_CCU_HEADER
+#endif /* CLOCK_CONTROL_TCC_CCU_HEADER */
