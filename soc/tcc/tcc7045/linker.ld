@@ -1,5 +1,5 @@
 /*
- *  Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
+ * Copyright 2024 Hounjoung Rim <hounjoung@tsnlab.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,8 +45,8 @@ _region_min_align = 4;
 #endif
 
 #if defined(CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT)
-#define MPU_ALIGN(region_size)                                                                     \
-	.= ALIGN(_region_min_align);                                                               \
+#define MPU_ALIGN(region_size)                                       \
+	.= ALIGN(_region_min_align);                                     \
 	.= ALIGN(1 << LOG2CEIL(region_size))
 #else
 #define MPU_ALIGN(region_size) .= ALIGN(_region_min_align)
