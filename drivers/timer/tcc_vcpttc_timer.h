@@ -39,7 +39,7 @@
 #define TMR_OP_EN_CFG_LDZERO_OFFSET   (25UL)
 #define TMR_OP_EN_CFG_CNT_EN          (1UL << 24UL)
 
-/*
+/**
  * 0: Reading this register to be cleared,
  * 1: Writing a non-zero value to MASKED_IRQ_STATUS to be cleared.
  */
