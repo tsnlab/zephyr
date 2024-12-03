@@ -95,8 +95,7 @@ static void clock_dev_write_pll(uint32_t reg, uint32_t en, uint32_t p, uint32_t 
 				; /* if cpu clokc is 1HGz then loop 100. */
 			}
 
-			sys_write32(sys_read32(reg) |
-					    (((en) & 1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
+			sys_write32(sys_read32(reg) | (((en)&1UL) << (uint32_t)CLOCK_PLL_EN_SHIFT),
 				    reg);
 
 			while ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PLL_LOCKST_SHIFT)) ==
@@ -1031,8 +1030,8 @@ signed long clock_set_peri_rate(signed long id, uint32_t rate)
 
 	if (clock_dev_find_pclk(&pclk_ctrl, CLOCK_PCLKCTRL_TYPE_XXX) != 0L) {
 		clock_dev_write_pclk_ctrl(reg, (uint32_t)CLOCK_PCLKCTRL_MODE_DIVIDER,
-					  (uint32_t)SALDisabled, (uint32_t)CLOCK_MPCLKCTRL_SEL_XIN,
-					  1UL, (uint32_t)CLOCK_PCLKCTRL_TYPE_XXX);
+					  (uint32_t)FALSE, (uint32_t)CLOCK_MPCLKCTRL_SEL_XIN, 1UL,
+					  (uint32_t)CLOCK_PCLKCTRL_TYPE_XXX);
 		err = -1;
 	} else {
 		if ((sys_read32(reg) & (1UL << (uint32_t)CLOCK_PCLKCTRL_EN_SHIFT)) != 0UL) {
@@ -1075,15 +1074,15 @@ signed long clock_enable_iobus(signed long id, boolean en)
 {
 	signed long ret;
 
-	if (en == SALEnabled) {
-		if (clock_set_iobus_pwdn(id, SALDisabled) == 0L) {
-			ret = clock_set_sw_reset(id, SALDisabled);
+	if (en == TRUE) {
+		if (clock_set_iobus_pwdn(id, FALSE) == 0L) {
+			ret = clock_set_sw_reset(id, FALSE);
 		} else {
 			ret = -1;
 		}
 	} else {
-		if (clock_set_sw_reset(id, SALEnabled) == 0L) {
-			ret = clock_set_iobus_pwdn(id, SALEnabled);
+		if (clock_set_sw_reset(id, TRUE) == 0L) {
+			ret = clock_set_iobus_pwdn(id, TRUE);
 		} else {
 			ret = -1;
 		}
@@ -1112,7 +1111,7 @@ signed long clock_set_iobus_pwdn(signed long id, boolean en)
 
 	rest = (signed long)iobus % 32;
 
-	if (en == SALEnabled) {
+	if (en == TRUE) {
 		sys_write32(sys_read32(reg) & ~((uint32_t)1UL << (uint32_t)rest), reg);
 	} else {
 		sys_write32(sys_read32(reg) | ((uint32_t)1UL << (uint32_t)rest), reg);
@@ -1141,7 +1140,7 @@ signed long clock_set_sw_reset(signed long id, boolean reset)
 
 	rest = (signed long)iobus % 32;
 
-	if (reset == SALEnabled) {
+	if (reset == TRUE) {
 		sys_write32(sys_read32(reg) & ~((uint32_t)1UL << (uint32_t)rest), reg);
 	} else {
 		sys_write32(sys_read32(reg) | ((uint32_t)1UL << (uint32_t)rest), reg);

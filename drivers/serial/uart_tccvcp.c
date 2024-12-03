@@ -351,7 +351,7 @@ static int32_t uart_set_chan_config(struct uart_param *uart_cfg)
 	chan = uart_cfg->channel;
 	/* Enable the UART controller peri clock */
 	clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
-	(void)clock_set_iobus_pwdn(clk_bus_id, SALDisabled);
+	(void)clock_set_iobus_pwdn(clk_bus_id, FALSE);
 	clk_peri_id = (int32_t)CLOCK_PERI_UART0 + (int32_t)chan;
 	ret = clock_set_peri_rate(clk_peri_id, UART_DEBUG_CLK);
 	(void)clock_enable_peri(clk_peri_id);

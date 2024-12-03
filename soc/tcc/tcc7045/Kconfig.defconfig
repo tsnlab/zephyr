@@ -21,7 +21,6 @@ config REQUIRES_FULL_LIBC
 config SYS_CLOCK_HW_CYCLES_PER_SEC
 	default 12000000
 
-# Workaround for not being able to have commas in macro arguments
 DT_CHOSEN_Z_FLASH := zephyr,flash
 
 config FLASH_SIZE
@@ -30,4 +29,4 @@ config FLASH_SIZE
 config FLASH_BASE_ADDRESS
 	default $(dt_chosen_reg_addr_hex,$(DT_CHOSEN_Z_FLASH))
 
-endif # SOC_TCC7045
+endif

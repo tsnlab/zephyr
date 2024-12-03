@@ -98,7 +98,7 @@ IncludeCategories:
 IndentCaseLabels: false
 IndentGotoLabels: false
 IndentWidth: 8
-InsertBraces: true
+# InsertBraces: true
 SpaceBeforeInheritanceColon: False
 SpaceBeforeParens: ControlStatementsExceptControlMacros
 SortIncludes: Never
