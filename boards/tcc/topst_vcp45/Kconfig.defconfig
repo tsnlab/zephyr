@@ -3,12 +3,6 @@
 
 if BOARD_TOPST_VCP45
 
-# config MULTITHREADING
-#	default n
-
-#config BOOT_BANNER
-#	default n
-
 config ARM_CUSTOM_INTERRUPT_CONTROLLER
 	default y
 
