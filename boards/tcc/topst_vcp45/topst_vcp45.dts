@@ -41,19 +41,19 @@
 };
 
 &gio_aon {
-	status = "disabled";
+	status = "okay";
 };
 
 &sysclk {
-	status = "disabled";
+	status = "okay";
 };
 
 &tic {
-	status = "disabled";
+	status = "okay";
 };
 
 &systick_timer {
-	status = "disabled";
+	status = "okay";
 	clock-frequency = <12000000>;
 };
 
