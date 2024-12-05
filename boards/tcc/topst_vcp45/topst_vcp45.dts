@@ -58,7 +58,7 @@
 };
 
 &uart1 {
-	status = "disabled";
+	status = "okay";
 	current-speed = <115200>;
 	clock-frequency = <48000000>;
 };
