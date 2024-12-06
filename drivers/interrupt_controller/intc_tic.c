@@ -38,7 +38,7 @@ static void tic_irq_pri_set_internal(uint32_t irq, uint32_t pri)
 		reg_bits = (irq & 0x03u);
 
 		intr_pri_reg = tic_distributer->dist_intr_pri[reg_offset];
-		intr_pri_reg = (uint32_t)(intr_pri_reg & ~((uint32_t)0xFFu << (reg_bits * 8u)));
+		intr_pri_reg = (uint32_t)(intr_pri_reg & ~(0xFFu << (reg_bits * 8u)));
 		intr_pri_reg = (uint32_t)(intr_pri_reg | ((pri & 0xFFu) << (reg_bits * 8u)));
 
 		tic_distributer->dist_intr_pri[reg_offset] = intr_pri_reg;
@@ -55,7 +55,7 @@ static void tic_irq_config_set(uint32_t irq, uint8_t irq_type)
 
 	if (irq < TIC_INT_SRC_CNT) {
 		reg_offset = (irq >> 4u);
-		reg_mask = (uint32_t)((uint32_t)0x2u << ((irq & 0xfu) * 2u));
+		reg_mask = (uint32_t)(0x2u << ((irq & 0xfu) * 2u));
 		intr_config = tic_distributer->dist_intr_config[reg_offset];
 
 		if (((irq_type & (uint8_t)TIC_INT_TYPE_LEVEL_HIGH) ==
@@ -82,8 +82,8 @@ void tic_irq_vector_set(uint32_t irq, uint32_t pri, uint8_t irq_type, tic_isr_fu
 		return;
 	}
 
-	(void)tic_irq_pri_set_internal(irq, pri);
-	(void)tic_irq_config_set(irq, irq_type);
+	tic_irq_pri_set_internal(irq, pri);
+	tic_irq_config_set(irq, irq_type);
 
 	tic_intr_table[irq].if_func_ptr = irq_func;
 	tic_intr_table[irq].if_arg_ptr = irq_arg;
@@ -95,8 +95,8 @@ void tic_irq_vector_set(uint32_t irq, uint32_t pri, uint8_t irq_type, tic_isr_fu
 
 		rsvd_irq = (irq + TIC_EINT_NUM); /* add offset of IRQn */
 
-		(void)tic_irq_pri_set_internal(rsvd_irq, pri);
-		(void)tic_irq_config_set(rsvd_irq, irq_type);
+		tic_irq_pri_set_internal(rsvd_irq, pri);
+		tic_irq_config_set(rsvd_irq, irq_type);
 
 		tic_intr_table[rsvd_irq].if_func_ptr = irq_func;
 		tic_intr_table[rsvd_irq].if_arg_ptr = irq_arg;
@@ -155,14 +155,14 @@ void z_tic_irq_enable(unsigned int irq)
 		reg_offset = (irq >> 5u);    /* Calculate the register offset. */
 		mask_bit_id = (irq & 0x1Fu); /* Mask bit ID. */
 
-		tic_distributer->dist_intr_set_en[reg_offset] = ((uint32_t)1UL << mask_bit_id);
+		tic_distributer->dist_intr_set_en[reg_offset] = (1UL << mask_bit_id);
 
 		if (tic_intr_table[irq].if_is_both_edge == (1UL)) {
 			reg_offset = ((irq + 10UL) >> 5UL);    /* Calculate the register offset. */
 			mask_bit_id = ((irq + 10UL) & 0x1FUL); /* Mask bit ID. */
 
 			tic_distributer->dist_intr_set_en[reg_offset] =
-				((uint32_t)1UL << mask_bit_id);
+				(1UL << mask_bit_id);
 		}
 	} else {
 		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
@@ -181,14 +181,14 @@ void z_tic_irq_disable(unsigned int irq)
 		reg_offset = (irq >> 5UL);    /* Calculate the register offset. */
 		mask_bit_id = (irq & 0x1FUL); /* Mask bit ID. */
 
-		tic_distributer->dist_intr_clr_en[reg_offset] = ((uint32_t)1UL << mask_bit_id);
+		tic_distributer->dist_intr_clr_en[reg_offset] = (1UL << mask_bit_id);
 
 		if (tic_intr_table[irq].if_is_both_edge == (1UL)) {
 			reg_offset = ((irq + 10UL) >> 5UL);    /* Calculate the register offset. */
 			mask_bit_id = ((irq + 10UL) & 0x1FUL); /* Mask bit ID. */
 
 			tic_distributer->dist_intr_clr_en[reg_offset] =
-				((uint32_t)1UL << mask_bit_id);
+				(1UL << mask_bit_id);
 		}
 	} else {
 		LOG_ERR("%s: Invalid irq number = %u\n", __func__, irq);
