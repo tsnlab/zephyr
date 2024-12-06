@@ -55,46 +55,46 @@ static int32_t uart_clear_gpio(uint8_t chan)
 	ret2 = 0;
 
 	if (chan >= UART_CH_MAX) {
-		ret = -EINVAL;
-	} else {
-		gpio_tx = uart[chan].status_port.bd_port_tx;
-		gpio_rx = uart[chan].status_port.bd_port_rx;
+		return -EINVAL;
+	}
 
-		/* Reset gpio */
-		ret1 = vcp_gpio_config(gpio_tx, GPIO_FUNC(0UL));
-		ret2 = vcp_gpio_config(gpio_rx, GPIO_FUNC(0UL));
+	gpio_tx = uart[chan].status_port.bd_port_tx;
+	gpio_rx = uart[chan].status_port.bd_port_rx;
+
+	/* Reset gpio */
+	ret1 = vcp_gpio_config(gpio_tx, GPIO_FUNC(0UL));
+	ret2 = vcp_gpio_config(gpio_rx, GPIO_FUNC(0UL));
+
+	if ((ret1 != 0) || (ret2 != 0)) {
+		return -EIO;
+	}
+
+	if (uart[chan].status_cts_rts == ON) {
+		gpio_clr2send = uart[chan].status_port.bd_port_cts;
+		gpio_req2send = uart[chan].status_port.bd_port_rts;
+
+		ret1 = vcp_gpio_config(gpio_clr2send, GPIO_FUNC(0UL));
+		ret2 = vcp_gpio_config(gpio_req2send, GPIO_FUNC(0UL));
 
 		if ((ret1 != 0) || (ret2 != 0)) {
-			ret = -EIO;
-		} else {
-			if (uart[chan].status_cts_rts == ON) {
-				gpio_clr2send = uart[chan].status_port.bd_port_cts;
-				gpio_req2send = uart[chan].status_port.bd_port_rts;
-
-				ret1 = vcp_gpio_config(gpio_clr2send, GPIO_FUNC(0UL));
-				ret2 = vcp_gpio_config(gpio_req2send, GPIO_FUNC(0UL));
-
-				if ((ret1 != 0) || (ret2 != 0)) {
-					ret = -EIO;
-				}
-			}
+			return -EIO;
 		}
+	}
 
-		if ((ret == 0) && (chan >= UART_CH3)) {
-			/* Reset MFIO Configuration */
-			if (chan == UART_CH3) {
-				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL0,
-							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL0,
-							   GPIO_MFIO_CH0);
-			} else if (chan == UART_CH4) {
-				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL1,
-							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL1,
-							   GPIO_MFIO_CH0);
-			} else if (chan == UART_CH5) {
-				ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL2,
-							   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL2,
-							   GPIO_MFIO_CH0);
-			}
+	if ((ret == 0) && (chan >= UART_CH3)) {
+		/* Reset MFIO Configuration */
+		if (chan == UART_CH3) {
+			ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL0,
+						   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL0,
+						   GPIO_MFIO_CH0);
+		} else if (chan == UART_CH4) {
+			ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL1,
+						   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL1,
+						   GPIO_MFIO_CH0);
+		} else if (chan == UART_CH5) {
+			ret = vcp_gpio_mfio_config(GPIO_MFIO_CFG_PERI_SEL2,
+						   GPIO_MFIO_DISABLE, GPIO_MFIO_CFG_CH_SEL2,
+						   GPIO_MFIO_CH0);
 		}
 	}
 
@@ -113,20 +113,20 @@ static int32_t uart_reset(uint8_t chan)
 	clk_ret = clock_set_sw_reset(clk_bus_id, TRUE);
 
 	if (clk_ret != (int32_t)NULL) {
-		ret = -EIO;
-	} else {
-		/* Bit Clear */
-		clk_ret = clock_set_sw_reset(clk_bus_id, FALSE);
+		return -EIO;
+	}
 
-		if (clk_ret != (int32_t)NULL) {
-			ret = -EIO;
-		}
+	/* Bit Clear */
+	clk_ret = clock_set_sw_reset(clk_bus_id, FALSE);
+
+	if (clk_ret != (int32_t)NULL) {
+		return -EIO;
 	}
 
 	return ret;
 }
 
-void uart_close(uint8_t chan)
+static void uart_close(uint8_t chan)
 {
 	int32_t clk_bus_id;
 	uint32_t ret;
@@ -134,7 +134,7 @@ void uart_close(uint8_t chan)
 	if (chan < UART_CH_MAX) {
 		/* Disable the UART controller Bus clock */
 		clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
-		(void)clock_set_iobus_pwdn(clk_bus_id, TRUE);
+		clock_set_iobus_pwdn(clk_bus_id, TRUE);
 
 		ret = uart_clear_gpio(chan);
 
@@ -145,7 +145,7 @@ void uart_close(uint8_t chan)
 		memset(&uart[chan], 0, sizeof(struct uart_status));
 
 		/* UART SW Reset */
-		(void)uart_reset(chan);
+		uart_reset(chan);
 	}
 }
 
@@ -351,13 +351,13 @@ static int32_t uart_set_chan_config(struct uart_param *uart_cfg)
 	chan = uart_cfg->channel;
 	/* Enable the UART controller peri clock */
 	clk_bus_id = (int32_t)CLOCK_IOBUS_UART0 + (int32_t)chan;
-	(void)clock_set_iobus_pwdn(clk_bus_id, FALSE);
+	clock_set_iobus_pwdn(clk_bus_id, FALSE);
 	clk_peri_id = (int32_t)CLOCK_PERI_UART0 + (int32_t)chan;
 	ret = clock_set_peri_rate(clk_peri_id, UART_DEBUG_CLK);
-	(void)clock_enable_peri(clk_peri_id);
+	clock_enable_peri(clk_peri_id);
 
 	if (ret == 0) {
-		(void)uart_set_baud_rate(chan, uart_cfg->baud_rate);
+		uart_set_baud_rate(chan, uart_cfg->baud_rate);
 
 		/* line control setting */
 		/* Word Length */
@@ -454,7 +454,7 @@ static int32_t uart_probe(struct uart_param *uart_cfg)
 	return ret;
 }
 
-int32_t uart_open(struct uart_param *uart_cfg)
+static int32_t uart_open(struct uart_param *uart_cfg)
 {
 	uint8_t chan = uart_cfg->channel;
 	int32_t ret = -EINVAL;
@@ -486,8 +486,8 @@ static int uart_tccvcp_init(const struct device *dev)
 	uart_pars.parity = PARITY_SPACE;
 	uart_pars.callback_fn = NULL_PTR;
 
-	(void)uart_close(uart_pars.channel);
-	(void)uart_open(&uart_pars);
+	uart_close(uart_pars.channel);
+	uart_open(&uart_pars);
 
 	return 0;
 }
