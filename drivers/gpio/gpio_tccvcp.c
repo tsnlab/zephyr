@@ -415,7 +415,7 @@ static const struct gpio_driver_api gpio_tccvcp_api = {
 	.port_toggle_bits = gpio_tccvcp_port_toggle_bits,
 };
 
-int gpio_tccvcp_init(const struct device *port)
+static int gpio_tccvcp_init(const struct device *port)
 {
 	const struct gpio_tccvcp_config *config = port->config;
 	struct gpio_tccvcp_data *data = port->data;
