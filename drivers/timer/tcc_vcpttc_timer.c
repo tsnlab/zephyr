@@ -72,7 +72,7 @@ static void ttc_timer_compare_isr(const void *arg)
 	sys_clock_announce(1);
 
 	/* Ensure all interrupt priorities are active again. */
-	(void)vcp_timer_irq_clear(VCP_CPU_TIMER_ID);
+	vcp_timer_irq_clear(VCP_CPU_TIMER_ID);
 	clear_interrupt_mask();
 }
 
@@ -145,11 +145,11 @@ static void vcp_timer_handler(void *arg_ptr)
 
 		if (((sys_read32(reg) & TMR_IRQ_CTRL_IRQ_ALLEN) != 0UL) &&
 		    (timer->rsc_table_used == TRUE)) {
-			(void)vcp_timer_irq_clear(timer->rsc_table_channel);
+			vcp_timer_irq_clear(timer->rsc_table_channel);
 
 			if (timer->rsc_table_handler != NULL_PTR) {
-				(void)timer->rsc_table_handler(timer->rsc_table_channel,
-							       timer->rsc_table_arg);
+				timer->rsc_table_handler(timer->rsc_table_channel,
+							 timer->rsc_table_arg);
 			}
 		}
 
@@ -161,8 +161,8 @@ static void vcp_timer_set_enable_core_reg(const struct vcp_timer_config *cfg_ptr
 					  const uint32_t cmp0_val, const uint32_t cmp1_val,
 					  uint32_t config_val, const uint32_t irq_val)
 {
-	uint32_t mainval = 0x0UL;
-	uint32_t tmpval = 0x0UL;
+	uint32_t mainval;
+	uint32_t tmpval;
 	uint32_t reg = TIMER_BASE_ADDR;
 	uint32_t rate_factor = (TMR_CLK_RATE / 1000UL) / ((TMR_PRESCALE + 1UL) * 1000UL);
 
@@ -189,14 +189,12 @@ static void vcp_timer_set_enable_core_reg(const struct vcp_timer_config *cfg_ptr
 
 static int32_t vcp_timer_enable_comp0(const struct vcp_timer_config *cfg_ptr)
 {
-	uint32_t tmpval = 0x0UL;
-	uint32_t rate_factor;
-	uint32_t mainval = 0x0UL;
-	uint32_t cmpval0 = 0x0UL;
+	uint32_t tmpval, rate_factor;
+	uint32_t mainval, cmpval0;
 	uint32_t cmpval1 = 0x0UL;
-	uint32_t reg_cfgval = 0x0UL;
+	uint32_t reg_cfgval;
 	uint32_t reg_irqval = TMR_IRQ_CTRL_IRQ_EN2;
-	uint32_t ret = 0;
+	int32_t ret = 0;
 
 	rate_factor = (TMR_CLK_RATE / 1000UL) / ((TMR_PRESCALE + 1UL) * 1000UL);
 
@@ -229,13 +227,12 @@ static int32_t vcp_timer_enable_comp0(const struct vcp_timer_config *cfg_ptr)
 
 static int32_t vcp_timer_enable_comp1(const struct vcp_timer_config *cfg_ptr)
 {
-	uint32_t tmpval = 0x0UL;
+	uint32_t tmpval;
 	uint32_t rate_factor, mainval;
 	uint32_t cmpval0 = 0x0UL;
-	uint32_t cmpval1 = 0x0UL;
-	uint32_t reg_cfgval = 0x0UL;
+	uint32_t cmpval1, reg_cfgval;
 	uint32_t reg_irqval = TMR_IRQ_CTRL_IRQ_EN2;
-	uint32_t ret = 0;
+	int32_t ret = 0;
 
 	rate_factor = (TMR_CLK_RATE / 1000UL) / ((TMR_PRESCALE + 1UL) * 1000UL);
 
@@ -268,15 +265,10 @@ static int32_t vcp_timer_enable_comp1(const struct vcp_timer_config *cfg_ptr)
 
 static int32_t vcp_timer_enable_small_comp(const struct vcp_timer_config *cfg_ptr)
 {
-	uint32_t rate_factor;
-	uint32_t tmpval0 = 0x0UL;
-	uint32_t tmpval1 = 0x0UL;
-	uint32_t mainval = 0x0UL;
-	uint32_t cmpval0 = 0x0UL;
-	uint32_t cmpval1 = 0x0UL;
-	uint32_t reg_cfgval = 0x0UL;
+	uint32_t rate_factor, tmpval0, tmpval1, mainval;
+	uint32_t cmpval0, cmpval1, reg_cfgval;
 	uint32_t reg_irqval = TMR_IRQ_CTRL_IRQ_EN2;
-	uint32_t ret = 0;
+	int32_t ret = 0;
 
 	rate_factor = (TMR_CLK_RATE / 1000UL) / ((TMR_PRESCALE + 1UL) * 1000UL);
 	mainval = (cfg_ptr->cfg_main_val_usec == 0UL)
@@ -329,62 +321,56 @@ static int32_t vcp_timer_enable_mode(const struct vcp_timer_config *cfg_ptr)
 	int32_t ret = 0;
 
 	switch (cfg_ptr->cfg_counter_mode) {
-	case TIMER_COUNTER_COMP0: {
+	case TIMER_COUNTER_COMP0:
 		ret = vcp_timer_enable_comp0(cfg_ptr);
 		break;
-	}
-	case TIMER_COUNTER_COMP1: {
+	case TIMER_COUNTER_COMP1:
 		ret = vcp_timer_enable_comp1(cfg_ptr);
 		break;
-	}
-	case TIMER_COUNTER_SMALL_COMP: {
+	case TIMER_COUNTER_SMALL_COMP:
 		ret = vcp_timer_enable_small_comp(cfg_ptr);
 		break;
-	}
-	default: {
+	default:
 		vcp_timer_set_enable_core_reg(cfg_ptr, 0x0UL, 0x0UL, 0x0UL, TMR_IRQ_CTRL_IRQ_EN2);
 		break;
-	}
 	}
 
 	return ret;
 }
 
-int32_t vcp_timer_enable_with_config(const struct vcp_timer_config *cfg_ptr)
+static int32_t vcp_timer_enable_with_config(const struct vcp_timer_config *cfg_ptr)
 {
 	int32_t ret = 0;
 
 	if (flag_timer_initialized == FALSE) {
-		ret = -EIO;
-	} else if (cfg_ptr == NULL_PTR) {
-		ret = -EINVAL;
-	} else if (TIMER_CH_MAX <= cfg_ptr->cfg_channel) {
-		ret = -EINVAL;
-	} else {
-		ret = vcp_timer_enable_mode(cfg_ptr);
+		return -EIO;
+	}
 
-		if (ret == 0) {
-			vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_used = TRUE;
-			vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_handler =
-				cfg_ptr->handler_fn;
-			vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_arg = cfg_ptr->arg_ptr;
+	if ((cfg_ptr == NULL_PTR) || (TIMER_CH_MAX <= cfg_ptr->cfg_channel)) {
+		return -EINVAL;
+	}
 
-			if (cfg_ptr->cfg_channel != VCP_CPU_TIMER_ID) {
-				(void)tic_irq_vector_set(
-					(uint32_t)TIC_TIMER_0 + (uint32_t)cfg_ptr->cfg_channel,
-					TIC_IRQ_DEFAULT_PRIORITY, TIC_INT_TYPE_LEVEL_HIGH,
-					(tic_isr_func)&vcp_timer_handler,
-					(void *)&vcp_timer_resource[cfg_ptr->cfg_channel]);
-			}
+	ret = vcp_timer_enable_mode(cfg_ptr);
+
+	if (ret == 0) {
+		vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_used = TRUE;
+		vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_handler = cfg_ptr->handler_fn;
+		vcp_timer_resource[cfg_ptr->cfg_channel].rsc_table_arg = cfg_ptr->arg_ptr;
+
+		if (cfg_ptr->cfg_channel != VCP_CPU_TIMER_ID) {
+			tic_irq_vector_set((uint32_t)TIC_TIMER_0 + (uint32_t)cfg_ptr->cfg_channel,
+					   TIC_IRQ_DEFAULT_PRIORITY, TIC_INT_TYPE_LEVEL_HIGH,
+					   (tic_isr_func)&vcp_timer_handler,
+					   (void *)&vcp_timer_resource[cfg_ptr->cfg_channel]);
 		}
 	}
 
 	return ret;
 }
 
-int32_t vcp_timer_enable_with_mode(enum timer_channel channel, uint32_t u_sec,
-				    enum vcp_timer_op_mode op_mode, vcp_timer_handler_fn handler_fn,
-				    void *arg_ptr)
+static int32_t vcp_timer_enable_with_mode(enum timer_channel channel, uint32_t u_sec,
+					  enum vcp_timer_op_mode op_mode,
+					  vcp_timer_handler_fn handler_fn, void *arg_ptr)
 {
 	struct vcp_timer_config cfg;
 
@@ -401,13 +387,13 @@ int32_t vcp_timer_enable_with_mode(enum timer_channel channel, uint32_t u_sec,
 	return vcp_timer_enable_with_config(&cfg);
 }
 
-int32_t vcp_timer_enable(uint32_t channel, uint32_t u_sec, vcp_timer_handler_fn handler_fn,
-			  void *arg_ptr)
+static int32_t vcp_timer_enable(uint32_t channel, uint32_t u_sec, vcp_timer_handler_fn handler_fn,
+				void *arg_ptr)
 {
 	return vcp_timer_enable_with_mode(channel, u_sec, TIMER_OP_FREERUN, handler_fn, arg_ptr);
 }
 
-int32_t vcp_timer_init(void)
+static int32_t vcp_timer_init(void)
 {
 	uint32_t reg, resIndex, reg_val;
 	int32_t ret;
@@ -464,13 +450,13 @@ static int sys_clock_driver_init(void)
 	tic_irq_vector_set(TIMER_IRQ, TIC_IRQ_DEFAULT_PRIORITY, TIC_INT_TYPE_LEVEL_HIGH,
 			   (tic_isr_func)ttc_timer_compare_isr, NULL);
 
-	tic_to_sec = (uint32_t)(((uint32_t)1000U * (uint32_t)1000U) / VCP_TICK_RATE_HZ);
+	tic_to_sec = (uint32_t)(((uint32_t)1000 * (uint32_t)1000) / VCP_TICK_RATE_HZ);
 
 	IRQ_CONNECT(VCP_TIMER_IRQ_NUM, VCP_TIMER_IRQ_PRIO, ttc_timer_compare_isr, NULL, 0);
 
-	(void)z_tic_irq_enable(TIC_TIMER_0 + VCP_CPU_TIMER_ID);
+	z_tic_irq_enable(TIC_TIMER_0 + VCP_CPU_TIMER_ID);
 
-	(void)vcp_timer_enable((enum timer_channel)timer_channel, tic_to_sec, 0, 0);
+	vcp_timer_enable((enum timer_channel)timer_channel, tic_to_sec, 0, 0);
 
 	return 0;
 }
