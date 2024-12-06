@@ -65,8 +65,8 @@ void soc_early_init_hook(void)
 	vcp_clock_init();
 
 	/* Enable SYS_3P3 */
-	(void)vcp_gpio_config(SYS_PWR_EN, (unsigned long)(GPIO_FUNC(0U) | VCP_GPIO_OUTPUT));
-	(void)vcp_gpio_set(SYS_PWR_EN, 1UL);
+	vcp_gpio_config(SYS_PWR_EN, (unsigned long)(GPIO_FUNC(0U) | VCP_GPIO_OUTPUT));
+	vcp_gpio_set(SYS_PWR_EN, 1UL);
 }
 
 int32_t soc_div64_to_32(unsigned long long *dividend_ptr, uint32_t divisor, uint32_t *rem_ptr)
