@@ -9,7 +9,7 @@
 #define CLOCK_CONTROL_TCCVCP_HEADER
 
 #define CLOCK_PLL_MAX_NUM (2)
-#define CLOCK_SRC_MAX_NUM (6) /*  ((CLOCK_PLL_MAX_NUM * 2 ) + 2) */
+#define CLOCK_SRC_MAX_NUM ((CLOCK_PLL_MAX_NUM * 2) + 2)
 
 #define CLOCK_XIN_CLK_RATE (12000000UL) /* 12MHz */
 
