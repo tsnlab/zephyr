@@ -69,6 +69,55 @@ void soc_early_init_hook(void)
 	vcp_gpio_set(SYS_PWR_EN, 1UL);
 }
 
+static int32_t reduce_dividend(unsigned long long *dividend, uint32_t divisor,
+			       unsigned long long *res)
+{
+	uint32_t high = (uint32_t)(*dividend >> 32ULL);
+
+	if (high >= divisor) {
+		high /= divisor;
+		*res = ((unsigned long long)high) << 32ULL;
+
+		if ((divisor > 0UL) &&
+		    ((*dividend / (unsigned long long)divisor) >= (unsigned long long)high)) {
+			return -EINVAL;
+		}
+
+		*dividend -= (((unsigned long long)high * (unsigned long long)divisor) << 32ULL);
+	}
+	return 0;
+}
+
+static void adjust_divisor_and_quotient(unsigned long long *b, unsigned long long *d,
+					unsigned long long rem)
+{
+	while ((*b > 0ULL) && (*b < rem)) {
+		*b = *b + *b;
+		*d = *d + *d;
+	}
+}
+
+static int32_t perform_division(unsigned long long *rem, unsigned long long *b,
+				unsigned long long *d, unsigned long long *res)
+{
+	do {
+		if (*rem >= *b) {
+			*rem -= *b;
+
+			if ((0xFFFFFFFFFFFFFFFFULL - *d) < *res) {
+				return -EINVAL;
+			}
+
+			*res += *d;
+		}
+
+		*b >>= 1UL;
+		*d >>= 1UL;
+	} while (*d != 0ULL);
+
+	return 0;
+}
+
 int32_t soc_div64_to_32(unsigned long long *dividend_ptr, uint32_t divisor, uint32_t *rem_ptr)
 {
 	int32_t ret_val = 0;
@@ -76,55 +125,26 @@ int32_t soc_div64_to_32(unsigned long long *dividend_ptr, uint32_t divisor, uint
 	unsigned long long b = divisor;
 	unsigned long long d = 1;
 	unsigned long long res = 0;
-	uint32_t high = 0;
 
-	if (dividend_ptr != NULL_PTR) {
-		rem = *dividend_ptr;
-		high = (uint32_t)(rem >> 32ULL);
-
-		/* Reduce the thing a bit first */
-		if (high >= divisor) {
-			high /= divisor;
-			res = ((unsigned long long)high) << 32ULL;
-
-			if ((divisor > 0UL) &&
-			    ((rem / (unsigned long long)divisor) >= (unsigned long long)high)) {
-				ret_val = -EINVAL;
-			} else {
-				rem -= (((unsigned long long)high * (unsigned long long)divisor)
-					<< 32ULL);
-			}
-		}
-
-		if (ret_val == 0) {
-			while (((b > 0ULL) && (b < rem))) {
-				b = b + b;
-				d = d + d;
-			}
-
-			do {
-				if (rem >= b) {
-					rem -= b;
-
-					if ((0xFFFFFFFFFFFFFFFFULL - d) < res) {
-						ret_val = -EINVAL;
-						break;
-					}
-
-					res += d;
-				}
-
-				b >>= 1UL;
-				d >>= 1UL;
-			} while (d != 0ULL);
-
-			if (ret_val == 0) {
-				*dividend_ptr = res;
-			}
-		}
-	} else {
-		ret_val = -EINVAL;
+	if (dividend_ptr == NULL_PTR) {
+		return -EINVAL;
 	}
+
+	rem = *dividend_ptr;
+
+	ret_val = reduce_dividend(&rem, divisor, &res);
+	if (ret_val != 0) {
+		return ret_val;
+	}
+
+	adjust_divisor_and_quotient(&b, &d, rem);
+
+	ret_val = perform_division(&rem, &b, &d, &res);
+	if (ret_val != 0) {
+		return ret_val;
+	}
+
+	*dividend_ptr = res;
 
 	if (rem_ptr != NULL_PTR) {
 		*rem_ptr = (uint32_t)rem;
