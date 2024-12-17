@@ -22,32 +22,32 @@
 
 void vcp_clock_init(void);
 
-signed long clock_set_pll_rate(signed long id, uint32_t rate);
+long clock_set_pll_rate(signed long id, uint32_t rate);
 
 uint32_t clock_get_pll_rate(signed long id);
 
-signed long clock_set_pll_div(signed long id, uint32_t pll_div);
+long clock_set_pll_div(signed long id, uint32_t pll_div);
 
-signed long clock_set_clk_ctrl_rate(signed long id, uint32_t rate);
+long clock_set_clk_ctrl_rate(signed long id, uint32_t rate);
 
 uint32_t clock_get_clk_ctrl_rate(signed long id);
 
-signed long clock_is_peri_enabled(signed long id);
+long clock_is_peri_enabled(signed long id);
 
-signed long clock_enable_peri(signed long id);
+long clock_enable_peri(signed long id);
 
-signed long clock_disable_peri(signed long id);
+long clock_disable_peri(signed long id);
 
 uint32_t clock_get_peri_rate(signed long id);
 
-signed long clock_set_peri_rate(signed long id, uint32_t rate);
+long clock_set_peri_rate(signed long id, uint32_t rate);
 
-signed long clock_is_iobus_pwdn(signed long id);
+long clock_is_iobus_pwdn(signed long id);
 
-signed long clock_enable_iobus(signed long id, unsigned char en);
+long clock_enable_iobus(signed long id, unsigned char en);
 
-signed long clock_set_iobus_pwdn(signed long id, unsigned char en);
+long clock_set_iobus_pwdn(signed long id, unsigned char en);
 
-signed long clock_set_sw_reset(signed long id, unsigned char reset);
+long clock_set_sw_reset(signed long id, unsigned char reset);
 
 #endif /* CLOCK_CONTROL_TCC_CCU_HEADER */
