@@ -78,7 +78,7 @@ Build an app, for example :zephyr:code-sample:`hello_world`
    :goals: topst_vcp45
 
 .. code-block:: console
-   $ west build --build-dir topst_vcp45 -b topst_vcp45 samples/hello_world
+$ west build --build-dir topst_vcp45 -b topst_vcp45 samples/hello_world
 
 .. code-block:: text
 Creating a ROM Build Directory and Downloading Necessary Tools and Images
