@@ -20,12 +20,47 @@ VCP: Vehicle Control Processor
 
 Hardware
 ********
+
+- ARM Cortex-R5F CPU
+- 512KB(Including Retention RAM 16KB) SRAM
+- 128KB Data Flash
+- 1 Gbps with AVB Ethernet
+
 Supported Features
 ==================
 
 .. zephyr:board-supported-hw::
 
 See `TOPST VCP45 hardware`_ for the complete list of hardware features.
+
+The following features are supported:
+
+.. list-table::
+   :header-rows: 2
+
+   * - Peripheral
+     - Kconfig option
+     - Devicetree compatible
+
+   * - TIC
+     - kconfig:option:`CONFIG_TIC`
+     - dtcompatible:`tcc,tic`
+   * - GPIO
+     - kconfig:option:`CONFIG_GPIO` & 'GPIO_TCCVCP'
+     - dtcompatible:`tcc,tccvcp-gpio`
+   * - Timer
+     - kconfig:option:`CONFIG_TCC_VCPTTC_TIMER`
+     - dtcompatible:`tcc,ttcvcp`
+   * - Clock
+     - kconfig:option:`CONFIG_CLOCK_CONTROL_TCC_CCU`
+     - dtcompatible:`tcc,ccu`
+
+Not all hardware features are supported yet. See "TCC70xx Full Specification" for the complete list of hardware features.
+
+The default configuration can be found in
+
+    :zephyr_file:`boards/tcc/topst_vcp45/topst_vcp45_defconfig`
+
 
 Programming and Debugging
 *************************
