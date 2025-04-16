@@ -95,37 +95,33 @@ Create a ROM build directory and download the necessary tools and images, follow
 
 *Downloading the Tools*
 
-  Access the GitLab Repository: Navigate to the GitLab repository containing the necessary tools.
+Access the GitLab Repository: Navigate to the GitLab repository containing the necessary tools.
+https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
 
-  https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
+Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+Then, select the tar.gz file.
+Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
 
-  Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
-
-  Then, select the tar.gz file.
-
-  Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
 
 *Downloading the Prebuilt Images*
 
-  Access the GitLab Repository: Navigate to the GitLab repository containing the prebuilt images.
+Access the GitLab Repository: Navigate to the GitLab repository containing the prebuilt images.
+https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
 
-  https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
+Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+Then, select the tar.gz file.
+Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
 
-  Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
-
-  Then, select the tar.gz file.
-
-  Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
 
 *Extracting the Files*
 
-  Extract the Tool Files: Use the following command to extract the tool files:
+Extract the Tool Files: Use the following command to extract the tool files:
 
 .. code-block:: console
 
 	    $ tar xvfz topst-vcp-main-tools.tar.gz
 
-  Extract the Image Files: Use the following command to extract the image files:
+Extract the Image Files: Use the following command to extract the image files:
 
 .. code-block:: console
 
@@ -137,7 +133,6 @@ Create a ROM build directory and download the necessary tools and images, follow
 To create and modify the mkimg.sh script using vi or another text editor, follow these steps:
 
 Creating the mkimg.sh Script
-
 Open the Text Editor:
 
 Open vi or another text editor of your choice to create the mkimg.sh script.
@@ -191,8 +186,8 @@ Creating the mkrom.sh Script
 
 Write the Script:
 	Add the following content to the mkrom.sh file:
-
 .. code-block:: shell
+
 	#!/bin/bash
 	# Parse command-line arguments
 	for ARGUMENT in "$@"
@@ -243,8 +238,8 @@ Creating the create_rom_with_zephyr_image.sh Script
 
 Write the Script:
     Add the following content to the create_rom_with_zephyr_image.sh file:
-
 .. code-block:: shell
+
 	#!/bin/bash
 
 	# Define output and input directories
@@ -311,8 +306,8 @@ Creating the ROM Code Extractor
 
 Write c code:
 	Add the following content to the binary_extractor.c file:
-
 .. code-block:: c
+
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <stdint.h>
