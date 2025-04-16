@@ -443,5 +443,4 @@ Verify the Software
 	Because the serial device driver has not yet been added to this PR, you cannot see the sentences output by the hello_world program.
 
 .. _TOPST VCP45 hardware:
-   https://topst.ai/tech/docs?TOPST-VCP&Hardware&Overview&1.+specification
-
+    https://topst.ai/product/p/vcp
