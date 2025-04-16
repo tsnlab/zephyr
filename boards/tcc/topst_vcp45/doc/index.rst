@@ -78,360 +78,378 @@ Build an app, for example :zephyr:code-sample:`hello_world`
    :goals: topst_vcp45
 
 .. code-block:: console
-$ west build --build-dir topst_vcp45 -b topst_vcp45 samples/hello_world
+   $ west build --build-dir topst_vcp45 -b topst_vcp45 samples/hello_world
+
+
+Creating a ROM Build Directory and Downloading Necessary Tools and Images
+-------------------------------------------------------------------------
+Create a ROM build directory and download the necessary tools and images, follow these steps:
+
+1. Create the ROM Build Directory
+
+.. code-block:: console
+	$ mkdir rom-build
+	$ cd rom-build/
+
+2. Download the Required Tools and Images
+
+Downloading the Tools
+
+	Access the GitLab Repository: Navigate to the GitLab repository containing the necessary tools.
+	https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
+
+	Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
+	Then, select the tar.gz file.
+
+	Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
+
+Downloading the Prebuilt Images
+	Access the GitLab Repository: Navigate to the GitLab repository containing the prebuilt images.
+	https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
+
+	Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
+	Then, select the tar.gz file.
+
+	Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
+
+Extracting the Files
+Extract the Tool Files: Use the following command to extract the tool files:
+.. code-block:: console
+	$ tar xvfz topst-vcp-main-tools.tar.gz
+
+Extract the Image Files: Use the following command to extract the image files:
+.. code-block:: console
+	$ tar xvfz topst-vcp-main-build-tcc70xx-make_utility.tar.gz
+
+
+3. Writing and Modifying Script Files
+To create and modify the mkimg.sh script using vi or another text editor, follow these steps:
+
+Creating the mkimg.sh Script
+Open the Text Editor:
+
+Open vi or another text editor of your choice to create the mkimg.sh script.
+
+For example, using vi:
+
+.. code-block:: console
+	$ vi mkimg.sh
+
+Write the Script:
+	Add the following content to the mkimg.sh file:
 
 .. code-block:: text
-Creating a ROM Build Directory and Downloading Necessary Tools and Images
-	To create a ROM build directory and download the necessary tools and images, follow these steps:
-		Create the ROM Build Directory
-			Open your terminal or command prompt and create a new directory for your ROM build.
 
-			Use the following commands to create and navigate to the directory:
+	#!/bin/bash
 
-			$ mkdir rom-build
+	for ARGUMENT in "$@"
 
-			$ cd rom-build/
+	do
+		KEY=$(echo $ARGUMENT | cut -f1 -d=)
 
-	Download the Required Tools and Images
-		Downloading the Tools
-			Access the GitLab Repository: Navigate to the GitLab repository containing the necessary tools.
-				https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
+		VALUE=$(echo $ARGUMENT | cut -f2 -d=)
 
-			Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+		case "$KEY" in
 
-			Then, select the tar.gz file.
+			TOOL_PATH)      TOOL_PATH=${VALUE} ;;
 
-			Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
+			INPUT_PATH)     INPUT_PATH=${VALUE} ;;
 
-		Downloading the Prebuilt Images
-			Access the GitLab Repository: Navigate to the GitLab repository containing the prebuilt images.
-				https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
+			OUTPUT_PATH)    OUTPUT_PATH=${VALUE} ;;
 
-			Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+			IMAGE_VERSION)  IMAGE_VERSION=${VALUE} ;;
 
-			Then, select the tar.gz file.
+			TARGET_ADDRESS) TARGET_ADDRESS=${VALUE} ;;
 
-			Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
+			\*)
 
-		Extracting the Files
-			Extract the Tool Files: Use the following command to extract the tool files:
-				$ tar xvfz topst-vcp-main-tools.tar.gz
+		esac
 
-			Extract the Image Files: Use the following command to extract the image files:
-				$ tar xvfz topst-vcp-main-build-tcc70xx-make_utility.tar.gz
+	done
 
 
-	Writing and Modifying Script Files
-		To create and modify the mkimg.sh script using vi or another text editor, follow these steps:
+	MKTOOL_INPUT=$INPUT_PATH/boot.bin
 
-		Creating the mkimg.sh Script
-			Open the Text Editor:
+	MKTOOL_OUTPUT=$OUTPUT_PATH/r5_fw.rom
 
-			Open vi or another text editor of your choice to create the mkimg.sh script.
+	MKTOOL_NAME=R5-FW
 
-			For example, using vi:
+	MKTOOL_SOC_NAME=70xx
 
-			$ vi mkimg.sh
+	chmod 755 $TOOL_PATH/tcmktool
 
-		Write the Script:
-			Add the following content to the mkimg.sh file:
+	$TOOL_PATH/tcmktool $MKTOOL_INPUT $MKTOOL_OUTPUT $MKTOOL_NAME $IMAGE_VERSION $TARGET_ADDRESS $MKTOOL_SOC_NAME
 
-				#!/bin/bash
+Save and Exit:
+	Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
 
-				for ARGUMENT in "$@"
+Make the script executable
+.. code-block:: console
+	$ chmod +x mkimg.sh
 
-				do
-					KEY=$(echo $ARGUMENT | cut -f1 -d=)
+Creating the mkrom.sh Script
+.. code-block:: console
+	$ vi mkrom.sh
 
-					VALUE=$(echo $ARGUMENT | cut -f2 -d=)
+Write the Script:
+	Add the following content to the mkrom.sh file:
 
-					case "$KEY" in
+.. code-block:: text
+	#!/bin/bash
 
-						TOOL_PATH)      TOOL_PATH=${VALUE} ;;
+	# Parse command-line arguments
 
-						INPUT_PATH)     INPUT_PATH=${VALUE} ;;
+	for ARGUMENT in "$@"
 
-						OUTPUT_PATH)    OUTPUT_PATH=${VALUE} ;;
+	do
 
-						IMAGE_VERSION)  IMAGE_VERSION=${VALUE} ;;
+		KEY=$(echo $ARGUMENT | cut -f1 -d=)
 
-						TARGET_ADDRESS) TARGET_ADDRESS=${VALUE} ;;
+		VALUE=$(echo $ARGUMENT | cut -f2 -d=)
 
-						\*)
 
-					esac
+		case "$KEY" in
 
-				done
+				BOARD_NAME)    BOARD_NAME=${VALUE} ;;
 
+				OUTPUT_PATH)   OUTPUT_PATH=${VALUE} ;;
 
-				MKTOOL_INPUT=$INPUT_PATH/boot.bin
+				\*)
 
-				MKTOOL_OUTPUT=$OUTPUT_PATH/r5_fw.rom
+		esac
 
-				MKTOOL_NAME=R5-FW
+	done
 
-				MKTOOL_SOC_NAME=70xx
 
-				chmod 755 $TOOL_PATH/tcmktool
+	# Define constants
 
-				$TOOL_PATH/tcmktool $MKTOOL_INPUT $MKTOOL_OUTPUT $MKTOOL_NAME $IMAGE_VERSION $TARGET_ADDRESS $MKTOOL_SOC_NAME
+	SNOR_SIZE=4
 
-			Save and Exit:
-				Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
+	UTILITY_DIR=./topst-vcp-main-build-tcc70xx-make_utility/build/tcc70xx/make_utility/tcc70xx_pflash_mkimage
 
-			Make the script executable
-				$ chmod +x mkimg.sh
+	OUTPUT_DIR=../../../../../output
 
-		Creating the mkrom.sh Script
-			$ vi mkrom.sh
+	OUTPUT_FILE=tcc70xx_pflash_boot.rom
 
-			Write the Script:
-				Add the following content to the mkrom.sh file:
+	# Change to utility directory
 
-				#!/bin/bash
+	pushd $UTILITY_DIR
 
-				# Parse command-line arguments
+	# Grant execute permissions to the VCP tool (temporary solution)
 
-				for ARGUMENT in "$@"
+	chmod 755 ./tcc70xx-pflash-mkimage
 
-				do
+	# Execute the VCP tool to create the boot ROM image
 
-					KEY=$(echo $ARGUMENT | cut -f1 -d=)
+	./tcc70xx-pflash-mkimage -i ./tcc70xx.cfg -o $OUTPUT_DIR/$OUTPUT_FILE
 
-					VALUE=$(echo $ARGUMENT | cut -f2 -d=)
+	# Return to the original directory
 
+	popd
 
-					case "$KEY" in
+Save and Exit:
+	Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
 
-							BOARD_NAME)    BOARD_NAME=${VALUE} ;;
+Make the script executable
+.. code-block:: console
+	$ chmod +x mkrom.sh
 
-							OUTPUT_PATH)   OUTPUT_PATH=${VALUE} ;;
 
-							\*)
+Creating the create_rom_with_zephyr_image.sh Script
+.. code-block:: console
+	$ vi create_rom_with_zephyr_image.sh
 
-					esac
+Write the Script:
+    Add the following content to the create_rom_with_zephyr_image.sh file:
 
-				done
+.. code-block:: text
+	#!/bin/bash
 
+	# Define output and input directories
 
-				# Define constants
+	OUTPUT="./output"
 
-				SNOR_SIZE=4
+	INPUT="./input"
 
-				UTILITY_DIR=./topst-vcp-main-build-tcc70xx-make_utility/build/tcc70xx/make_utility/tcc70xx_pflash_mkimage
+	# Clean up existing directories
 
-				OUTPUT_DIR=../../../../../output
+	rm -rf "$OUTPUT"
 
-				OUTPUT_FILE=tcc70xx_pflash_boot.rom
+	rm -rf "$INPUT"
 
-				# Change to utility directory
+	# Create fresh directories
 
-				pushd $UTILITY_DIR
+	mkdir -p "$OUTPUT"
 
-				# Grant execute permissions to the VCP tool (temporary solution)
+	mkdir -p "$INPUT"
 
-				chmod 755 ./tcc70xx-pflash-mkimage
+	echo "Directory structure created:"
 
-				# Execute the VCP tool to create the boot ROM image
+	echo "Output directory: $OUTPUT"
 
-				./tcc70xx-pflash-mkimage -i ./tcc70xx.cfg -o $OUTPUT_DIR/$OUTPUT_FILE
+	echo "Input directory: $INPUT"
 
-				# Return to the original directory
+	# Extract and copy Zephyr artifacts
 
-				popd
+	# Note: Ensure correct paths are specified for zephyr.bin, zephyr.elf, and zephyr.map
 
-			Save and Exit:
-				Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
+	./binary_extractor zephyr.bin "$INPUT"/boot.bin
 
-			Make the script executable
-				$ chmod +x mkrom.sh
+	cp zephyr.elf "$INPUT"/boot
 
+	cp zephyr.map "$INPUT"/boot.map
 
-		Creating the create_rom_with_zephyr_image.sh Script
-			$ vi create_rom_with_zephyr_image.sh
+	# Execute mkimg.sh script
 
-			Write the Script:
-				Add the following content to the create_rom_with_zephyr_image.sh file:
+	chmod 755 ./mkimg.sh
 
-				#!/bin/bash
+	./mkimg.sh TOOL_PATH=./topst-vcp-main-tools/tools INPUT_PATH="$INPUT" OUTPUT_PATH="$OUTPUT" TARGET_ADDRESS=0x00000000 IMAGE_VERSION=0.0.0
 
-				# Define output and input directories
+	# Execute mkrom.sh script
 
-				OUTPUT="./output"
+	chmod 755 ./mkrom.sh
 
-				INPUT="./input"
+	./mkrom.sh BOARD_NAME="$MCU_BSP_CONFIG_BOARD_NAME" OUTPUT_PATH="$OUTPUT"
 
-				# Clean up existing directories
+Save and Exit:
+	Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
 
-				rm -rf "$OUTPUT"
+Make the script executable
+.. code-block:: console
+	$ chmod +x create_rom_with_zephyr_image.sh
 
-				rm -rf "$INPUT"
+Modifying tcc70xx.cfg file
+.. code-block:: console
+	$ vi ./topst-vcp-main-build-tcc70xx-make_utility/build/tcc70xx/make_utility/tcc70xx_pflash_mkimage/tcc70xx.cfg
 
-				# Create fresh directories
+Modify the 6th line as follows:
 
-				mkdir -p "$OUTPUT"
+Change:
 
-				mkdir -p "$INPUT"
+	MICOM_BIN=../../gcc/output/r5_fw.rom
 
-				echo "Directory structure created:"
+To:
 
-				echo "Output directory: $OUTPUT"
+	MICOM_BIN=../../../../../output/r5_fw.rom
 
-				echo "Input directory: $INPUT"
 
-				# Extract and copy Zephyr artifacts
-
-				# Note: Ensure correct paths are specified for zephyr.bin, zephyr.elf, and zephyr.map
-
-				./binary_extractor zephyr.bin "$INPUT"/boot.bin
-
-				cp zephyr.elf "$INPUT"/boot
-
-				cp zephyr.map "$INPUT"/boot.map
-
-				# Execute mkimg.sh script
-
-				chmod 755 ./mkimg.sh
-
-				./mkimg.sh TOOL_PATH=./topst-vcp-main-tools/tools INPUT_PATH="$INPUT" OUTPUT_PATH="$OUTPUT" TARGET_ADDRESS=0x00000000 IMAGE_VERSION=0.0.0
-
-				# Execute mkrom.sh script
-
-				chmod 755 ./mkrom.sh
-
-				./mkrom.sh BOARD_NAME="$MCU_BSP_CONFIG_BOARD_NAME" OUTPUT_PATH="$OUTPUT"
-
-			Save and Exit:
-				Save the changes by pressing Esc, then type :wq and press Enter to write and quit the file.
-
-			Make the script executable
-				$ chmod +x create_rom_with_zephyr_image.sh
-
-		Modifying tcc70xx.cfg file
-			$ vi ./topst-vcp-main-build-tcc70xx-make_utility/build/tcc70xx/make_utility/tcc70xx_pflash_mkimage/tcc70xx.cfg
-
-				Modify the 6th line as follows:
-
-				Change:
-
-					MICOM_BIN=../../gcc/output/r5_fw.rom
-
-				To:
-
-					MICOM_BIN=../../../../../output/r5_fw.rom
-
-
-	Creating the ROM Code Extractor
-
+Creating the ROM Code Extractor
+.. code-block:: console
 	$ vi binary_extractor.c
 
-		Write c code:
-			Add the following content to the binary_extractor.c file:
+Write c code:
+	Add the following content to the binary_extractor.c file:
 
-			#include <stdio.h>
+.. code-block:: text
+	#include <stdio.h>
 
-			#include <stdlib.h>
+	#include <stdlib.h>
 
-			#include <stdint.h>
+	#include <stdint.h>
 
-			#define BUFFER_SIZE 4096
+	#define BUFFER_SIZE 4096
 
-			#define OFFSET 0x01043000
+	#define OFFSET 0x01043000
 
-			int main(int argc, char \*argv[]) {
+	int main(int argc, char \*argv[]) {
 
-				FILE \*input_file, \*output_file;
+		FILE \*input_file, \*output_file;
 
-				uint8_t buffer[BUFFER_SIZE];
+		uint8_t buffer[BUFFER_SIZE];
 
-				size_t bytes_read;
+		size_t bytes_read;
 
-				if (argc != 3) {
+		if (argc != 3) {
 
-					fprintf(stderr, "Usage: %s <input file> <output file>\n", argv[0]);
+			fprintf(stderr, "Usage: %s <input file> <output file>\n", argv[0]);
 
-					return 1;
+			return 1;
 
-				}
+		}
 
-				input_file = fopen(argv[1], "rb");
+		input_file = fopen(argv[1], "rb");
 
-				if (input_file == NULL) {
+		if (input_file == NULL) {
 
-					perror("Cannot open input file");
+			perror("Cannot open input file");
 
-					return 1;
+			return 1;
 
-				}
+		}
 
-				output_file = fopen(argv[2], "wb");
+		output_file = fopen(argv[2], "wb");
 
-				if (output_file == NULL) {
+		if (output_file == NULL) {
 
-					perror("Cannot create output file");
+			perror("Cannot create output file");
 
-					fclose(input_file);
+			fclose(input_file);
 
-					return 1;
+			return 1;
 
-				}
+		}
 
-				if (fseek(input_file, OFFSET, SEEK_SET) != 0) {
+		if (fseek(input_file, OFFSET, SEEK_SET) != 0) {
 
-					perror("Cannot move to offset in file");
+			perror("Cannot move to offset in file");
 
-					fclose(input_file);
+			fclose(input_file);
 
-					fclose(output_file);
+			fclose(output_file);
 
-					return 1;
+			return 1;
 
-				}
+		}
 
-				while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, input_file)) > 0) {
+		while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, input_file)) > 0) {
 
-					if (fwrite(buffer, 1, bytes_read, output_file) != bytes_read) {
+			if (fwrite(buffer, 1, bytes_read, output_file) != bytes_read) {
 
-						perror("Error writing to output file");
-
-						fclose(input_file);
-
-						fclose(output_file);
-
-						return 1;
-
-					}
-
-				}
+				perror("Error writing to output file");
 
 				fclose(input_file);
 
 				fclose(output_file);
 
-				printf("The file has been processed successfully.\n");
-
-				return 0;
+				return 1;
 
 			}
 
-	Build the C file to create an executable.
-		$ gcc -o binary_extractor binary_extractor.c
+		}
 
-	Creating the ROM File
-		The ROM file for fusing onto the TOPST VCP board is created using three components:
-			Prebuilt hsm.bin file
+		fclose(input_file);
 
-			updater.rom file
+		fclose(output_file);
 
-			zephyr.bin file (Zephyr RTOS image)
+		printf("The file has been processed successfully.\n");
 
-		To create the ROM file, execute the following command:
-			$ ./create_rom_with_zephyr_image.sh
+		return 0;
 
-		After running the script, verify that the ROM file has been generated by checking the output directory:
-			$ ls -al ./output/
+	}
 
-		Ensure that the file tcc70xx_pflash_boot_4M_ECC.rom is present in the output directory. This file is the final ROM image that can be fused onto the TOPST VCP board.
+Build the C file to create an executable.
+.. code-block:: console
+	$ gcc -o binary_extractor binary_extractor.c
+
+Creating the ROM File
+The ROM file for fusing onto the TOPST VCP board is created using three components:
+	Prebuilt hsm.bin file
+
+	updater.rom file
+
+	zephyr.bin file (Zephyr RTOS image)
+
+To create the ROM file, execute the following command:
+.. code-block:: console
+	$ ./create_rom_with_zephyr_image.sh
+
+After running the script, verify that the ROM file has been generated by checking the output directory:
+.. code-block:: console
+	$ ls -al ./output/
+
+Ensure that the file tcc70xx_pflash_boot_4M_ECC.rom is present in the output directory. This file is the final ROM image that can be fused onto the TOPST VCP board.
 
 
 Flashing
