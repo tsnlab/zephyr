@@ -25,6 +25,8 @@ Supported Features
 
 .. zephyr:board-supported-hw::
 
+See `TOPST VCP45 hardware`_ for the complete list of hardware features.
+
 Programming and Debugging
 *************************
 
@@ -439,4 +441,7 @@ Open a Serial Connection
 
 Verify the Software
 	Because the serial device driver has not yet been added to this PR, you cannot see the sentences output by the hello_world program.
+
+See `TOPST VCP45 hardware`_ for the complete list of hardware features.
+   https://topst.ai/tech/docs?TOPST-VCP&Hardware&Overview&1.+specification
 
