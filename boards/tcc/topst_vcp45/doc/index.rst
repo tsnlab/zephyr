@@ -1,4 +1,7 @@
-.. zephyr:board:: topst_vcp45
+.. _topst_vcp45:
+
+TOPST_VCP45
+###################
 
 Overview
 ********
@@ -93,7 +96,7 @@ Create a ROM build directory and download the necessary tools and images, follow
 
 **2. Download the Required Tools and Images**
 
-*Downloading the Tools*
+**Downloading the Tools**
 
 Access the GitLab Repository: Navigate to the GitLab repository containing the necessary tools.
 https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
@@ -105,7 +108,7 @@ Then, select the tar.gz file.
 Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
 
 
-*Downloading the Prebuilt Images*
+**Downloading the Prebuilt Images**
 
 Access the GitLab Repository: Navigate to the GitLab repository containing the prebuilt images.
 https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
@@ -117,7 +120,7 @@ Then, select the tar.gz file.
 Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
 
 
-*Extracting the Files*
+**Extracting the Files**
 
 Extract the Tool Files: Use the following command to extract the tool files:
 
@@ -136,7 +139,7 @@ Extract the Image Files: Use the following command to extract the image files:
 
 To create and modify the mkimg.sh script using vi or another text editor, follow these steps:
 
-Creating the mkimg.sh Script
+**Creating the mkimg.sh Script**
 Open the Text Editor:
 
 Open vi or another text editor of your choice to create the mkimg.sh script.
@@ -182,7 +185,7 @@ Make the script executable
 
 	    $ chmod +x mkimg.sh
 
-Creating the mkrom.sh Script
+**Creating the mkrom.sh Script**
 
 .. code-block:: console
 
@@ -234,7 +237,7 @@ Make the script executable
 	    $ chmod +x mkrom.sh
 
 
-Creating the create_rom_with_zephyr_image.sh Script
+**Creating the create_rom_with_zephyr_image.sh Script**
 
 .. code-block:: console
 
@@ -285,7 +288,7 @@ Make the script executable
 
 	    $ chmod +x create_rom_with_zephyr_image.sh
 
-Modifying tcc70xx.cfg file
+**Modifying tcc70xx.cfg file**
 
 .. code-block:: console
 
@@ -302,7 +305,7 @@ To:
 	MICOM_BIN=../../../../../output/r5_fw.rom
 
 
-Creating the ROM Code Extractor
+**Creating the ROM Code Extractor**
 
 .. code-block:: console
 
