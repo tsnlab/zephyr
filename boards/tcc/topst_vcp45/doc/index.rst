@@ -29,8 +29,6 @@ Hardware
 Supported Features
 ==================
 
-.. zephyr:board-supported-hw::
-
 The following features are supported:
 
 .. list-table::
@@ -62,8 +60,6 @@ The default configuration can be found in
 Programming and Debugging
 *************************
 
-.. zephyr:board-supported-runners::
-
 hello_world
 ===========
 
@@ -77,6 +73,7 @@ Build an app, for example :zephyr:code-sample:`hello_world`
    :board: topst_vcp45
    :goals: topst_vcp45
 
+When building an image for the topst_vcp45 board, build it by specifying the directory as follows:
 .. code-block:: console
    $ west build --build-dir topst_vcp45 -b topst_vcp45 samples/hello_world
 
@@ -86,7 +83,6 @@ Creating a ROM Build Directory and Downloading Necessary Tools and Images
 Create a ROM build directory and download the necessary tools and images, follow these steps:
 
 1. Create the ROM Build Directory
-
 .. code-block:: console
 	$ mkdir rom-build
 	$ cd rom-build/
@@ -133,14 +129,12 @@ Open the Text Editor:
 Open vi or another text editor of your choice to create the mkimg.sh script.
 
 For example, using vi:
-
 .. code-block:: console
 	$ vi mkimg.sh
 
 Write the Script:
 	Add the following content to the mkimg.sh file:
-
-.. code-block:: text
+.. code-block:: shell
 
 	#!/bin/bash
 
@@ -196,7 +190,7 @@ Creating the mkrom.sh Script
 Write the Script:
 	Add the following content to the mkrom.sh file:
 
-.. code-block:: text
+.. code-block:: shell
 	#!/bin/bash
 
 	# Parse command-line arguments
@@ -264,7 +258,7 @@ Creating the create_rom_with_zephyr_image.sh Script
 Write the Script:
     Add the following content to the create_rom_with_zephyr_image.sh file:
 
-.. code-block:: text
+.. code-block:: shell
 	#!/bin/bash
 
 	# Define output and input directories
@@ -342,7 +336,7 @@ Creating the ROM Code Extractor
 Write c code:
 	Add the following content to the binary_extractor.c file:
 
-.. code-block:: text
+.. code-block:: c
 	#include <stdio.h>
 
 	#include <stdlib.h>
