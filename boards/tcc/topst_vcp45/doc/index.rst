@@ -99,7 +99,9 @@ Access the GitLab Repository: Navigate to the GitLab repository containing the n
 https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
 
 Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
 Then, select the tar.gz file.
+
 Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
 
 
@@ -109,7 +111,9 @@ Access the GitLab Repository: Navigate to the GitLab repository containing the p
 https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
 
 Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
 Then, select the tar.gz file.
+
 Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
 
 
@@ -128,7 +132,7 @@ Extract the Image Files: Use the following command to extract the image files:
 	    $ tar xvfz topst-vcp-main-build-tcc70xx-make_utility.tar.gz
 
 
-3. Writing and Modifying Script Files
+**3. Writing and Modifying Script Files**
 
 To create and modify the mkimg.sh script using vi or another text editor, follow these steps:
 
@@ -365,7 +369,8 @@ Build the C file to create an executable.
 
 	    $ gcc -o binary_extractor binary_extractor.c
 
-Creating the ROM File
+**4. Creating the ROM File**
+
 The ROM file for fusing onto the TOPST VCP board is created using three components:
 	Prebuilt hsm.bin file
 
@@ -441,6 +446,3 @@ Open a Serial Connection
 
 Verify the Software
 	Because the serial device driver has not yet been added to this PR, you cannot see the sentences output by the hello_world program.
-
-.. _TOPST VCP45 hardware:
-    https://topst.ai/product/p/vcp#spec
