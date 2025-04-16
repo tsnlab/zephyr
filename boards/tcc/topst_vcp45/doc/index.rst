@@ -36,12 +36,11 @@ See `TOPST VCP45 hardware`_ for the complete list of hardware features.
 The following features are supported:
 
 .. list-table::
-   :header-rows: 2
+   :header-rows: 1
 
    * - Peripheral
      - Kconfig option
      - Devicetree compatible
-
    * - TIC
      - kconfig:option:`CONFIG_TIC`
      - dtcompatible:`tcc,tic`
