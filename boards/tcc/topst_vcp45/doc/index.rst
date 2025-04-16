@@ -85,9 +85,11 @@ Creating a ROM Build Directory and Downloading Necessary Tools and Images
 	To create a ROM build directory and download the necessary tools and images, follow these steps:
 		Create the ROM Build Directory
 			Open your terminal or command prompt and create a new directory for your ROM build.
+
 			Use the following commands to create and navigate to the directory:
 
 			$ mkdir rom-build
+
 			$ cd rom-build/
 
 	Download the Required Tools and Images
@@ -96,7 +98,9 @@ Creating a ROM Build Directory and Downloading Necessary Tools and Images
 				https://gitlab.com/topst.ai/topst-vcp/-/tree/main/tools?ref_type=heads
 
 			Download the Tools: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
 			Then, select the tar.gz file.
+
 			Move the Downloaded File: Move the downloaded topst-vcp-main-tools.tar.gz file to your rom-build directory.
 
 		Downloading the Prebuilt Images
@@ -104,7 +108,9 @@ Creating a ROM Build Directory and Downloading Necessary Tools and Images
 				https://gitlab.com/topst.ai/topst-vcp/-/tree/main/build/tcc70xx/make_utility?ref_type=heads
 
 			Download the Images: Select the Code dropdown menu on the right side of the page and choose Download this directory.
+
 			Then, select the tar.gz file.
+
 			Move the Downloaded File: Move the downloaded topst-vcp-main-build-tcc70xx-make_utility.tar.gz file to your rom-build directory.
 
 		Extracting the Files
