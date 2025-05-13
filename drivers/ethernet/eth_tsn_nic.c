@@ -275,13 +275,16 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	len = net_pkt_get_len(pkt);
 
+	// initialize the tx_buffer
 	memset(data->tx_buffer.data, 0, sizeof(data->tx_buffer.data));
 
+	// copy packet data with the original length to tx_buffer
 	ret = net_pkt_read(pkt, data->tx_buffer.data, len);
 	if (ret != 0) {
 		goto error;
 	}
 	
+	// padding alignment
 	if (len < ETH_ZLEN) {
 		len = ETH_ZLEN;
 	}	
