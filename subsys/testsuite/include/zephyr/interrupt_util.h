@@ -221,6 +221,17 @@ static inline void trigger_irq(int irq)
 	WRITE_BIT(REG(IR_BASE_ADDRESS + irq), 0, true);
 }
 
+#elif defined(CONFIG_CPU_CORTEX_R5) && defined(CONFIG_TIC)
+
+#include <zephyr/dt-bindings/interrupt-controller/tcc-tic.h>
+
+extern void z_tic_arm_enter_irq(int);
+
+static inline void trigger_irq(int irq)
+{
+	z_tic_arm_enter_irq(irq);
+}
+
 #else
 #define NO_TRIGGER_FROM_SW
 #endif
