@@ -65,19 +65,21 @@
 #define DMA_ENGINE_START 16268831
 #define DMA_ENGINE_STOP  16268830
 
-// DMA_ENGINE_START (0x00F83E1F) 16268831
-// 0xF8001F = 1111 1000 0000 0000 0001 1111 (binary)
-//            |     |               |     +--> bit [0:0] Run (start the SGDMA engine)
-//            |     |               +--> bits [4:0]  = 1Fh (all 1s, i.e., enable all ie_* error interrupts)
-//            |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
-//            +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
+/*
+DMA_ENGINE_START (0x00F83E1F) 16268831
+0xF8001F = 1111 1000 0000 0000 0001 1111 (binary)
+           |     |               |     +--> bit [0:0] Run (start the SGDMA engine)
+           |     |               +--> bits [4:0]  = 1Fh (all 1s, i.e., enable all ie_* error interrupts)
+           |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
+           +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
 
-// DMA_ENGINE_STOP  (0x00F83E1E) //16268830
-// 0xF8001E = 1111 1000 0000 0000 0001 1110 (binary)
-//            |     |               |     +--> bit [0:0] Stop transfer (if the engine is busy, it completes the current descriptor)
-//            |     |               +--> bits [4:0]  = 1Eh (all 1s, i.e., enable all ie_* error interrupts)
-//            |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
-//            +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
+DMA_ENGINE_STOP  (0x00F83E1E) //16268830
+0xF8001E = 1111 1000 0000 0000 0001 1110 (binary)
+           |     |               |     +--> bit [0:0] Stop transfer (if the engine is busy, it completes the current descriptor)
+           |     |               +--> bits [4:0]  = 1Eh (all 1s, i.e., enable all ie_* error interrupts)
+           |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
+           +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
+*/
 
 #define ETH_ALEN 6
 

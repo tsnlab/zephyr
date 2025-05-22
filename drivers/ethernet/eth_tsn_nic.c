@@ -108,7 +108,7 @@ void dump_dma_h2c_all_regs(struct dma_tsn_nic_engine_regs *regs)
 	LOG_DBG("===========================");
 }
 
-static void eth_tsn_check_status()
+static void eth_tsn_check_status(void)
 {
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pcie1), okay)
 	LOG_DBG("PCIe controller is okay.");
@@ -376,8 +376,6 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	k_work_submit(&data->rx_work); /* TODO: use polling for now */
 #endif
 
-	LOG_DBG("eth_tsn_nic_send");
-
 	tsn_print_top_registers(dev);
 
 	eth_tsn_check_status();
@@ -390,7 +388,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	ret = net_pkt_read(pkt, data->tx_buffer.data, len);
 	if (ret != 0) {
-		LOG_ERR("eth_tsn_nic_send data length: %lu (net_pkt_read: %d)\n", len, ret);
+		LOG_ERR("data length: %lu (net_pkt_read: %d)\n", len, ret);
 		goto error;
 	}
 
@@ -400,11 +398,11 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	data->tx_buffer.metadata.frame_length = len;
 
-	LOG_DBG("eth_tsn_nic_send data length: %d\n", data->tx_buffer.metadata.frame_length);
+	LOG_DBG("data length: %d\n", data->tx_buffer.metadata.frame_length);
 
 	ret = clock_gettime(CLOCK_MONOTONIC, &ts); /* TODO: Replace with HW clock */
 	if (ret != 0) {
-		LOG_ERR("eth_tsn_nic_send clock_gettime error: %d\n", ret);
+		LOG_ERR("clock_gettime error: %d\n", ret);
 		goto error;
 	}
 
@@ -438,18 +436,19 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	dump_dma_h2c_all_regs(data->regs[DMA_H2C]);
 
 	uint32_t completed =
-		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); // offset = completed_desc_count
+		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); /* offset = completed_desc_count */
 	LOG_DBG("Completed Desc Count: %d\n", completed);
 
 	uint32_t nCompleted = 0;
 	for (int i = 0; i < 100000; ++i) {
 		uint32_t completed = sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
+
 		if (completed > 0) {
 			LOG_DBG("DMA completed!\n");
 			nCompleted++;
 			break;
 		}
-		k_busy_wait(10); // 10 µs delay
+		k_busy_wait(10); /* 10 µs delay */
 	}
 
 	/* TODO: This should be done in tsn_nic_isr() */
