@@ -438,7 +438,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	/* offset = completed_desc_count */
 	uint32_t completed =
-		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); 
+		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
 
 	LOG_DBG("Completed Desc Count: %d\n", completed);
 

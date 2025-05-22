@@ -720,12 +720,12 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	LOG_DBG("PCIE_MISC_RC_BAR3_CONFIG_LO after write: 0x%x",
 		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR3_CONFIG_LO));
 
-	/* 1. Reset Sequence */ 
-	/* Assert PERST# */ 
+	/* 1. Reset Sequence */
+	/* Assert PERST# */
 	LOG_INF("Asserting PERST#");
-	/* Assuming pcie->cfg->perst_set is available in your Zephyr environment */ 
-	/* If not, you'll need to use the appropriate board-specific GPIO control */ 
-	/* to assert the reset. */ 
+	/* Assuming pcie->cfg->perst_set is available in your Zephyr environment */
+	/* If not, you'll need to use the appropriate board-specific GPIO control */
+	/* to assert the reset. */
 	/* ret = pcie->cfg->perst_set(pcie, 1); // Assert reset */
 	/* if (ret) { */
 	/*     LOG_ERR("Failed to assert PERST#"); */
@@ -804,7 +804,7 @@ static int pcie_brcmstb_setup(const struct device *dev)
 
 	uint16_t lnksta = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA_OFFSET);
 
-	LOG_DBG("PCI_EXP_LNKSTA value: 0x%x", lnksta);	
+	LOG_DBG("PCI_EXP_LNKSTA value: 0x%x", lnksta);
 	if (lnksta & PCI_EXP_LNKSTA_DLLLA) {
 		LOG_INF("Data Link Layer is active.");
 	} else {
