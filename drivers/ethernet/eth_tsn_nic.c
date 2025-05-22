@@ -44,7 +44,7 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_DBG);
 #define TSN_REG_PULSE_AT_LO     0x0030
 #define TSN_REG_CYCLE_1S        0x0034
 
-#define TSN_REG_TEMAC_STATUS	0x0500
+#define TSN_REG_TEMAC_STATUS 0x0500
 
 static inline uint32_t fpga_reg_read(const struct device *dev, uint32_t offset)
 {
@@ -57,75 +57,75 @@ void tsn_print_top_registers(const struct device *dev)
 {
 	LOG_DBG(">>> TSN TOP Register Group <<<");
 	LOG_DBG("TSN_VERSION          (0x%04x): 0x%08x", TSN_REG_VERSION,
-			fpga_reg_read(dev, TSN_REG_VERSION));
+		fpga_reg_read(dev, TSN_REG_VERSION));
 	LOG_DBG("TSN_CONFIG           (0x%04x): 0x%08x", TSN_REG_CONFIG,
-			fpga_reg_read(dev, TSN_REG_CONFIG));		
+		fpga_reg_read(dev, TSN_REG_CONFIG));
 	LOG_DBG("TSN_CONTROL          (0x%04x): 0x%08x", TSN_REG_CONTROL,
-			fpga_reg_read(dev, TSN_REG_CONTROL));		
+		fpga_reg_read(dev, TSN_REG_CONTROL));
 	LOG_DBG("SCRATCH              (0x%04x): 0x%08x", TSN_REG_SCRATCH,
-			fpga_reg_read(dev, TSN_REG_SCRATCH));		
+		fpga_reg_read(dev, TSN_REG_SCRATCH));
 	LOG_DBG("QBV_SLOT_STATUS      (0x%04x): 0x%08x", TSN_REG_QBV_SLOT_STATUS,
-			fpga_reg_read(dev, TSN_REG_QBV_SLOT_STATUS));		
+		fpga_reg_read(dev, TSN_REG_QBV_SLOT_STATUS));
 	LOG_DBG("PULSE_AT_HI [63:32]  (0x%04x): 0x%08x", TSN_REG_PULSE_AT_HI,
-			fpga_reg_read(dev, TSN_REG_PULSE_AT_HI));		
+		fpga_reg_read(dev, TSN_REG_PULSE_AT_HI));
 	LOG_DBG("PULSE_AT_LO [31:0]   (0x%04x): 0x%08x", TSN_REG_PULSE_AT_LO,
-			fpga_reg_read(dev, TSN_REG_PULSE_AT_LO));		
+		fpga_reg_read(dev, TSN_REG_PULSE_AT_LO));
 	LOG_DBG("CYCLE_1S             (0x%04x): 0x%08x", TSN_REG_CYCLE_1S,
-			fpga_reg_read(dev, TSN_REG_CYCLE_1S));		
+		fpga_reg_read(dev, TSN_REG_CYCLE_1S));
 	LOG_DBG("TEMAC_STATUS         (0x%04x): 0x%08x", TSN_REG_TEMAC_STATUS,
-			fpga_reg_read(dev, TSN_REG_TEMAC_STATUS));				   
+		fpga_reg_read(dev, TSN_REG_TEMAC_STATUS));
 }
 
 void dump_dma_h2c_all_regs(struct dma_tsn_nic_engine_regs *regs)
 {
-    LOG_DBG("=== DMA Engine Registers ===");
+	LOG_DBG("=== DMA Engine Registers ===");
 
-    LOG_DBG("identifier              : 0x%08x", regs->identifier);
-    LOG_DBG("control                 : 0x%08x", regs->control);
-    LOG_DBG("control_w1s             : 0x%08x", regs->control_w1s);
-    LOG_DBG("control_w1c             : 0x%08x", regs->control_w1c);
+	LOG_DBG("identifier              : 0x%08x", regs->identifier);
+	LOG_DBG("control                 : 0x%08x", regs->control);
+	LOG_DBG("control_w1s             : 0x%08x", regs->control_w1s);
+	LOG_DBG("control_w1c             : 0x%08x", regs->control_w1c);
 
-    LOG_DBG("status                  : 0x%08x", regs->status);
-    LOG_DBG("status_rc               : 0x%08x", regs->status_rc);
-    LOG_DBG("completed_desc_count    : 0x%08x", regs->completed_desc_count);
-    LOG_DBG("alignments              : 0x%08x", regs->alignments);
+	LOG_DBG("status                  : 0x%08x", regs->status);
+	LOG_DBG("status_rc               : 0x%08x", regs->status_rc);
+	LOG_DBG("completed_desc_count    : 0x%08x", regs->completed_desc_count);
+	LOG_DBG("alignments              : 0x%08x", regs->alignments);
 
-    LOG_DBG("poll_mode_wb_lo         : 0x%08x", regs->poll_mode_wb_lo);
-    LOG_DBG("poll_mode_wb_hi         : 0x%08x", regs->poll_mode_wb_hi);
+	LOG_DBG("poll_mode_wb_lo         : 0x%08x", regs->poll_mode_wb_lo);
+	LOG_DBG("poll_mode_wb_hi         : 0x%08x", regs->poll_mode_wb_hi);
 
-    LOG_DBG("interrupt_enable_mask   : 0x%08x", regs->interrupt_enable_mask);
-    LOG_DBG("int_en_mask_w1s         : 0x%08x", regs->interrupt_enable_mask_w1s);
-    LOG_DBG("int_en_mask_w1c         : 0x%08x", regs->interrupt_enable_mask_w1c);
+	LOG_DBG("interrupt_enable_mask   : 0x%08x", regs->interrupt_enable_mask);
+	LOG_DBG("int_en_mask_w1s         : 0x%08x", regs->interrupt_enable_mask_w1s);
+	LOG_DBG("int_en_mask_w1c         : 0x%08x", regs->interrupt_enable_mask_w1c);
 
-    LOG_DBG("perf_ctrl               : 0x%08x", regs->perf_ctrl);
-    LOG_DBG("perf_cyc_lo             : 0x%08x", regs->perf_cyc_lo);
-    LOG_DBG("perf_cyc_hi             : 0x%08x", regs->perf_cyc_hi);
-    LOG_DBG("perf_dat_lo             : 0x%08x", regs->perf_dat_lo);
-    LOG_DBG("perf_dat_hi             : 0x%08x", regs->perf_dat_hi);
-    LOG_DBG("perf_pnd_lo             : 0x%08x", regs->perf_pnd_lo);
-    LOG_DBG("perf_pnd_hi             : 0x%08x", regs->perf_pnd_hi);
+	LOG_DBG("perf_ctrl               : 0x%08x", regs->perf_ctrl);
+	LOG_DBG("perf_cyc_lo             : 0x%08x", regs->perf_cyc_lo);
+	LOG_DBG("perf_cyc_hi             : 0x%08x", regs->perf_cyc_hi);
+	LOG_DBG("perf_dat_lo             : 0x%08x", regs->perf_dat_lo);
+	LOG_DBG("perf_dat_hi             : 0x%08x", regs->perf_dat_hi);
+	LOG_DBG("perf_pnd_lo             : 0x%08x", regs->perf_pnd_lo);
+	LOG_DBG("perf_pnd_hi             : 0x%08x", regs->perf_pnd_hi);
 
-    LOG_DBG("===========================");
+	LOG_DBG("===========================");
 }
 
 static void eth_tsn_check_status()
 {
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pcie1), okay)
-   	LOG_DBG("PCIe controller is okay.");
+	LOG_DBG("PCIe controller is okay.");
 #else
 	LOG_ERR("PCIe controller is NOT okay.");
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(eth), okay)
-    const struct device *eth_dev = DEVICE_DT_GET(DT_NODELABEL(eth));
-    if (!device_is_ready(eth_dev)) {
-        LOG_ERR("Ethernet device %s is NOT ready.", eth_dev->name);
-    } else {
-        LOG_DBG("Ethernet device %s is ready.", eth_dev->name);
-    }
+	const struct device *eth_dev = DEVICE_DT_GET(DT_NODELABEL(eth));
+	if (!device_is_ready(eth_dev)) {
+		LOG_ERR("Ethernet device %s is NOT ready.", eth_dev->name);
+	} else {
+		LOG_DBG("Ethernet device %s is ready.", eth_dev->name);
+	}
 #else
-    LOG_ERR("Ethernet device node is not okay in Device Tree.");
-#endif		
+	LOG_ERR("Ethernet device node is not okay in Device Tree.");
+#endif
 }
 
 static void eth_tsn_nic_isr(const struct device *dev)
@@ -149,8 +149,8 @@ static void tx_desc_set(struct dma_tsn_nic_desc *desc, uintptr_t addr, uint32_t 
 	desc->dst_addr_hi = 0;
 
 	desc->src_addr_lo = sys_cpu_to_le32(PCI_DMA_L(addr));
-	desc->src_addr_hi = sys_cpu_to_le32(PCI_DMA_H(addr));	
-	desc->bytes = sys_cpu_to_le32(len);	
+	desc->src_addr_hi = sys_cpu_to_le32(PCI_DMA_H(addr));
+	desc->bytes = sys_cpu_to_le32(len);
 }
 
 static void rx_desc_set(struct dma_tsn_nic_desc *desc, uintptr_t addr, uint32_t len)
@@ -164,8 +164,8 @@ static void rx_desc_set(struct dma_tsn_nic_desc *desc, uintptr_t addr, uint32_t 
 	control |= DESC_COMPLETED;
 	desc->control = sys_cpu_to_le32(control);
 
-    desc->src_addr_lo = 0;
-    desc->src_addr_hi = 0;	
+	desc->src_addr_lo = 0;
+	desc->src_addr_hi = 0;
 
 	desc->dst_addr_lo = sys_cpu_to_le32(PCI_DMA_L(addr));
 	desc->dst_addr_hi = sys_cpu_to_le32(PCI_DMA_H(addr));
@@ -378,7 +378,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	LOG_DBG("eth_tsn_nic_send");
 
-	tsn_print_top_registers(dev);		
+	tsn_print_top_registers(dev);
 
 	eth_tsn_check_status();
 
@@ -390,22 +390,21 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	ret = net_pkt_read(pkt, data->tx_buffer.data, len);
 	if (ret != 0) {
-		LOG_ERR("eth_tsn_nic_send data length: %lu (net_pkt_read: %d)\n", len, ret);	
+		LOG_ERR("eth_tsn_nic_send data length: %lu (net_pkt_read: %d)\n", len, ret);
 		goto error;
 	}
 
 	if (len < ETH_ZLEN) {
 		len = ETH_ZLEN;
-	}	
-
+	}
 
 	data->tx_buffer.metadata.frame_length = len;
 
-	LOG_DBG("eth_tsn_nic_send data length: %d\n", data->tx_buffer.metadata.frame_length);		
+	LOG_DBG("eth_tsn_nic_send data length: %d\n", data->tx_buffer.metadata.frame_length);
 
 	ret = clock_gettime(CLOCK_MONOTONIC, &ts); /* TODO: Replace with HW clock */
 	if (ret != 0) {
-		LOG_ERR("eth_tsn_nic_send clock_gettime error: %d\n", ret);	
+		LOG_ERR("eth_tsn_nic_send clock_gettime error: %d\n", ret);
 		goto error;
 	}
 
@@ -421,7 +420,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 #endif /* CONFIG_NET_PKT_TIMESTMP */
 
 	tx_desc_set(&data->tx_desc, (uintptr_t)&data->tx_buffer, len + TX_METADATA_SIZE);
- 	
+
 	w = sys_cpu_to_le32(PCI_DMA_L((uintptr_t)&data->tx_desc));
 	sys_write32(w, data->bar[DMA_CONFIG_BAR_IDX] + DESC_REG_LO);
 	w = sys_cpu_to_le32(PCI_DMA_H((uintptr_t)&data->tx_desc));
@@ -431,16 +430,17 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	sys_write32(DMA_ENGINE_START, (uintptr_t)&data->regs[DMA_H2C]->control);
 
 	LOG_INF("control: %08x", data->regs[DMA_H2C]->control);
-	LOG_INF("status: %08x", data->regs[DMA_H2C]->status);	
-	LOG_INF("status_rc: %08x", data->regs[DMA_H2C]->status_rc);		
+	LOG_INF("status: %08x", data->regs[DMA_H2C]->status);
+	LOG_INF("status_rc: %08x", data->regs[DMA_H2C]->status_rc);
 
 	LOG_DESC(&data->tx_desc);
 
-	dump_dma_h2c_all_regs(data->regs[DMA_H2C]);	
+	dump_dma_h2c_all_regs(data->regs[DMA_H2C]);
 
-	uint32_t completed = sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);  // offset = completed_desc_count
+	uint32_t completed =
+		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); // offset = completed_desc_count
 	LOG_DBG("Completed Desc Count: %d\n", completed);
-	
+
 	uint32_t nCompleted = 0;
 	for (int i = 0; i < 100000; ++i) {
 		uint32_t completed = sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
@@ -602,7 +602,7 @@ static int eth_tsn_nic_init(const struct device *dev)
 	sys_write32(0x800f0000, data->bar[0] + 0x0610);
 	sys_write32(0x10, data->bar[0] + 0x0620);
 
-	tsn_print_top_registers(dev);	
+	tsn_print_top_registers(dev);
 
 	pthread_spin_init(&data->tx_lock, PTHREAD_PROCESS_PRIVATE);
 	pthread_spin_init(&data->rx_lock, PTHREAD_PROCESS_PRIVATE);
@@ -623,9 +623,8 @@ static int eth_tsn_nic_init(const struct device *dev)
 	printk("C2H engine control: 0x%08x\n",
 	       sys_read32((mem_addr_t)&data->regs[DMA_C2H]->control));
 
-    printk("MAC addr: %02X-%02X-%02X-%02X-%02X-%02X\n",
-			data->mac_addr[0],data->mac_addr[1],data->mac_addr[2],
-			data->mac_addr[3],data->mac_addr[4],data->mac_addr[5]); 
+	printk("MAC addr: %02X-%02X-%02X-%02X-%02X-%02X\n", data->mac_addr[0], data->mac_addr[1],
+	       data->mac_addr[2], data->mac_addr[3], data->mac_addr[4], data->mac_addr[5]);
 	return 0;
 }
 
