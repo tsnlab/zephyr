@@ -35,7 +35,6 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_DBG);
 #define RX_DESC_ADDR DT_REG_ADDR(RX_DESC_NODE)
 #define RES_ADDR     DT_REG_ADDR(RES_NODE)
 
-//////////////////////////////////////
 #define TSN_REG_VERSION         0x0000
 #define TSN_REG_CONFIG          0x0004
 #define TSN_REG_CONTROL         0x0008
@@ -46,36 +45,35 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_DBG);
 #define TSN_REG_CYCLE_1S        0x0034
 
 #define TSN_REG_TEMAC_STATUS	0x0500
-//////////////////////////////////////
 
 static inline uint32_t fpga_reg_read(const struct device *dev, uint32_t offset)
 {
 	struct eth_tsn_nic_data *data = dev->data;
 
-    return sys_read32((mem_addr_t)(data->bar[0] + offset));
+	return sys_read32((mem_addr_t)(data->bar[0] + offset));
 }
 
 void tsn_print_top_registers(const struct device *dev)
 {
-    LOG_DBG(">>> TSN TOP Register Group <<<");
-    LOG_DBG("TSN_VERSION          (0x%04x): 0x%08x", TSN_REG_VERSION,
-           fpga_reg_read(dev, TSN_REG_VERSION));
-    LOG_DBG("TSN_CONFIG           (0x%04x): 0x%08x", TSN_REG_CONFIG,
-           fpga_reg_read(dev, TSN_REG_CONFIG));		
-    LOG_DBG("TSN_CONTROL          (0x%04x): 0x%08x", TSN_REG_CONTROL,
-           fpga_reg_read(dev, TSN_REG_CONTROL));		
-    LOG_DBG("SCRATCH              (0x%04x): 0x%08x", TSN_REG_SCRATCH,
-           fpga_reg_read(dev, TSN_REG_SCRATCH));		
-    LOG_DBG("QBV_SLOT_STATUS      (0x%04x): 0x%08x", TSN_REG_QBV_SLOT_STATUS,
-           fpga_reg_read(dev, TSN_REG_QBV_SLOT_STATUS));		
-    LOG_DBG("PULSE_AT_HI [63:32]  (0x%04x): 0x%08x", TSN_REG_PULSE_AT_HI,
-           fpga_reg_read(dev, TSN_REG_PULSE_AT_HI));		
-    LOG_DBG("PULSE_AT_LO [31:0]   (0x%04x): 0x%08x", TSN_REG_PULSE_AT_LO,
-           fpga_reg_read(dev, TSN_REG_PULSE_AT_LO));		
-    LOG_DBG("CYCLE_1S             (0x%04x): 0x%08x", TSN_REG_CYCLE_1S,
-           fpga_reg_read(dev, TSN_REG_CYCLE_1S));		
-    LOG_DBG("TEMAC_STATUS         (0x%04x): 0x%08x", TSN_REG_TEMAC_STATUS,
-           fpga_reg_read(dev, TSN_REG_TEMAC_STATUS));				   
+	LOG_DBG(">>> TSN TOP Register Group <<<");
+	LOG_DBG("TSN_VERSION          (0x%04x): 0x%08x", TSN_REG_VERSION,
+			fpga_reg_read(dev, TSN_REG_VERSION));
+	LOG_DBG("TSN_CONFIG           (0x%04x): 0x%08x", TSN_REG_CONFIG,
+			fpga_reg_read(dev, TSN_REG_CONFIG));		
+	LOG_DBG("TSN_CONTROL          (0x%04x): 0x%08x", TSN_REG_CONTROL,
+			fpga_reg_read(dev, TSN_REG_CONTROL));		
+	LOG_DBG("SCRATCH              (0x%04x): 0x%08x", TSN_REG_SCRATCH,
+			fpga_reg_read(dev, TSN_REG_SCRATCH));		
+	LOG_DBG("QBV_SLOT_STATUS      (0x%04x): 0x%08x", TSN_REG_QBV_SLOT_STATUS,
+			fpga_reg_read(dev, TSN_REG_QBV_SLOT_STATUS));		
+	LOG_DBG("PULSE_AT_HI [63:32]  (0x%04x): 0x%08x", TSN_REG_PULSE_AT_HI,
+			fpga_reg_read(dev, TSN_REG_PULSE_AT_HI));		
+	LOG_DBG("PULSE_AT_LO [31:0]   (0x%04x): 0x%08x", TSN_REG_PULSE_AT_LO,
+			fpga_reg_read(dev, TSN_REG_PULSE_AT_LO));		
+	LOG_DBG("CYCLE_1S             (0x%04x): 0x%08x", TSN_REG_CYCLE_1S,
+			fpga_reg_read(dev, TSN_REG_CYCLE_1S));		
+	LOG_DBG("TEMAC_STATUS         (0x%04x): 0x%08x", TSN_REG_TEMAC_STATUS,
+			fpga_reg_read(dev, TSN_REG_TEMAC_STATUS));				   
 }
 
 void dump_dma_h2c_all_regs(struct dma_tsn_nic_engine_regs *regs)
@@ -138,20 +136,21 @@ static void eth_tsn_nic_isr(const struct device *dev)
 
 static void tx_desc_set(struct dma_tsn_nic_desc *desc, uintptr_t addr, uint32_t len)
 {
-	uint32_t control = DESC_MAGIC;
+	uint32_t control;
 
-	control &= ~(LS_BYTE_MASK);
+	desc->control = sys_cpu_to_le32(DESC_MAGIC);
+	control = sys_le32_to_cpu(desc->control & ~(LS_BYTE_MASK));
 	control |= DESC_STOPPED;
 	control |= DESC_EOP;
 	control |= DESC_COMPLETED;
-	desc->control |= sys_cpu_to_le32(control);
+	desc->control = sys_cpu_to_le32(control);
+
+	desc->dst_addr_lo = 0;
+	desc->dst_addr_hi = 0;
 
 	desc->src_addr_lo = sys_cpu_to_le32(PCI_DMA_L(addr));
-	desc->src_addr_hi = sys_cpu_to_le32(PCI_DMA_H(addr));
-
-    desc->dst_addr_lo = 0;
-    desc->dst_addr_hi = 0;		
-	desc->bytes = sys_cpu_to_le32(len);
+	desc->src_addr_hi = sys_cpu_to_le32(PCI_DMA_H(addr));	
+	desc->bytes = sys_cpu_to_le32(len);	
 }
 
 static void rx_desc_set(struct dma_tsn_nic_desc *desc, uintptr_t addr, uint32_t len)
@@ -519,15 +518,11 @@ static int engine_init_regs(struct dma_tsn_nic_engine_regs *regs)
 		 DMA_CTRL_IE_IDLE_STOPPED | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
 		 DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED);
 
-	flags = 0xf83e1e;
-
 	sys_write32(flags, (mem_addr_t)&regs->interrupt_enable_mask);
 
 	flags = (DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
 		 DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
 		 DMA_CTRL_POLL_MODE_WB);
-
-	flags = 0xf83e1e;	 
 
 	sys_write32(flags, (mem_addr_t)&regs->control);
 
