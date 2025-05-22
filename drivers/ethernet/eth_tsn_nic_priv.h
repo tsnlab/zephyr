@@ -65,6 +65,20 @@
 #define DMA_ENGINE_START 16268831
 #define DMA_ENGINE_STOP  16268830
 
+// DMA_ENGINE_START (0x00F83E1F) 16268831
+// 0xF8001F = 1111 1000 0000 0000 0001 1111 (binary)
+//            |     |               |     +--> bit [0:0] Run (start the SGDMA engine)
+//            |     |               +--> bits [4:0]  = 1Fh (all 1s, i.e., enable all ie_* error interrupts)
+//            |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
+//            +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
+
+// DMA_ENGINE_STOP  (0x00F83E1E) //16268830
+// 0xF8001E = 1111 1000 0000 0000 0001 1110 (binary)
+//            |     |               |     +--> bit [0:0] Stop transfer (if the engine is busy, it completes the current descriptor)
+//            |     |               +--> bits [4:0]  = 1Eh (all 1s, i.e., enable all ie_* error interrupts)
+//            |     +--> bits [23:19] = 0x1F (enable all ie_desc_error interrupts)
+//            +--> bits [31:24] = 0xF8 (only top 4 bits used, which are reserved)
+
 #define ETH_ALEN 6
 
 #define BUFFER_SIZE 1500 /* Ethernet MTU */
@@ -84,9 +98,6 @@
 
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
 #define PCI_DMA_L(addr) (addr & 0xffffffffUL)
-
-#define DMA_ENGINE_START 16268831
-#define DMA_ENGINE_STOP  16268830
 
 struct dma_tsn_nic_config_regs {
 	uint32_t identifier;
@@ -124,15 +135,15 @@ struct dma_tsn_nic_engine_regs {
 } __packed; /* TODO: Move these to header file */
 
 struct dma_tsn_nic_engine_sgdma_regs {
-	uint32_t identifier;
-	uint32_t _reserved1[31]; /* padding */
+	volatile uint32_t identifier;
+	volatile uint32_t _reserved1[31]; /* padding */
 
 	/* bus address to first descriptor in Root Complex Memory */
-	uint32_t first_desc_lo;
-	uint32_t first_desc_hi;
+	volatile uint32_t first_desc_lo;
+	volatile uint32_t first_desc_hi;
 	/* number of adjacent descriptors at first_desc */
-	uint32_t first_desc_adjacent;
-	uint32_t credits;
+	volatile uint32_t first_desc_adjacent;
+	volatile uint32_t credits;
 } __packed;
 
 struct dma_tsn_nic_desc {
@@ -151,6 +162,19 @@ struct dma_tsn_nic_result {
 	uint32_t length;
 	uint32_t _reserved1[6]; /* padding */
 };
+
+#define LOG_DESC(desc_ptr) do { \
+    const struct dma_tsn_nic_desc *desc = (desc_ptr); \
+    LOG_DBG("DMA DESC @ %p:", desc); \
+    LOG_DBG("  control     : 0x%08x", desc->control); \
+    LOG_DBG("  bytes       : 0x%08x", desc->bytes); \
+    LOG_DBG("  src_addr_lo : 0x%08x", desc->src_addr_lo); \
+    LOG_DBG("  src_addr_hi : 0x%08x", desc->src_addr_hi); \
+    LOG_DBG("  dst_addr_lo : 0x%08x", desc->dst_addr_lo); \
+    LOG_DBG("  dst_addr_hi : 0x%08x", desc->dst_addr_hi); \
+    LOG_DBG("  next_lo     : 0x%08x", desc->next_lo); \
+    LOG_DBG("  next_hi     : 0x%08x", desc->next_hi); \
+} while (0)
 
 /**
  * TSN-related items
