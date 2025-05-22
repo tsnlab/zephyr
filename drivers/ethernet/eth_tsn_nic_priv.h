@@ -166,18 +166,19 @@ struct dma_tsn_nic_result {
 	uint32_t _reserved1[6]; /* padding */
 };
 
-#define LOG_DESC(desc_ptr) do { \
-const struct dma_tsn_nic_desc *desc = (desc_ptr); \
-LOG_DBG("DMA DESC @ %p:", desc); \
-LOG_DBG("  control     : 0x%08x", desc->control); \
-LOG_DBG("  bytes       : 0x%08x", desc->bytes); \
-LOG_DBG("  src_addr_lo : 0x%08x", desc->src_addr_lo); \
-LOG_DBG("  src_addr_hi : 0x%08x", desc->src_addr_hi); \
-LOG_DBG("  dst_addr_lo : 0x%08x", desc->dst_addr_lo); \
-LOG_DBG("  dst_addr_hi : 0x%08x", desc->dst_addr_hi); \
-LOG_DBG("  next_lo     : 0x%08x", desc->next_lo); \
-LOG_DBG("  next_hi     : 0x%08x", desc->next_hi); \
-} while (0)
+#define LOG_DESC(desc_ptr)	\
+	do {	\
+		const struct dma_tsn_nic_desc *desc = (desc_ptr);	\
+		LOG_DBG("DMA DESC @ %p:", desc);	\
+		LOG_DBG("  control     : 0x%08x", desc->control);	\
+		LOG_DBG("  bytes       : 0x%08x", desc->bytes);	\
+		LOG_DBG("  src_addr_lo : 0x%08x", desc->src_addr_lo);	\
+		LOG_DBG("  src_addr_hi : 0x%08x", desc->src_addr_hi);	\
+		LOG_DBG("  dst_addr_lo : 0x%08x", desc->dst_addr_lo);	\
+		LOG_DBG("  dst_addr_hi : 0x%08x", desc->dst_addr_hi);	\
+		LOG_DBG("  next_lo     : 0x%08x", desc->next_lo);	\
+		LOG_DBG("  next_hi     : 0x%08x", desc->next_hi);	\
+	} while (0)
 
 /**
  * TSN-related items

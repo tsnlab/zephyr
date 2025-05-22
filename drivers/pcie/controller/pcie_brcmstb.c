@@ -879,7 +879,8 @@ static int pcie_brcmstb_init(const struct device *dev)
 	return 0;
 }
 
-#define PCIe_BRCMSTB_INIT_PRIO 97  /* Just after early kernel subsystems */
+/* Just after early kernel subsystems */
+#define PCIe_BRCMSTB_INIT_PRIO 97
 
 /* TODO: POST_KERNEL is set to use printk, revert this after the development is done */
 #define PCIE_BRCMSTB_INIT(n)                                                                       \
