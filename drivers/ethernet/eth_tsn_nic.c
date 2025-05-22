@@ -118,6 +118,7 @@ static void eth_tsn_check_status(void)
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(eth), okay)
 	const struct device *eth_dev = DEVICE_DT_GET(DT_NODELABEL(eth));
+
 	if (!device_is_ready(eth_dev)) {
 		LOG_ERR("Ethernet device %s is NOT ready.", eth_dev->name);
 	} else {
@@ -435,8 +436,10 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 
 	dump_dma_h2c_all_regs(data->regs[DMA_H2C]);
 
+	/* offset = completed_desc_count */
 	uint32_t completed =
-		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); /* offset = completed_desc_count */
+		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48); 
+
 	LOG_DBG("Completed Desc Count: %d\n", completed);
 
 	uint32_t nCompleted = 0;

@@ -216,8 +216,8 @@ bool pcie_probe(pcie_bdf_t bdf)
 	return found;
 }
 
-#define PCIE_NODE_1 DT_NODELABEL(pcie1) // or use correct label if it's pcie1, etc.
-#define PCIE_NODE_2 DT_NODELABEL(pcie2) // or use correct label if it's pcie1, etc.
+#define PCIE_NODE_1 DT_NODELABEL(pcie1)
+#define PCIE_NODE_2 DT_NODELABEL(pcie2)
 
 void check_pcie_host_status(void)
 {
