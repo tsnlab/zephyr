@@ -443,6 +443,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	LOG_DBG("Completed Desc Count: %d\n", completed);
 
 	uint32_t nCompleted = 0;
+
 	for (int i = 0; i < 100000; ++i) {
 		uint32_t completed = sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
 

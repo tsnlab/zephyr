@@ -244,7 +244,7 @@ void check_tsn_pcie_status(void)
 	for (int bus = 0; bus < 8; bus++) {
 		LOG_DBG("Probing PCIe bus %d...\n", bus);
 		for (int dev = 0; dev < 32; dev++) {
-			uint32_t bdf = PCIE_BDF(bus, dev, 0); // bus 0, function 0
+			uint32_t bdf = PCIE_BDF(bus, dev, 0);
 
 			if (!pcie_probe(bdf)) {
 				continue;
@@ -254,11 +254,9 @@ void check_tsn_pcie_status(void)
 			uint16_t vendor_id = id & 0xFFFF;
 			uint16_t device_id = (id >> 16) & 0xFFFF;
 
-			LOG_DBG("Found device at BDF 00:%02x.0, Vendor ID: 0x%04x, Device ID: "
-				"0x%04x\n",
+			LOG_DBG("Found device at BDF 00:%02x.0, Vendor ID: 0x%04x, Device ID: 0x%04x\n",
 				dev, vendor_id, device_id);
 
-			// Replace with your real IDs
 			if (vendor_id == 0x10ee && device_id == 0x7024) {
 				tsn_eth_found = true;
 				LOG_DBG("TSN Ethernet XDMA device detected.\n");
@@ -575,7 +573,7 @@ static void pcie_brcmstb_set_outbound_win(const struct device *dev, uint8_t win,
 
 #define PCI_EXP_LNKCTL2 0x30
 #define PCI_EXP_LNKCAP  0x0c
-#define PCI_EXP_LNKSTA  0x12 // Added for Link Status Register
+#define PCI_EXP_LNKSTA  0x12 /* Added for Link Status Register */
 #define PCI_EXP_RTCAP   0x10 /* Root Complex Capability Register */
 #define PCI_EXP_RTCTL   0x14 /* Root Complex Control Register */
 
