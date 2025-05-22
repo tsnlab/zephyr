@@ -720,34 +720,34 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	LOG_DBG("PCIE_MISC_RC_BAR3_CONFIG_LO after write: 0x%x",
 		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR3_CONFIG_LO));
 
-	// 1. Reset Sequence
-	// Assert PERST#
+	/* 1. Reset Sequence */ 
+	/* Assert PERST# */ 
 	LOG_INF("Asserting PERST#");
-	// Assuming pcie->cfg->perst_set is available in your Zephyr environment
-	// If not, you'll need to use the appropriate board-specific GPIO control
-	// to assert the reset.
-	// ret = pcie->cfg->perst_set(pcie, 1); // Assert reset
-	// if (ret) {
-	//     LOG_ERR("Failed to assert PERST#");
-	//     return ret;
-	// }
-	sys_write32(1, data->cfg_addr + 0x108); // Replace 0xXXXX with actual register offset
-	k_sleep(K_MSEC(1));                     // 1ms delay - adjust as needed
+	/* Assuming pcie->cfg->perst_set is available in your Zephyr environment */ 
+	/* If not, you'll need to use the appropriate board-specific GPIO control */ 
+	/* to assert the reset. */ 
+	/* ret = pcie->cfg->perst_set(pcie, 1); // Assert reset */
+	/* if (ret) { */
+	/*     LOG_ERR("Failed to assert PERST#"); */
+	/*     return ret; */
+	/* } */
+	sys_write32(1, data->cfg_addr + 0x108); /* Replace 0xXXXX with actual register offset */
+	k_sleep(K_MSEC(1));                     /* 1ms delay - adjust as needed */
 
-	// Deassert PERST#
+	/* Deassert PERST# */
 	LOG_INF("Deasserting PERST#");
-	// ret = pcie->cfg->perst_set(pcie, 0); // Deassert reset
-	// if (ret) {
-	//     LOG_ERR("Failed to deassert PERST#");
-	//     return ret;
-	// }
-	sys_write32(0, data->cfg_addr + 0x108); // Replace 0xXXXX with actual register offset
+	/* ret = pcie->cfg->perst_set(pcie, 0); // Deassert reset */
+	/* if (ret) { */
+	/*     LOG_ERR("Failed to deassert PERST#"); */
+	/*     return ret; */
+	/* } */
+	sys_write32(0, data->cfg_addr + 0x108); /* Replace 0xXXXX with actual register offset */
 
-	k_sleep(K_MSEC(100)); // 100ms delay after deassertion - adjust as needed
+	k_sleep(K_MSEC(100)); /* 100ms delay after deassertion - adjust as needed */
 
-	// 2. Wait for Link Up
+	/* 2. Wait for Link Up */
 	LOG_INF("Waiting for link to come up...");
-	for (int i = 0; i < 20; i++) { // Retry for a maximum of 20 times (5ms * 20 = 100ms)
+	for (int i = 0; i < 20; i++) { /* Retry for a maximum of 20 times (5ms * 20 = 100ms) */
 		k_sleep(K_MSEC(5));
 		tmp16 = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA);
 		LOG_INF("PCI_EXP_LNKSTA value: 0x%x", tmp16);
@@ -801,8 +801,10 @@ static int pcie_brcmstb_setup(const struct device *dev)
 
 	LOG_DBG("Reading PCI_EXP_LNKSTA (offset: 0x%x) in BRCM_PCIE_CAP_REGS (offset: 0x%x)",
 		PCI_EXP_LNKSTA_OFFSET, BRCM_PCIE_CAP_REGS);
+
 	uint16_t lnksta = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA_OFFSET);
-	LOG_DBG("PCI_EXP_LNKSTA value: 0x%x", lnksta);
+
+	LOG_DBG("PCI_EXP_LNKSTA value: 0x%x", lnksta);	
 	if (lnksta & PCI_EXP_LNKSTA_DLLLA) {
 		LOG_INF("Data Link Layer is active.");
 	} else {
@@ -879,7 +881,7 @@ static int pcie_brcmstb_init(const struct device *dev)
 	return 0;
 }
 
-#define PCIe_BRCMSTB_INIT_PRIO 97 // Just after early kernel subsystems
+#define PCIe_BRCMSTB_INIT_PRIO 97  /* Just after early kernel subsystems */
 
 /* TODO: POST_KERNEL is set to use printk, revert this after the development is done */
 #define PCIE_BRCMSTB_INIT(n)                                                                       \
