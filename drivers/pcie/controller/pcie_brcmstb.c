@@ -471,9 +471,15 @@ static int pcie_brcmstb_parse_regions(const struct device *dev)
 
 	for (i = 0; i < DMA_RANGES_IDX; i++) {
 		uint32_t flags = (config->common->ranges[i].flags >> 24) & 0x03;
-		LOG_DBG("Parsing range %d: flags=0x%x, pcie_bus_addr=0x%lx, host_map_addr=0x%lx, "
+
+		LOG_DBG("Parsing range %d: "
+			"flags=0x%x, "
+			"pcie_bus_addr=0x%lx, "
+			"host_map_addr=0x%lx, "
 			"map_length=0x%lx",
-			i, flags, config->common->ranges[i].pcie_bus_addr,
+			i,
+			flags,
+			config->common->ranges[i].pcie_bus_addr,
 			config->common->ranges[i].host_map_addr,
 			config->common->ranges[i].map_length);
 
