@@ -254,7 +254,9 @@ void check_tsn_pcie_status(void)
 			uint16_t vendor_id = id & 0xFFFF;
 			uint16_t device_id = (id >> 16) & 0xFFFF;
 
-			LOG_DBG("Found device at BDF 00:%02x.0, Vendor ID: 0x%04x, Device ID: 0x%04x\n",
+			LOG_DBG("Found device at BDF 00:%02x.0, "
+				"Vendor ID: 0x%04x, "
+				"Device ID: 0x%04x\n",
 				dev, vendor_id, device_id);
 
 			if (vendor_id == 0x10ee && device_id == 0x7024) {
