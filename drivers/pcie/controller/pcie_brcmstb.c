@@ -814,8 +814,6 @@ static int pcie_brcmstb_setup(const struct device *dev)
 
 static int pcie_brcmstb_init(const struct device *dev)
 {
-	LOG_INF("pcie_brcmstb_init\n");
-
 	const struct pcie_brcmstb_config *config = dev->config;
 	struct pcie_brcmstb_data *data = dev->data;
 	uint32_t tmp;
@@ -823,13 +821,13 @@ static int pcie_brcmstb_init(const struct device *dev)
 
 	if (config->common->ranges_count < DMA_RANGES_IDX) {
 		/* Workaround since macros for `dma-ranges` property is not available */
-		LOG_ERR("pcie_brcmstb_init `dma-ranges` property is not available\n");
+		LOG_ERR("`dma-ranges` property is not available\n");
 		return -EINVAL;
 	}
 
 	ret = pcie_brcmstb_parse_regions(dev);
 	if (ret != 0) {
-		LOG_ERR("pcie_brcmstb_init pcie_brcmstb_parse_regions error\n");
+		LOG_ERR("pcie_brcmstb_parse_regions error\n");
 		return ret;
 	}
 
