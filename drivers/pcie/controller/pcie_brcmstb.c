@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
+LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_INF);
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -156,7 +156,7 @@ LOG_MODULE_REGISTER(pcie_brcmstb, LOG_LEVEL_ERR);
 
 #define SET_ADDR_OFFSET 0x1f
 
-#define DMA_RANGES_IDX 2
+#define DMA_RANGES_IDX 3
 
 #define PCIE_ECAM_BDF_SHIFT 12
 
@@ -231,6 +231,90 @@ struct pcie_brcmstb_data {
 	} regions[PCIE_REGION_MAX];
 	size_t bar_cnt;
 };
+
+bool pcie_probe(pcie_bdf_t bdf)
+{
+	struct pcie_bar bar;
+	bool found = false;
+
+	LOG_DBG("Probing PCIe device at BDF 0x%04x", bdf);
+
+	for (int i = 0; i < 6; i++) {
+		if (pcie_probe_mbar(bdf, i, &bar)) {
+			LOG_DBG("  Found MMIO BAR[%d]: phys=0x%08lx size=0x%lx", i,
+				(unsigned long)bar.phys_addr, (unsigned long)bar.size);
+			found = true;
+		} else if (pcie_probe_iobar(bdf, i, &bar)) {
+			LOG_DBG("  Found I/O BAR[%d]: port=0x%08lx size=0x%lx", i,
+				(unsigned long)bar.phys_addr, (unsigned long)bar.size);
+			found = true;
+		}
+	}
+
+	if (!found) {
+		LOG_WRN("  No valid BARs found for BDF 0x%04x", bdf);
+	}
+
+	return found;
+}
+
+#define PCIE_NODE_1 DT_NODELABEL(pcie1)
+#define PCIE_NODE_2 DT_NODELABEL(pcie2)
+
+void check_pcie_host_status(void)
+{
+	const struct device *pcie1 = DEVICE_DT_GET(PCIE_NODE_1);
+	const struct device *pcie2 = DEVICE_DT_GET(PCIE_NODE_2);
+
+	if (!device_is_ready(pcie1)) {
+		LOG_DBG("PCIe1 controller is NOT ready (disabled or failed init)\n");
+	} else {
+		LOG_DBG("PCIe1 controller is active and ready\n");
+	}
+
+	if (!device_is_ready(pcie2)) {
+		LOG_DBG("PCIe2 controller is NOT ready (disabled or failed init)\n");
+	} else {
+		LOG_DBG("PCIe2 controller is active and ready\n");
+	}
+}
+
+void check_tsn_pcie_status(void)
+{
+	bool tsn_eth_found = false;
+
+	for (int bus = 0; bus < 8; bus++) {
+		LOG_DBG("Probing PCIe bus %d...\n", bus);
+		for (int dev = 0; dev < 32; dev++) {
+			uint32_t bdf = PCIE_BDF(bus, dev, 0);
+
+			if (!pcie_probe(bdf)) {
+				continue;
+			}
+
+			uint32_t id = pcie_conf_read(bdf, PCIE_CONF_ID);
+			uint16_t vendor_id = id & 0xFFFF;
+			uint16_t device_id = (id >> 16) & 0xFFFF;
+
+			LOG_DBG("Found device at BDF 00:%02x.0, "
+				"Vendor ID: 0x%04x, "
+				"Device ID: 0x%04x\n",
+				dev, vendor_id, device_id);
+
+			if (vendor_id == 0x10ee && device_id == 0x7024) {
+				tsn_eth_found = true;
+				LOG_DBG("TSN Ethernet XDMA device detected.\n");
+				break;
+			}
+		}
+	}
+
+	if (!tsn_eth_found) {
+		LOG_DBG("Ethernet device not found.\n");
+	}
+
+	check_pcie_host_status();
+}
 
 static inline uint32_t lower_32_bits(uint64_t val)
 {
@@ -432,7 +516,6 @@ static bool pcie_brcmstb_region_allocate_type(const struct device *dev, pcie_bdf
 	struct pcie_brcmstb_data *data = dev->data;
 	uintptr_t addr;
 
-	printk("bdf 0%x\n", bdf);
 	/* TODO: check bdf boundary */
 	addr = (((data->regions[type].bus_start + config->regs[PCIE_BDF_TO_BUS(bdf) + 1].addr +
 		  data->regions[type].allocation_offset) -
@@ -441,13 +524,14 @@ static bool pcie_brcmstb_region_allocate_type(const struct device *dev, pcie_bdf
 	       1;
 
 	if (addr + bar_size > data->regions[type].bus_start + data->regions[type].size) {
+		LOG_ERR("bus 0x%0x: base_size: %u", bdf, bar_size);
 		return false;
 	}
 
 	*bar_bus_addr = addr;
 	/* data->regions[type].allocation_offset = addr - data->regions[type].bus_start + bar_size;
 	 */
-	printk("alloc 0x%lx\n", addr);
+	LOG_INF("bus 0x%0x: alloc 0x%lx", bdf, addr);
 
 	return true;
 }
@@ -521,7 +605,7 @@ static bool pcie_brcmstb_region_translate(const struct device *dev, pcie_bdf_t b
 	type = pcie_brcmstb_determine_region_type(dev, mem, mem64);
 
 	*bar_addr = data->regions[type].phys_start + (bar_bus_addr - data->regions[type].bus_start);
-	printk("translate 0x%lx\n", *bar_addr);
+	LOG_INF("translate 0x%lx", *bar_addr);
 
 	return true;
 }
@@ -542,7 +626,20 @@ static int pcie_brcmstb_parse_regions(const struct device *dev)
 	int i;
 
 	for (i = 0; i < DMA_RANGES_IDX; i++) {
-		switch ((config->common->ranges[i].flags >> 24) & 0x03) {
+		uint32_t flags = (config->common->ranges[i].flags >> 24) & 0x03;
+
+		LOG_DBG("Parsing range %d: "
+			"flags=0x%x, "
+			"pcie_bus_addr=0x%lx, "
+			"host_map_addr=0x%lx, "
+			"map_length=0x%lx",
+			i,
+			flags,
+			config->common->ranges[i].pcie_bus_addr,
+			config->common->ranges[i].host_map_addr,
+			config->common->ranges[i].map_length);
+
+		switch (flags) {
 		case 0x01:
 			type = PCIE_REGION_IO;
 			break;
@@ -640,6 +737,20 @@ static void pcie_brcmstb_set_outbound_win(const struct device *dev, uint8_t win,
 	sys_write32(tmp, data->cfg_addr + PCIE_MEM_WIN0_LIMIT_HI(win));
 }
 
+#define PCI_EXP_LNKCTL2 0x30
+#define PCI_EXP_LNKCAP  0x0c
+#define PCI_EXP_LNKSTA  0x12 /* Added for Link Status Register */
+#define PCI_EXP_RTCAP   0x10 /* Root Complex Capability Register */
+#define PCI_EXP_RTCTL   0x14 /* Root Complex Control Register */
+
+#define PCI_EXP_LNKCAP_SLS   0x00000F00 /* Supported Link Speeds */
+#define PCI_EXP_LNKCTL2_TLS  0x000F     /* Target Link Speed */
+#define PCI_EXP_LNKSTA_CLS   0x000F     /* Current Link Speed */
+#define PCI_EXP_LNKSTA_NLW   0x007F00   /* Negotiated Link Width */
+#define PCI_EXP_LNKSTA_DLLLA 0x00001000 /* Data Link Layer Active */
+#define PCI_EXP_RTCAP_CRSVIS 0x0010     /* Completion Received Support Visibility */
+#define PCI_EXP_RTCTL_CRSSVE 0x0001     /* Completion Received Snoop Visibility Enable */
+
 static int pcie_brcmstb_setup(const struct device *dev)
 {
 	const struct pcie_brcmstb_config *config = dev->config;
@@ -649,68 +760,195 @@ static int pcie_brcmstb_setup(const struct device *dev)
 
 	/* This block is for BCM2712 only */
 	pcie_brcmstb_munge_pll(dev);
+
+	LOG_DBG("Reading PCIE_RC_PL_PHY_CTL_15 (offset: 0x%x)", PCIE_RC_PL_PHY_CTL_15);
 	tmp = sys_read32(data->cfg_addr + PCIE_RC_PL_PHY_CTL_15);
+	LOG_DBG("PCIE_RC_PL_PHY_CTL_15 value: 0x%x", tmp);
 	tmp &= ~PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD_MASK;
 	tmp |= PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD;
+	LOG_DBG("Writing PCIE_RC_PL_PHY_CTL_15 with value: 0x%x", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_RC_PL_PHY_CTL_15);
+	LOG_DBG("PCIE_RC_PL_PHY_CTL_15 after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_RC_PL_PHY_CTL_15));
 
+	LOG_DBG("Reading PCIE_MISC_MISC_CTRL (offset: 0x%x)", PCIE_MISC_MISC_CTRL);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
+	LOG_DBG("PCIE_MISC_MISC_CTRL value: 0x%x", tmp);
 	tmp |= PCIE_MISC_MISC_CTRL_SCB_ACCESS_EN_MASK;
 	tmp |= PCIE_MISC_MISC_CTRL_CFG_READ_UR_MODE_MASK;
 	tmp &= ~PCIE_MISC_MISC_CTRL_MAX_BURST_SIZE_MASK;
 	tmp |= (BCM2712_BURST_SIZE << PCIE_MISC_MISC_CTRL_MAX_BURST_SIZE_LSB);
+	LOG_DBG("Writing PCIE_MISC_MISC_CTRL with value: 0x%x (SCB_ACCESS_EN, CFG_READ_UR_MODE, "
+		"MAX_BURST_SIZE)",
+		tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
+	LOG_DBG("PCIE_MISC_MISC_CTRL after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL));
 
 	uint64_t rc_bar2_offset = config->common->ranges[DMA_RANGES_IDX].host_map_addr -
 				  config->common->ranges[DMA_RANGES_IDX].pcie_bus_addr;
 	uint64_t rc_bar2_size = config->common->ranges[DMA_RANGES_IDX].map_length;
+	LOG_DBG("RC_BAR2 Offset: 0x%llx, Size: 0x%llx", rc_bar2_offset, rc_bar2_size);
 
+	LOG_DBG("Reading PCIE_MISC_RC_BAR2_CONFIG_LO (offset: 0x%x)", PCIE_MISC_RC_BAR2_CONFIG_LO);
 	tmp = lower_32_bits(rc_bar2_offset);
+	LOG_DBG("PCIE_MISC_RC_BAR2_CONFIG_LO value: 0x%x", tmp);
 	tmp &= ~PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_MASK;
 	tmp |= encode_ibar_size(rc_bar2_size) << PCIE_MISC_RC_BAR2_CONFIG_LO_SIZE_LSB;
+	LOG_DBG("Writing PCIE_MISC_RC_BAR2_CONFIG_LO with value: 0x%x (size encoded)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_RC_BAR2_CONFIG_LO);
-	sys_write32(upper_32_bits(rc_bar2_offset), data->cfg_addr + PCIE_MISC_RC_BAR2_CONFIG_HI);
+	LOG_DBG("PCIE_MISC_RC_BAR2_CONFIG_LO after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR2_CONFIG_LO));
 
+	LOG_DBG("Writing PCIE_MISC_RC_BAR2_CONFIG_HI (offset: 0x%x) with value: 0x%x (upper "
+		"offset)",
+		PCIE_MISC_RC_BAR2_CONFIG_HI, upper_32_bits(rc_bar2_offset));
+	sys_write32(upper_32_bits(rc_bar2_offset), data->cfg_addr + PCIE_MISC_RC_BAR2_CONFIG_HI);
+	LOG_DBG("PCIE_MISC_RC_BAR2_CONFIG_HI after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR2_CONFIG_HI));
+
+	LOG_DBG("Reading PCIE_MISC_UBUS_BAR2_CONFIG_REMAP (offset: 0x%x)",
+		PCIE_MISC_UBUS_BAR2_CONFIG_REMAP);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_UBUS_BAR2_CONFIG_REMAP);
+	LOG_DBG("PCIE_MISC_UBUS_BAR2_CONFIG_REMAP value: 0x%x", tmp);
 	tmp |= PCIE_MISC_UBUS_BAR2_CONFIG_REMAP_ACCESS_ENABLE_MASK;
+	LOG_DBG("Writing PCIE_MISC_UBUS_BAR2_CONFIG_REMAP with value: 0x%x (ACCESS_ENABLE)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_UBUS_BAR2_CONFIG_REMAP);
+	LOG_DBG("PCIE_MISC_UBUS_BAR2_CONFIG_REMAP after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_UBUS_BAR2_CONFIG_REMAP));
 
 	/* Set SCB Size */
+	LOG_DBG("Reading PCIE_MISC_MISC_CTRL (offset: 0x%x) for SCB size", PCIE_MISC_MISC_CTRL);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL);
+	LOG_DBG("PCIE_MISC_MISC_CTRL value: 0x%x", tmp);
 	tmp &= ~PCIE_MISC_MISC_CTRL_SCB0_SIZE_MASK;
+	uint32_t scb_size_val = (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
+				<< PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
+	LOG_DBG("Calculated SCB size value: 0x%x (size: 0x%lx, ilog2 - 15: %d, shift: %d)",
+		scb_size_val, config->common->ranges[DMA_RANGES_IDX].map_length,
+		ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15,
+		PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB);
 	tmp |= (ilog2(config->common->ranges[DMA_RANGES_IDX].map_length) - 15)
 	       << PCIE_MISC_MISC_CTRL_SCB0_SIZE_LSB;
-
+	LOG_DBG("Writing PCIE_MISC_MISC_CTRL with value: 0x%x (SCB0_SIZE)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_MISC_CTRL);
+	LOG_DBG("PCIE_MISC_MISC_CTRL after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_MISC_CTRL));
 
+	LOG_DBG("Reading PCIE_MISC_UBUS_CTRL (offset: 0x%x)", PCIE_MISC_UBUS_CTRL);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_UBUS_CTRL);
+	LOG_DBG("PCIE_MISC_UBUS_CTRL value: 0x%x", tmp);
 	tmp |= PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK;
 	tmp |= PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_DECERR_DIS_MASK;
+	LOG_DBG("Writing PCIE_MISC_UBUS_CTRL with value: 0x%x (reply error/decerr disable)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_UBUS_CTRL);
+	LOG_DBG("PCIE_MISC_UBUS_CTRL after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_UBUS_CTRL));
+
+	LOG_DBG("Writing PCIE_MISC_AXI_READ_ERROR_DATA (offset: 0x%x) with value: 0x%x",
+		PCIE_MISC_AXI_READ_ERROR_DATA, 0xffffffff);
 	sys_write32(0xffffffff, data->cfg_addr + PCIE_MISC_AXI_READ_ERROR_DATA);
+	LOG_DBG("PCIE_MISC_AXI_READ_ERROR_DATA after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_AXI_READ_ERROR_DATA));
 
 	/* Set timeouts */
+	LOG_DBG("Writing PCIE_MISC_UBUS_TIMEOUT (offset: 0x%x) with value: 0x%x",
+		(unsigned int)PCIE_MISC_UBUS_TIMEOUT, (unsigned int)BCM2712_UBUS_TIMEOUT_TICKS);
 	sys_write32(BCM2712_UBUS_TIMEOUT_TICKS, data->cfg_addr + PCIE_MISC_UBUS_TIMEOUT);
+	LOG_DBG("PCIE_MISC_UBUS_TIMEOUT after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_UBUS_TIMEOUT));
+
+	LOG_DBG("Writing PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT (offset: 0x%x) with value: 0x%x",
+		(unsigned int)PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT,
+		(unsigned int)BCM2712_RC_CONFIG_RETRY_TIMEOUT_TICKS);
 	sys_write32(BCM2712_RC_CONFIG_RETRY_TIMEOUT_TICKS,
 		    data->cfg_addr + PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT);
+	LOG_DBG("PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT));
 
+	LOG_DBG("Reading PCIE_MISC_RC_BAR1_CONFIG_LO (offset: 0x%x)", PCIE_MISC_RC_BAR1_CONFIG_LO);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR1_CONFIG_LO);
+	LOG_DBG("PCIE_MISC_RC_BAR1_CONFIG_LO value: 0x%x", tmp);
 	tmp &= ~PCIE_MISC_RC_BAR1_CONFIG_LO_SIZE_MASK;
+	LOG_DBG("Writing PCIE_MISC_RC_BAR1_CONFIG_LO with value: 0x%x (size mask cleared)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_RC_BAR1_CONFIG_LO);
+	LOG_DBG("PCIE_MISC_RC_BAR1_CONFIG_LO after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR1_CONFIG_LO));
 
+	LOG_DBG("Reading PCIE_MISC_RC_BAR3_CONFIG_LO (offset: 0x%x)", PCIE_MISC_RC_BAR3_CONFIG_LO);
 	tmp = sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR3_CONFIG_LO);
+	LOG_DBG("PCIE_MISC_RC_BAR3_CONFIG_LO value: 0x%x", tmp);
 	tmp &= ~PCIE_MISC_RC_BAR3_CONFIG_LO_SIZE_MASK;
+	LOG_DBG("Writing PCIE_MISC_RC_BAR3_CONFIG_LO with value: 0x%x (size mask cleared)", tmp);
 	sys_write32(tmp, data->cfg_addr + PCIE_MISC_RC_BAR3_CONFIG_LO);
+	LOG_DBG("PCIE_MISC_RC_BAR3_CONFIG_LO after write: 0x%x",
+		sys_read32(data->cfg_addr + PCIE_MISC_RC_BAR3_CONFIG_LO));
+
+	/* 1. Reset Sequence */
+	/* Assert PERST# */
+	LOG_INF("Asserting PERST#");
+	/* Assuming pcie->cfg->perst_set is available in your Zephyr environment */
+	/* If not, you'll need to use the appropriate board-specific GPIO control */
+	/* to assert the reset. */
+	/* ret = pcie->cfg->perst_set(pcie, 1); // Assert reset */
+	/* if (ret) { */
+	/*     LOG_ERR("Failed to assert PERST#"); */
+	/*     return ret; */
+	/* } */
+	sys_write32(1, data->cfg_addr + 0x108); /* Replace 0xXXXX with actual register offset */
+	k_sleep(K_MSEC(1));                     /* 1ms delay - adjust as needed */
+
+	/* Deassert PERST# */
+	LOG_INF("Deasserting PERST#");
+	/* ret = pcie->cfg->perst_set(pcie, 0); // Deassert reset */
+	/* if (ret) { */
+	/*     LOG_ERR("Failed to deassert PERST#"); */
+	/*     return ret; */
+	/* } */
+	sys_write32(0, data->cfg_addr + 0x108); /* Replace 0xXXXX with actual register offset */
+
+	k_sleep(K_MSEC(100)); /* 100ms delay after deassertion - adjust as needed */
+
+	/* 2. Wait for Link Up */
+	LOG_INF("Waiting for link to come up...");
+	for (int i = 0; i < 20; i++) { /* Retry for a maximum of 20 times (5ms * 20 = 100ms) */
+		k_sleep(K_MSEC(5));
+		tmp16 = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA);
+		LOG_INF("PCI_EXP_LNKSTA value: 0x%x", tmp16);
+		if (tmp16 & PCI_EXP_LNKSTA_DLLLA) {
+			LOG_INF("Data Link Layer is active.");
+			break;
+		}
+	}
+
+	if (!(tmp16 & PCI_EXP_LNKSTA_DLLLA)) {
+		LOG_ERR("Linkup timeout.");
+		return -ENODEV;
+	}
 
 	/* Set gen to 2 */
+	LOG_DBG("Reading PCI_EXP_LNKCTL2 (offset: 0x%x) in BRCM_PCIE_CAP_REGS (offset: 0x%x)",
+		PCI_EXP_LNKCTL2, BRCM_PCIE_CAP_REGS);
 	tmp16 = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+	LOG_DBG("Initial PCI_EXP_LNKCTL2 value: 0x%x", tmp16);
+
+	LOG_DBG("Reading PCI_EXP_LNKCAP (offset: 0x%x) in BRCM_PCIE_CAP_REGS (offset: 0x%x)",
+		PCI_EXP_LNKCAP, BRCM_PCIE_CAP_REGS);
 	tmp = sys_read32(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP);
+	LOG_DBG("Initial PCI_EXP_LNKCAP value: 0x%x", tmp);
 	tmp &= ~PCI_EXP_LNKCAP_SLS;
 	tmp |= 0x2;
+	LOG_DBG("Writing PCI_EXP_LNKCAP with value: 0x%x (SLS set to 2)", tmp);
 	sys_write32(tmp, data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP);
+	LOG_DBG("PCI_EXP_LNKCAP after write: 0x%x",
+		sys_read32(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP));
+
 	tmp16 &= ~0xf;
 	tmp16 |= 0x2;
+	LOG_DBG("Writing PCI_EXP_LNKCTL2 with value: 0x%x (Target Link Speed set to 2)", tmp16);
 	sys_write16(tmp16, data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
+	LOG_DBG("PCI_EXP_LNKCTL2 after write: 0x%x",
+		sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2));
 
 	tmp = sys_read32(data->cfg_addr + PCIE_RC_CFG_PRIV1_ID_VAL3);
 	tmp &= PCIE_RC_CFG_PRIV1_ID_VAL3_CLASS_CODE_MASK;
@@ -724,6 +962,20 @@ static int pcie_brcmstb_setup(const struct device *dev)
 	       << PCIE_RC_CFG_VENDOR_VENDOR_SPECIFIC_REG1_ENDIAN_MODE_BAR2_LSB;
 	sys_write32(tmp, data->cfg_addr + PCIE_RC_CFG_VENDOR_VENDOR_SPECIFIC_REG1);
 
+#define PCI_EXP_LNKSTA_OFFSET 0x12
+
+	LOG_DBG("Reading PCI_EXP_LNKSTA (offset: 0x%x) in BRCM_PCIE_CAP_REGS (offset: 0x%x)",
+		PCI_EXP_LNKSTA_OFFSET, BRCM_PCIE_CAP_REGS);
+
+	uint16_t lnksta = sys_read16(data->cfg_addr + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA_OFFSET);
+
+	LOG_DBG("PCI_EXP_LNKSTA value: 0x%x", lnksta);
+	if (lnksta & PCI_EXP_LNKSTA_DLLLA) {
+		LOG_INF("Data Link Layer is active.");
+	} else {
+		LOG_ERR("Data Link Layer is inactive.");
+	}
+
 	return 0;
 }
 
@@ -736,11 +988,13 @@ static int pcie_brcmstb_init(const struct device *dev)
 
 	if (config->common->ranges_count < DMA_RANGES_IDX) {
 		/* Workaround since macros for `dma-ranges` property is not available */
+		LOG_ERR("`dma-ranges` property is not available\n");
 		return -EINVAL;
 	}
 
 	ret = pcie_brcmstb_parse_regions(dev);
 	if (ret != 0) {
+		LOG_ERR("pcie_brcmstb_parse_regions error\n");
 		return ret;
 	}
 
@@ -795,12 +1049,15 @@ static int pcie_brcmstb_init(const struct device *dev)
 	mm_reg_t test_dma_addr;
 
 	device_map(&test_dma_addr, 0x1b08000000, 0x4000, K_MEM_CACHE_NONE);
-	printk("H2C 0x%x\n", sys_read32(test_dma_addr));
-	printk("C2H 0x%x\n", sys_read32(test_dma_addr + 0x1000));
-
+	LOG_INF("H2C 0x%x", sys_read32(test_dma_addr));
+	LOG_INF("C2H 0x%x", sys_read32(test_dma_addr + 0x1000));
 	return 0;
 }
 
+/* Just after early kernel subsystems */
+#define PCIe_BRCMSTB_INIT_PRIO 97
+
+/* TODO: POST_KERNEL is set to use printk, revert this after the development is done */
 #define PCIE_BRCMSTB_INIT(n)                                                                       \
 	static struct pcie_brcmstb_data pcie_brcmstb_data_##n = {};                                \
                                                                                                    \
@@ -822,11 +1079,14 @@ static int pcie_brcmstb_init(const struct device *dev)
 				 DT_REG_SIZE_BY_IDX(DT_DRV_INST(n), 1)},                           \
 				{DT_REG_ADDR_BY_IDX(DT_DRV_INST(n), 2),                            \
 				 DT_REG_SIZE_BY_IDX(DT_DRV_INST(n), 2)},                           \
+				{DT_REG_ADDR_BY_IDX(DT_DRV_INST(n), 3),                            \
+				 DT_REG_SIZE_BY_IDX(DT_DRV_INST(n), 3)},                           \
 			},                                                                         \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, pcie_brcmstb_init, NULL, &pcie_brcmstb_data_##n,                  \
 			      &pcie_brcmstb_cfg_##n, PRE_KERNEL_1, CONFIG_PCIE_INIT_PRIORITY,      \
+			      &pcie_brcmstb_cfg_##n, POST_KERNEL, PCIe_BRCMSTB_INIT_PRIO,          \
 			      &pcie_brcmstb_api);
 
 DT_INST_FOREACH_STATUS_OKAY(PCIE_BRCMSTB_INIT)
