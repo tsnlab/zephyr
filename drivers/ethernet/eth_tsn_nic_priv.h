@@ -32,21 +32,22 @@
 #define DMA_ENGINE_ID_MASK  0xffff0000
 #define DMA_ENGINE_ID_LSB   16
 
-#define DMA_ALIGN_BYTES_MASK       0x00ff0000
-#define DMA_ALIGN_BYTES_LSB        16
+#define DMA_ALIGN_BYTES_MASK       0x000000ff
+#define DMA_ALIGN_BYTES_LSB        0
 #define DMA_GRANULARITY_BYTES_MASK 0x0000ff00
 #define DMA_GRANULARITY_BYTES_LSB  8
-#define DMA_ADDRESS_BITS_MASK      0x000000ff
-#define DMA_ADDRESS_BITS_LSB       0
+#define DMA_ADDRESS_BITS_MASK      0xff00000
+#define DMA_ADDRESS_BITS_LSB       24
 
 #define DMA_CTRL_RUN_STOP               (1UL << 0)
 #define DMA_CTRL_IE_DESC_STOPPED        (1UL << 1)
 #define DMA_CTRL_IE_DESC_COMPLETED      (1UL << 2)
 #define DMA_CTRL_IE_DESC_ALIGN_MISMATCH (1UL << 3)
 #define DMA_CTRL_IE_MAGIC_STOPPED       (1UL << 4)
+#define DMA_CTRL_IE_INVALID_LENGTH      (1UL << 5)
 #define DMA_CTRL_IE_IDLE_STOPPED        (1UL << 6)
-#define DMA_CTRL_IE_READ_ERROR          (1UL << 9)
-#define DMA_CTRL_IE_DESC_ERROR          (1UL << 19)
+#define DMA_CTRL_IE_READ_ERROR          (0x1FUL << 9)
+#define DMA_CTRL_IE_DESC_ERROR          (0x1FUL << 19)
 #define DMA_CTRL_NON_INCR_ADDR          (1UL << 25)
 #define DMA_CTRL_POLL_MODE_WB           (1UL << 26)
 #define DMA_CTRL_STM_MODE_WB            (1UL << 27)
@@ -149,18 +150,18 @@ struct dma_tsn_nic_result {
 	uint32_t _reserved1[6]; /* padding */
 };
 
-#define LOG_DESC(desc_ptr)	\
-	do {	\
-		const struct dma_tsn_nic_desc *desc = (desc_ptr);	\
-		LOG_DBG("DMA DESC @ %p:", desc);	\
-		LOG_DBG("  control     : 0x%08x", desc->control);	\
-		LOG_DBG("  bytes       : 0x%08x", desc->bytes);	\
-		LOG_DBG("  src_addr_lo : 0x%08x", desc->src_addr_lo);	\
-		LOG_DBG("  src_addr_hi : 0x%08x", desc->src_addr_hi);	\
-		LOG_DBG("  dst_addr_lo : 0x%08x", desc->dst_addr_lo);	\
-		LOG_DBG("  dst_addr_hi : 0x%08x", desc->dst_addr_hi);	\
-		LOG_DBG("  next_lo     : 0x%08x", desc->next_lo);	\
-		LOG_DBG("  next_hi     : 0x%08x", desc->next_hi);	\
+#define LOG_DESC(desc_ptr)                                                                         \
+	do {                                                                                       \
+		const struct dma_tsn_nic_desc *desc = (desc_ptr);                                  \
+		LOG_DBG("DMA DESC @ %p:", desc);                                                   \
+		LOG_DBG("  control     : 0x%08x", desc->control);                                  \
+		LOG_DBG("  bytes       : 0x%08x", desc->bytes);                                    \
+		LOG_DBG("  src_addr_lo : 0x%08x", desc->src_addr_lo);                              \
+		LOG_DBG("  src_addr_hi : 0x%08x", desc->src_addr_hi);                              \
+		LOG_DBG("  dst_addr_lo : 0x%08x", desc->dst_addr_lo);                              \
+		LOG_DBG("  dst_addr_hi : 0x%08x", desc->dst_addr_hi);                              \
+		LOG_DBG("  next_lo     : 0x%08x", desc->next_lo);                                  \
+		LOG_DBG("  next_hi     : 0x%08x", desc->next_hi);                                  \
 	} while (0)
 
 /**
