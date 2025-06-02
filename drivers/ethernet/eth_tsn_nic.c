@@ -17,8 +17,8 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_DBG);
 #include <zephyr/sys/device_mmio.h>
 #include <zephyr/sys/byteorder.h>
 
-#include <zephyr/kernel/mm.h>  // For arch_mem_get_phys
-#include <zephyr/devicetree.h> // Required for DT_NODELABEL, DT_REG_SIZE, DT_NODE_EXISTS
+#include <zephyr/kernel/mm.h>
+#include <zephyr/devicetree.h>
 
 #include <zephyr/net/ethernet.h>
 #include <zephyr/drivers/dma.h>
@@ -380,9 +380,9 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	k_work_submit(&data->rx_work); /* TODO: use polling for now */
 #endif
 
-	//	tsn_print_top_registers(dev);
+	tsn_print_top_registers(dev);
 
-	//	eth_tsn_check_status();
+	eth_tsn_check_status();
 
 	pthread_spin_lock(&data->tx_lock);
 
