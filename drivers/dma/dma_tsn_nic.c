@@ -215,22 +215,14 @@ static int engine_init_regs(struct dma_tsn_nic_engine_regs *regs)
 		address_bits = 64;
 	}
 
-    flags = DMA_CTRL_IE_DESC_STOPPED |
-            DMA_CTRL_IE_DESC_COMPLETED |
-            DMA_CTRL_IE_DESC_ALIGN_MISMATCH |
-            DMA_CTRL_IE_MAGIC_STOPPED |
-            DMA_CTRL_IE_IDLE_STOPPED |
-            DMA_CTRL_IE_READ_ERROR |
-            DMA_CTRL_IE_DESC_ERROR;
+	flags = DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
+		DMA_CTRL_IE_IDLE_STOPPED | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR;
 
 	sys_write32(flags, (mem_addr_t)&regs->interrupt_enable_mask);
 
-    flags = DMA_CTRL_RUN_STOP |
-            DMA_CTRL_IE_READ_ERROR |
-            DMA_CTRL_IE_DESC_ERROR |
-            DMA_CTRL_IE_DESC_ALIGN_MISMATCH |
-            DMA_CTRL_IE_MAGIC_STOPPED |
-            DMA_CTRL_POLL_MODE_WB;
+	flags = DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED | DMA_CTRL_POLL_MODE_WB;
 
 	sys_write32(flags, (mem_addr_t)&regs->control);
 

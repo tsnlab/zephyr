@@ -17,7 +17,7 @@ LOG_MODULE_REGISTER(eth_tsn_nic, LOG_LEVEL_DBG);
 #include <zephyr/sys/device_mmio.h>
 #include <zephyr/sys/byteorder.h>
 
-#include <zephyr/kernel/mm.h>// For arch_mem_get_phys
+#include <zephyr/kernel/mm.h>  // For arch_mem_get_phys
 #include <zephyr/devicetree.h> // Required for DT_NODELABEL, DT_REG_SIZE, DT_NODE_EXISTS
 
 #include <zephyr/net/ethernet.h>
@@ -380,9 +380,9 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	k_work_submit(&data->rx_work); /* TODO: use polling for now */
 #endif
 
-//	tsn_print_top_registers(dev);
+	//	tsn_print_top_registers(dev);
 
-//	eth_tsn_check_status();
+	//	eth_tsn_check_status();
 
 	pthread_spin_lock(&data->tx_lock);
 
@@ -440,8 +440,7 @@ static int eth_tsn_nic_send(const struct device *dev, struct net_pkt *pkt)
 	dump_dma_h2c_all_regs(data->regs[DMA_H2C]);
 
 	/* offset = completed_desc_count */
-	uint32_t completed =
-		sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
+	uint32_t completed = sys_read32((uintptr_t)data->regs[DMA_H2C] + 0x48);
 
 	LOG_DBG("Completed Desc Count: %d\n", completed);
 
@@ -520,21 +519,14 @@ static int engine_init_regs(struct dma_tsn_nic_engine_regs *regs)
 		address_bits = 64;
 	}
 
-    flags = DMA_CTRL_IE_DESC_STOPPED |
-            DMA_CTRL_IE_DESC_COMPLETED |
-            DMA_CTRL_IE_DESC_ALIGN_MISMATCH |
-            DMA_CTRL_IE_MAGIC_STOPPED |
-            DMA_CTRL_IE_READ_ERROR |
-            DMA_CTRL_IE_DESC_ERROR;
+	flags = DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
+		DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR;
 
 	sys_write32(flags, (mem_addr_t)&regs->interrupt_enable_mask);
 
-
-    flags = DMA_CTRL_RUN_STOP |
-            DMA_CTRL_IE_READ_ERROR |
-            DMA_CTRL_IE_DESC_ERROR |
-            DMA_CTRL_IE_DESC_ALIGN_MISMATCH |
-            DMA_CTRL_IE_MAGIC_STOPPED;
+	flags = DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED;
 
 	sys_write32(flags, (mem_addr_t)&regs->control);
 
@@ -652,4 +644,3 @@ static int eth_tsn_nic_init(const struct device *dev)
 				      &eth_tsn_nic_cfg_##n, 99, &eth_tsn_nic_api, NET_ETH_MTU);
 
 DT_INST_FOREACH_STATUS_OKAY(ETH_TSN_NIC_INIT)
-
