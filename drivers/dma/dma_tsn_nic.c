@@ -7,7 +7,7 @@
 #define DT_DRV_COMPAT tsnlab_tsn_nic_dma
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(dma_tsn_nic, LOG_LEVEL_ERR);
+LOG_MODULE_REGISTER(dma_tsn_nic, LOG_LEVEL_DBG);
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -36,8 +36,8 @@ LOG_MODULE_REGISTER(dma_tsn_nic, LOG_LEVEL_ERR);
 #define DMA_CTRL_IE_DESC_ALIGN_MISMATCH (1UL << 3)
 #define DMA_CTRL_IE_MAGIC_STOPPED       (1UL << 4)
 #define DMA_CTRL_IE_IDLE_STOPPED        (1UL << 6)
-#define DMA_CTRL_IE_READ_ERROR          (1UL << 9)
-#define DMA_CTRL_IE_DESC_ERROR          (1UL << 19)
+#define DMA_CTRL_IE_READ_ERROR          (0x1FUL << 9)
+#define DMA_CTRL_IE_DESC_ERROR          (0x1FUL << 19)
 #define DMA_CTRL_NON_INCR_ADDR          (1UL << 25)
 #define DMA_CTRL_POLL_MODE_WB           (1UL << 26)
 #define DMA_CTRL_STM_MODE_WB            (1UL << 27)
@@ -53,8 +53,11 @@ LOG_MODULE_REGISTER(dma_tsn_nic, LOG_LEVEL_ERR);
 /* Size of BAR1, it needs to be hard-coded as there is no PCIe API for this */
 #define DMA_CONFIG_BAR_SIZE 0x10000
 
+#ifndef XDMA_DMA_ENGINE
+#define XDMA_DMA_ENGINE
 #define DMA_ENGINE_START 16268831
 #define DMA_ENGINE_STOP  16268830
+#endif
 
 struct dma_tsn_nic_config_regs {
 	uint32_t identifier;
@@ -212,15 +215,14 @@ static int engine_init_regs(struct dma_tsn_nic_engine_regs *regs)
 		address_bits = 64;
 	}
 
-	flags = (DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
-		 DMA_CTRL_IE_IDLE_STOPPED | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
-		 DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED);
+	flags = DMA_CTRL_IE_DESC_STOPPED | DMA_CTRL_IE_DESC_COMPLETED |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
+		DMA_CTRL_IE_IDLE_STOPPED | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR;
 
 	sys_write32(flags, (mem_addr_t)&regs->interrupt_enable_mask);
 
-	flags = (DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
-		 DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED |
-		 DMA_CTRL_POLL_MODE_WB);
+	flags = DMA_CTRL_RUN_STOP | DMA_CTRL_IE_READ_ERROR | DMA_CTRL_IE_DESC_ERROR |
+		DMA_CTRL_IE_DESC_ALIGN_MISMATCH | DMA_CTRL_IE_MAGIC_STOPPED | DMA_CTRL_POLL_MODE_WB;
 
 	sys_write32(flags, (mem_addr_t)&regs->control);
 
@@ -257,6 +259,8 @@ static int dma_tsn_nic_init(const struct device *dev)
 	struct dma_tsn_nic_data *data = dev->data;
 	struct dma_tsn_nic_engine_regs *regs;
 	int engine_id, channel_id;
+
+	LOG_INF("init: %s\n", dev->name);
 
 	if (map_bar(dev, 0, 0x1000) != 0) {
 		return -EINVAL;
