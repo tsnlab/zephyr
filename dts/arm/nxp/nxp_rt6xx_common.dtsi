@@ -12,6 +12,7 @@
 #include <zephyr/dt-bindings/i2c/i2c.h>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include <zephyr/dt-bindings/reset/nxp_syscon_reset_common.h>
+#include <zephyr/dt-bindings/misc/nxp_rtxxx_dsp_ctrl.h>
 
 / {
 	chosen {
@@ -46,6 +47,31 @@
 				power-state-name = "suspend-to-idle";
 				min-residency-us = <1000>;
 			};
+		};
+	};
+
+	dsp: dsp {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		compatible = "nxp,rtxxx-dsp-ctrl";
+		sysctl = <&sysctl0>;
+
+		status = "disabled";
+
+		region@24020000 {
+			reg = <0x24020000 DT_SIZE_K(1)>;
+			type = <NXP_RTXXX_DSP_REGION_RESET>;
+		};
+
+		region@20400000 {
+			reg = <0x20400000 DT_SIZE_K(256)>;
+			type = <NXP_RTXXX_DSP_REGION_TEXT>;
+		};
+
+		region@20440000 {
+			reg = <0x20440000 DT_SIZE_K(256)>;
+			type = <NXP_RTXXX_DSP_REGION_DATA>;
 		};
 	};
 };
@@ -108,6 +134,15 @@
 		compatible = "nxp,lpc-syscon";
 		reg = <0x1000 0x1000>;
 		#clock-cells = <1>;
+	};
+
+	/*
+	 * Dummy node - it does not instantiate a real driver, rather it provide the
+	 * base address of the SYSCTL0 block for use with the "dsp" node.
+	 */
+	sysctl0: sysctl@2000 {
+		reg = <0x2000 0x2000>;
+		compatible = "nxp,rt6xx-sysctl";
 	};
 
 	iocon: iocon@4000 {
@@ -335,6 +370,64 @@
 		#dma-cells = <1>;
 	};
 
+	dmic0: dmic@121000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "nxp,dmic";
+		reg = <0x121000 0x1000>;
+		interrupts = <25 0>;
+		status = "disabled";
+		clocks = <&clkctl0 MCUX_DMIC_CLK>;
+
+		pdmc0: dmic-channel@0 {
+			reg = <0>;
+			dmas = <&dma0 16>;
+			status = "disabled";
+		};
+
+		pdmc1: dmic-channel@1 {
+			reg = <1>;
+			dmas = <&dma0 17>;
+			status = "disabled";
+		};
+
+		pdmc2: dmic-channel@2 {
+			reg = <2>;
+			dmas = <&dma0 18>;
+			status = "disabled";
+		};
+
+		pdmc3: dmic-channel@3 {
+			reg = <3>;
+			dmas = <&dma0 19>;
+			status = "disabled";
+		};
+
+		pdmc4: dmic-channel@4 {
+			reg = <4>;
+			dmas = <&dma0 20>;
+			status = "disabled";
+		};
+
+		pdmc5: dmic-channel@5 {
+			reg = <5>;
+			dmas = <&dma0 21>;
+			status = "disabled";
+		};
+
+		pdmc6: dmic-channel@6 {
+			reg = <6>;
+			dmas = <&dma0 22>;
+			status = "disabled";
+		};
+
+		pdmc7: dmic-channel@7 {
+			reg = <7>;
+			dmas = <&dma0 23>;
+			status = "disabled";
+		};
+	};
+
 	os_timer: timers@113000 {
 		compatible = "nxp,os-timer";
 		reg = <0x113000 0x1000>;
@@ -410,7 +503,7 @@
 		min-bus-freq = <400000>;
 	};
 
-	lpadc0: lpadc@13a000 {
+	lpadc0: adc@13a000 {
 		compatible = "nxp,lpc-lpadc";
 		reg = <0x13a000 0x304>;
 		interrupts = <22 0>;
@@ -530,6 +623,18 @@
 			reg = <3>;
 			status = "disabled";
 		};
+	};
+
+	mbox: mbox@110000 {
+		#mbox-cells = <1>;
+
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x110000 0x1000>;
+
+		interrupts = <34 0>;
+		rx-channels = <4>;
+
+		status = "disabled";
 	};
 };
 

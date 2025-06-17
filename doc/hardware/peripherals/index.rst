@@ -18,6 +18,7 @@ Peripherals
    clock_control.rst
    can/index.rst
    charger.rst
+   comparator.rst
    coredump.rst
    counter.rst
    dac.rst
@@ -37,7 +38,6 @@ Peripherals
    i3c.rst
    i2c.rst
    ipm.rst
-   kscan.rst
    led.rst
    mdio.rst
    mipi_dbi.rst
@@ -55,6 +55,7 @@ Peripherals
    sdhc.rst
    sensor/index.rst
    spi.rst
+   stepper.rst
    smbus.rst
    uart.rst
    usbc_vbus.rst

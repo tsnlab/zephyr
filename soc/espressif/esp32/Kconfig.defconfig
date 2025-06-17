@@ -9,13 +9,19 @@ config FLASH_SIZE
 config FLASH_BASE_ADDRESS
 	default $(dt_node_reg_addr_hex,/soc/flash-controller@3ff42000/flash@0)
 
+config BOOTLOADER_MCUBOOT
+	default y if SOC_ESP32_APPCPU
+
+config MAIN_STACK_SIZE
+	default 2048
+
 if SMP
 
 config SCHED_IPI_SUPPORTED
 	default y
 
 config SCHED_CPU_MASK
-	default y if SCHED_DUMB
+	default y if SCHED_SIMPLE
 
 config MP_MAX_NUM_CPUS
 	default 2

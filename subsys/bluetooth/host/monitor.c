@@ -8,24 +8,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/types.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
-#include <zephyr/kernel.h>
+#include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/buf.h>
 #include <zephyr/device.h>
-#include <zephyr/init.h>
 #include <zephyr/drivers/uart_pipe.h>
+#include <zephyr/init.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log_backend.h>
+#include <zephyr/logging/log_core.h>
+#include <zephyr/logging/log_msg.h>
+#include <zephyr/logging/log_output.h>
+#include <zephyr/logging/log_ctrl.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/atomic_types.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk-hooks.h>
 #include <zephyr/sys/libc-hooks.h>
 #include <zephyr/drivers/uart.h>
-
-#include <zephyr/logging/log_backend.h>
-#include <zephyr/logging/log_output.h>
-#include <zephyr/logging/log_ctrl.h>
-#include <zephyr/logging/log.h>
-
-#include <zephyr/bluetooth/buf.h>
+#include <zephyr/sys/time_units.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/util_macro.h>
 
 #include "monitor.h"
 
@@ -98,6 +106,8 @@ static void drop_add(uint16_t opcode)
 #if defined(CONFIG_BT_DEBUG_MONITOR_RTT)
 #include <SEGGER_RTT.h>
 
+static bool panic_mode;
+
 #define RTT_BUFFER_NAME CONFIG_BT_DEBUG_MONITOR_RTT_BUFFER_NAME
 #define RTT_BUF_SIZE CONFIG_BT_DEBUG_MONITOR_RTT_BUFFER_SIZE
 
@@ -124,10 +134,13 @@ static void monitor_send(const void *data, size_t len)
 	}
 
 	if (!drop) {
-		SEGGER_RTT_LOCK();
-		cnt = SEGGER_RTT_WriteNoLock(CONFIG_BT_DEBUG_MONITOR_RTT_BUFFER,
-					     rtt_buf, rtt_buf_offset);
-		SEGGER_RTT_UNLOCK();
+		if (panic_mode) {
+			cnt = SEGGER_RTT_WriteNoLock(CONFIG_BT_DEBUG_MONITOR_RTT_BUFFER,
+						     rtt_buf, rtt_buf_offset);
+		} else {
+			cnt = SEGGER_RTT_Write(CONFIG_BT_DEBUG_MONITOR_RTT_BUFFER,
+					       rtt_buf, rtt_buf_offset);
+		}
 	}
 
 	if (!cnt) {
@@ -144,7 +157,15 @@ static void poll_out(char c)
 }
 #elif defined(CONFIG_BT_DEBUG_MONITOR_UART)
 static const struct device *const monitor_dev =
+#if DT_HAS_CHOSEN(zephyr_bt_mon_uart)
 	DEVICE_DT_GET(DT_CHOSEN(zephyr_bt_mon_uart));
+#elif !defined(CONFIG_UART_CONSOLE) && DT_HAS_CHOSEN(zephyr_console)
+	/* Fall back to console UART if it's available */
+	DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+#else
+	NULL;
+#error "BT_DEBUG_MONITOR_UART enabled but no UART specified"
+#endif
 
 static void poll_out(char c)
 {
@@ -356,6 +377,9 @@ static void monitor_log_process(const struct log_backend *const backend,
 
 static void monitor_log_panic(const struct log_backend *const backend)
 {
+#if defined(CONFIG_BT_DEBUG_MONITOR_RTT)
+	panic_mode = true;
+#endif
 }
 
 static void monitor_log_init(const struct log_backend *const backend)

@@ -72,6 +72,25 @@ Group.
 For more information on developing Zephyr applications in the C programming language, please refer
 to :ref:`details<language_support>`.
 
+.. _posix_option_group_c_lang_support_r:
+
+POSIX_C_LANG_SUPPORT_R
+++++++++++++++++++++++
+
+Enable this option group with :kconfig:option:`CONFIG_POSIX_C_LANG_SUPPORT_R`.
+
+.. csv-table:: POSIX_C_LANG_SUPPORT_R
+   :header: API, Supported
+   :widths: 50,10
+
+    asctime_r(),yes
+    ctime_r(),yes
+    gmtime_r(),yes
+    localtime_r(),yes
+    rand_r(),yes
+    strerror_r(),yes
+    strtok_r(),yes
+
 .. _posix_option_group_c_lib_ext:
 
 POSIX_C_LIB_EXT
@@ -121,6 +140,10 @@ POSIX_DEVICE_IO
 
 Enable this option group with :kconfig:option:`CONFIG_POSIX_DEVICE_IO`.
 
+.. note::
+   When using Newlib, Picolibc, or other C libraries conforming to the ISO C Standard, the
+   C89 components of the ``POSIX_DEVICE_IO`` Option Group are considered supported.
+
 .. csv-table:: POSIX_DEVICE_IO
    :header: API, Supported
    :widths: 50,10
@@ -131,48 +154,48 @@ Enable this option group with :kconfig:option:`CONFIG_POSIX_DEVICE_IO`.
     FD_ZERO(),yes
     clearerr(),yes
     close(),yes
-    fclose(),
-    fdopen(),
-    feof(),
-    ferror(),
-    fflush(),
-    fgetc(),
-    fgets(),
-    fileno(),
-    fopen(),
+    fclose(),yes
+    fdopen(),yes
+    feof(),yes
+    ferror(),yes
+    fflush(),yes
+    fgetc(),yes
+    fgets(),yes
+    fileno(),yes
+    fopen(),yes
     fprintf(),yes
     fputc(),yes
     fputs(),yes
-    fread(),
-    freopen(),
-    fscanf(),
+    fread(),yes
+    freopen(),yes
+    fscanf(),yes
     fwrite(),yes
-    getc(),
-    getchar(),
-    gets(),
+    getc(),yes
+    getchar(),yes
+    gets(),yes
     open(),yes
     perror(),yes
     poll(),yes
     printf(),yes
-    pread(),
-    pselect(),
+    pread(),yes
+    pselect(),yes
     putc(),yes
     putchar(),yes
     puts(),yes
-    pwrite(),
+    pwrite(),yes
     read(),yes
-    scanf(),
+    scanf(),yes
     select(),yes
-    setbuf(),
-    setvbuf(),
-    stderr,
-    stdin,
-    stdout,
-    ungetc(),
+    setbuf(),yes
+    setvbuf(),yes
+    stderr,yes
+    stdin,yes
+    stdout,yes
+    ungetc(),yes
     vfprintf(),yes
-    vfscanf(),
+    vfscanf(),yes
     vprintf(),yes
-    vscanf(),
+    vscanf(),yes
     write(),yes
 
 .. _posix_option_group_fd_mgmt:
@@ -253,6 +276,19 @@ Enable this option group with :kconfig:option:`CONFIG_POSIX_FILE_SYSTEM`.
     truncate(),
     unlink(), yes
     utime(),
+
+.. _posix_option_group_file_system_r:
+
+POSIX_FILE_SYSTEM_R
++++++++++++++++++++
+
+Enable this option with :kconfig:option:`CONFIG_POSIX_FILE_SYSTEM_R`.
+
+.. csv-table:: POSIX_FILE_SYSTEM_R
+   :header: API, Supported
+   :widths: 50,10
+
+    readdir_r(), yes
 
 .. _posix_option_group_mapped_files:
 
@@ -624,6 +660,39 @@ Enable this option group with :kconfig:option:`CONFIG_POSIX_TIMERS`.
     timer_getoverrun(),yes
     timer_settime(),yes
 
+.. _posix_option_group_xsi_realtime:
+
+XSI_REALTIME
+++++++++++++
+
+The ``XSI_REALTIME`` option group indicates that the :ref:`_POSIX_FSYNC<posix_option_fsync>`,
+:ref:`_POSIX_MEMLOCK<posix_option_memlock>`,
+:ref:`_POSIX_MEMLOCK_RANGE<posix_option_memlock_range>`,
+:ref:`_POSIX_MESSAGE_PASSING<posix_option_message_passing>`,
+:ref:`_POSIX_PRIORITY_SCHEDULING<posix_option_priority_scheduling>`,
+:ref:`_POSIX_SHARED_MEMORY_OBJECTS<posix_option_shared_memory_objects>`, and
+:ref:`_POSIX_SYNCHRONIZED_IO<posix_option_synchronized_io>` options are enabled.
+
+Enable this option group with :kconfig:option:`CONFIG_XSI_REALTIME`.
+
+When this option group is enabled, the ``_XOPEN_REALTIME`` feature test macro will be defined to a
+value other than -1.
+
+.. _posix_option_group_xsi_single_process:
+
+XSI_SINGLE_PROCESS
+++++++++++++++++++
+
+Enable this option group with :kconfig:option:`CONFIG_XSI_SINGLE_PROCESS`.
+
+.. csv-table:: XSI_SINGLE_PROCESS
+   :header: API, Supported
+   :widths: 50,10
+
+    gethostid(),yes
+    gettimeofday(),yes
+    putenv(),yes
+
 .. _posix_option_group_xsi_system_logging:
 
 XSI_SYSTEM_LOGGING
@@ -849,7 +918,11 @@ Enable this option with :kconfig:option:`CONFIG_POSIX_READER_WRITER_LOCKS`.
     pthread_rwlockattr_init(),yes
     pthread_rwlockattr_setpshared(),yes
 
+..
+   this link is "deprecated" - mainly left here so that older links still work
 .. _posix_shared_memory_objects:
+
+.. _posix_option_shared_memory_objects:
 
 _POSIX_SHARED_MEMORY_OBJECTS
 ++++++++++++++++++++++++++++
@@ -975,7 +1048,7 @@ Enable this option with :kconfig:option:`CONFIG_POSIX_THREAD_PRIORITY_SCHEDULING
     pthread_setschedparam(),yes
     pthread_setschedprio(),yes
 
-.. _posix_thread_safe_functions:
+.. _posix_option_thread_safe_functions:
 
 _POSIX_THREAD_SAFE_FUNCTIONS
 ++++++++++++++++++++++++++++

@@ -27,7 +27,7 @@ static int test_mkdir(void)
 		return res;
 	}
 
-	res = open(TEST_DIR_FILE, O_CREAT | O_RDWR);
+	res = open(TEST_DIR_FILE, O_CREAT | O_RDWR, 0770);
 
 	if (res < 0) {
 		TC_PRINT("Failed opening file [%d]\n", res);
@@ -54,10 +54,11 @@ static int test_mkdir(void)
 static struct dirent *readdir_wrap(DIR *dirp, bool thread_safe)
 {
 	if (thread_safe) {
-		struct dirent *entry = NULL;
+		/* cannot declare on stack otherwise this test fails for qemu_x86/atom */
+		static struct dirent entry;
 		struct dirent *result = NULL;
 
-		zassert_ok(readdir_r(dirp, entry, &result));
+		zassert_ok(readdir_r(dirp, &entry, &result));
 
 		return result;
 	} else {

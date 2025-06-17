@@ -28,6 +28,11 @@
 #endif
 
 /*
+ * Subprofiling Considerations
+ */
+#define _POSIX_SUBPROFILE 1
+
+/*
  * POSIX System Interfaces
  */
 
@@ -201,9 +206,9 @@
 /*
  * POSIX2 Options
  */
-#define _POSIX2_VERSION _POSIX_VERSION
-#define _POSIX2_C_BIND  _POSIX2_VERSION
-#define _POSIX2_C_DEV   _POSIX2_VERSION
+/* #define _POSIX2_VERSION (-1) */
+#define _POSIX2_C_BIND _POSIX_VERSION
+/* #define _POSIX2_C_DEV (-1) */
 /* #define _POSIX2_CHAR_TERM (-1L) */
 /* #define _POSIX2_FORT_DEV (-1L) */
 /* #define _POSIX2_FORT_RUN (-1L) */
@@ -223,7 +228,13 @@
 #define _XOPEN_VERSION 700
 /* #define _XOPEN_CRYPT (-1L) */
 /* #define _XOPEN_ENH_I18N (-1L) */
-/* #define _XOPEN_REALTIME (-1L) */
+#if defined(CONFIG_XSI_REALTIME) ||                                                                \
+	(defined(CONFIG_POSIX_FSYNC) && defined(CONFIG_POSIX_MEMLOCK) &&                           \
+	 defined(CONFIG_POSIX_MEMLOCK_RANGE) && defined(CONFIG_POSIX_MESSAGE_PASSING) &&           \
+	 defined(CONFIG_POSIX_PRIORITY_SCHEDULING) &&                                              \
+	 defined(CONFIG_POSIX_SHARED_MEMORY_OBJECTS) && defined(CONFIG_POSIX_SYNCHRONIZED_IO))
+#define _XOPEN_REALTIME _XOPEN_VERSION
+#endif
 /* #define _XOPEN_REALTIME_THREADS (-1L) */
 /* #define _XOPEN_SHM (-1L) */
 
@@ -233,6 +244,13 @@
 
 /* #define _XOPEN_UNIX (-1L) */
 /* #define _XOPEN_UUCP (-1L) */
+
+#if _POSIX_C_SOURCE >= 200809L && (__PICOLIBC__ > 1 ||			\
+(__PICOLIBC__ == 1 && (__PICOLIBC_MINOR__ > 8 ||			\
+__PICOLIBC_MINOR__ == 8 && __PICOLIBC_PATCHLEVEL__ >= 9)))
+/* Use picolibc's limits.h when building POSIX code */
+#include <limits.h>
+#else
 
 /* Maximum values */
 #define _POSIX_CLOCKRES_MIN (20000000L)
@@ -296,6 +314,8 @@
 #define _XOPEN_NAME_MAX                     (255)
 #define _XOPEN_PATH_MAX                     (1024)
 
+#endif /* __PICOLIBC__ */
+
 /* Other invariant values */
 #define NL_LANGMAX (14)
 #define NL_MSGMAX  (32767)
@@ -331,7 +351,9 @@
 #define SYMLOOP_MAX         _POSIX_SYMLOOP_MAX
 #define TIMER_MAX           _POSIX_TIMER_MAX
 #define TTY_NAME_MAX        _POSIX_TTY_NAME_MAX
+#ifndef TZNAME_MAX
 #define TZNAME_MAX          _POSIX_TZNAME_MAX
+#endif
 
 /* Pathname variable values */
 #define FILESIZEBITS             (32)

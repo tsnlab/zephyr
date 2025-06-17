@@ -6,7 +6,6 @@ arch: arm
 toolchain:
   - zephyr
   - gnuarmemb
-  - xtools
 supported:
   - gpio
   - serial
@@ -15,5 +14,9 @@ supported:
   - dma
   - watchdog
   - spi
+  - counter
+  - rtc_counter
+  - pwm
+  - flash
 ram: 160
 flash: 384

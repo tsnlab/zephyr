@@ -15,7 +15,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/debug/stack.h>
 
-#include <zephyr/net/buf.h>
+#include <zephyr/net_buf.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/l2cap.h>
@@ -289,7 +289,6 @@ static struct net_buf *queue_event(struct net_buf *buf)
 
 	evt = net_buf_alloc(&event_pool, K_NO_WAIT);
 	if (evt) {
-		bt_buf_set_type(evt, BT_BUF_EVT);
 		net_buf_add_le32(evt, sys_cpu_to_le32(k_uptime_get()));
 		net_buf_add_mem(evt, buf->data, buf->len);
 		k_fifo_put(&event_queue, evt);
@@ -304,11 +303,13 @@ static struct net_buf *queue_event(struct net_buf *buf)
 static void service_events(void *p1, void *p2, void *p3)
 {
 	struct net_buf *buf, *evt;
+	uint8_t type;
 
 	while (1) {
 		buf = k_fifo_get(&rx_queue, K_FOREVER);
-		if (bt_buf_get_type(buf) == BT_BUF_EVT) {
+		type = net_buf_pull_u8(buf);
 
+		if (type == BT_HCI_H4_EVT) {
 			evt = queue_event(buf);
 			if (!evt) {
 				bs_trace_raw_time(4,
@@ -339,26 +340,22 @@ static void service_events(void *p1, void *p2, void *p3)
 			default:
 				break;
 			}
-		} else if (bt_buf_get_type(buf) == BT_BUF_ACL_IN) {
+		} else if (type == BT_HCI_H4_ACL) {
 			struct net_buf *data;
 
 			data = net_buf_alloc(&data_pool, K_NO_WAIT);
 			if (data) {
-				bt_buf_set_type(data, BT_BUF_ACL_IN);
-				net_buf_add_le32(data,
-					sys_cpu_to_le32(k_uptime_get()));
+				net_buf_add_le32(data, sys_cpu_to_le32(k_uptime_get()));
 				net_buf_add_mem(data, buf->data, buf->len);
 				k_fifo_put(&data_queue, data);
 			}
 #if defined(CONFIG_BT_ISO)
-		} else if (bt_buf_get_type(buf) == BT_BUF_ISO_IN) {
+		} else if (type == BT_HCI_H4_ISO) {
 			struct net_buf *data;
 
 			data = net_buf_alloc(&iso_data_pool, K_NO_WAIT);
 			if (data) {
-				bt_buf_set_type(data, BT_BUF_ISO_IN);
-				net_buf_add_le32(data,
-					sys_cpu_to_le32(k_uptime_get()));
+				net_buf_add_le32(data, sys_cpu_to_le32(k_uptime_get()));
 				net_buf_add_mem(data, buf->data, buf->len);
 				k_fifo_put(&iso_data_queue, data);
 			}
@@ -819,10 +816,11 @@ int main(void)
 
 			edtt_read((uint8_t *)&multiple, sizeof(multiple),
 				  EDTTT_BLOCK);
-			if (multiple)
+			if (multiple) {
 				get_events(--size);
-			else
+			} else {
 				get_event(--size);
+			}
 		}
 		break;
 		case CMD_LE_FLUSH_DATA_REQ:

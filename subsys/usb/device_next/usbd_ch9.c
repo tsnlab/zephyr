@@ -86,8 +86,8 @@ static int sreq_set_address(struct usbd_context *const uds_ctx)
 	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
 	struct udc_device_caps caps = udc_caps(uds_ctx->dev);
 
-	/* Not specified if wLength is non-zero, treat as error */
-	if (setup->wValue > 127 || setup->wLength) {
+	/* Not specified if wIndex or wLength is non-zero, treat as error */
+	if (setup->wValue > 127 || setup->wIndex || setup->wLength) {
 		errno = -ENOTSUP;
 		return 0;
 	}
@@ -426,6 +426,8 @@ static int sreq_get_status(struct usbd_context *const uds_ctx,
 
 		response = uds_ctx->status.rwup ?
 			   USB_GET_STATUS_REMOTE_WAKEUP : 0;
+		response |= uds_ctx->status.self_powered ?
+			    USB_GET_STATUS_SELF_POWERED : 0;
 		break;
 	case USB_REQTYPE_RECIPIENT_ENDPOINT:
 		response = usbd_ep_is_halted(uds_ctx, ep) ? BIT(0) : 0;
@@ -470,9 +472,11 @@ static int sreq_get_desc_cfg(struct usbd_context *const uds_ctx,
 
 	/*
 	 * If the other-speed-configuration-descriptor is requested and the
-	 * controller does not support high speed, respond with an error.
+	 * controller (or stack) does not support high speed, respond with
+	 * an error.
 	 */
-	if (other_cfg && usbd_caps_speed(uds_ctx) != USBD_SPEED_HS) {
+	if (other_cfg && !(USBD_SUPPORTS_HIGH_SPEED &&
+	    (usbd_caps_speed(uds_ctx) == USBD_SPEED_HS))) {
 		errno = -ENOTSUP;
 		return 0;
 	}
@@ -627,6 +631,10 @@ static int sreq_get_desc_dev(struct usbd_context *const uds_ctx,
 		return 0;
 	}
 
+	if (head == NULL) {
+		return -EINVAL;
+	}
+
 	net_buf_add_mem(buf, head, MIN(len, head->bLength));
 
 	return 0;
@@ -675,12 +683,6 @@ static int sreq_get_dev_qualifier(struct usbd_context *const uds_ctx,
 	struct usb_device_qualifier_descriptor q_desc = {
 		.bLength = sizeof(struct usb_device_qualifier_descriptor),
 		.bDescriptorType = USB_DESC_DEVICE_QUALIFIER,
-		.bcdUSB = d_desc->bcdUSB,
-		.bDeviceClass = d_desc->bDeviceClass,
-		.bDeviceSubClass = d_desc->bDeviceSubClass,
-		.bDeviceProtocol = d_desc->bDeviceProtocol,
-		.bMaxPacketSize0 = d_desc->bMaxPacketSize0,
-		.bNumConfigurations = d_desc->bNumConfigurations,
 		.bReserved = 0U,
 	};
 	size_t len;
@@ -689,10 +691,22 @@ static int sreq_get_dev_qualifier(struct usbd_context *const uds_ctx,
 	 * If the Device Qualifier descriptor is requested and the controller
 	 * does not support high speed, respond with an error.
 	 */
-	if (usbd_caps_speed(uds_ctx) != USBD_SPEED_HS) {
+	if (!USBD_SUPPORTS_HIGH_SPEED ||
+	    usbd_caps_speed(uds_ctx) != USBD_SPEED_HS) {
 		errno = -ENOTSUP;
 		return 0;
 	}
+
+	if (d_desc == NULL) {
+		return -EINVAL;
+	}
+
+	q_desc.bcdUSB = d_desc->bcdUSB;
+	q_desc.bDeviceClass = d_desc->bDeviceClass;
+	q_desc.bDeviceSubClass = d_desc->bDeviceSubClass;
+	q_desc.bDeviceProtocol = d_desc->bDeviceProtocol;
+	q_desc.bMaxPacketSize0 = d_desc->bMaxPacketSize0;
+	q_desc.bNumConfigurations = d_desc->bNumConfigurations;
 
 	LOG_DBG("Get Device Qualifier");
 	len = MIN(setup->wLength, net_buf_tailroom(buf));
@@ -728,6 +742,11 @@ static int sreq_get_desc_bos(struct usbd_context *const uds_ctx,
 	struct usbd_desc_node *desc_nd;
 	size_t len;
 
+	if (!IS_ENABLED(CONFIG_USBD_BOS_SUPPORT)) {
+		errno = -ENOTSUP;
+		return 0;
+	}
+
 	switch (usbd_bus_speed(uds_ctx)) {
 	case USBD_SPEED_FS:
 		dev_dsc = uds_ctx->fs_desc;
@@ -738,6 +757,10 @@ static int sreq_get_desc_bos(struct usbd_context *const uds_ctx,
 	default:
 		errno = -ENOTSUP;
 		return 0;
+	}
+
+	if (dev_dsc == NULL) {
+		return -EINVAL;
 	}
 
 	if (sys_le16_to_cpu(dev_dsc->bcdUSB) < 0x0201U) {
@@ -858,7 +881,13 @@ static int sreq_get_interface(struct usbd_context *const uds_ctx,
 		return 0;
 	}
 
+	/* Treat as error in default (not specified) and addressed states. */
 	cfg_nd = usbd_config_get_current(uds_ctx);
+	if (cfg_nd == NULL) {
+		errno = -EPERM;
+		return 0;
+	}
+
 	cfg_desc = cfg_nd->desc;
 
 	if (setup->wIndex > UINT8_MAX ||
@@ -918,6 +947,39 @@ static int std_request_to_host(struct usbd_context *const uds_ctx,
 	return ret;
 }
 
+static int vendor_device_request(struct usbd_context *const uds_ctx,
+				 struct net_buf *const buf)
+{
+	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
+	struct usbd_vreq_node *vreq_nd;
+
+	if (!IS_ENABLED(CONFIG_USBD_VREQ_SUPPORT)) {
+		errno = -ENOTSUP;
+		return 0;
+	}
+
+	vreq_nd = usbd_device_get_vreq(uds_ctx, setup->bRequest);
+	if (vreq_nd == NULL) {
+		errno = -ENOTSUP;
+		return 0;
+	}
+
+	if (reqtype_is_to_device(setup) && vreq_nd->to_dev != NULL) {
+		LOG_DBG("Vendor request 0x%02x to device", setup->bRequest);
+		errno = vreq_nd->to_dev(uds_ctx, setup, buf);
+		return 0;
+	}
+
+	if (reqtype_is_to_host(setup) && vreq_nd->to_host != NULL) {
+		LOG_DBG("Vendor request 0x%02x to host", setup->bRequest);
+		errno = vreq_nd->to_host(uds_ctx, setup, buf);
+		return 0;
+	}
+
+	errno = -ENOTSUP;
+	return 0;
+}
+
 static int nonstd_request(struct usbd_context *const uds_ctx,
 			  struct net_buf *const dbuf)
 {
@@ -946,7 +1008,7 @@ static int nonstd_request(struct usbd_context *const uds_ctx,
 			ret = usbd_class_control_to_host(c_nd->c_data, setup, dbuf);
 		}
 	} else {
-		errno = -ENOTSUP;
+		return vendor_device_request(uds_ctx, dbuf);
 	}
 
 	return ret;

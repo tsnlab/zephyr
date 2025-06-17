@@ -884,7 +884,7 @@ static int eth_xmc4xxx_init(const struct device *dev)
 static enum ethernet_hw_caps eth_xmc4xxx_capabilities(const struct device *dev)
 {
 	ARG_UNUSED(dev);
-	enum ethernet_hw_caps caps =  ETHERNET_LINK_10BASE_T | ETHERNET_LINK_100BASE_T |
+	enum ethernet_hw_caps caps =  ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE |
 	       ETHERNET_HW_TX_CHKSUM_OFFLOAD | ETHERNET_HW_RX_CHKSUM_OFFLOAD;
 
 #if defined(CONFIG_PTP_CLOCK_XMC4XXX)
@@ -1113,7 +1113,7 @@ static int eth_xmc4xxx_ptp_clock_rate_adjust(const struct device *dev, double ra
 	return 0;
 }
 
-static const struct ptp_clock_driver_api ptp_api_xmc4xxx = {
+static DEVICE_API(ptp_clock, ptp_api_xmc4xxx) = {
 	.set = eth_xmc4xxx_ptp_clock_set,
 	.get = eth_xmc4xxx_ptp_clock_get,
 	.adjust = eth_xmc4xxx_ptp_clock_adjust,

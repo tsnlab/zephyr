@@ -7,7 +7,6 @@ if !LOG_MODE_MINIMAL
 
 config LOG_PRINTK
 	bool "Process printk messages"
-	depends on !USERSPACE
 	default y if PRINTK
 	help
 	  If enabled, printk messages are redirected to the logging subsystem.
@@ -122,7 +121,7 @@ endif # LOG_PROCESS_THREAD
 config LOG_BUFFER_SIZE
 	int "Number of bytes dedicated for the logger internal buffer"
 	default 1024
-	range 128 65536
+	range 128 1048576
 	help
 	  Number of bytes dedicated for the logger internal buffer.
 

@@ -11,8 +11,8 @@
 #ifndef ZEPHYR_INCLUDE_BLUETOOTH_GAP_H_
 #define ZEPHYR_INCLUDE_BLUETOOTH_GAP_H_
 
-#include <zephyr/sys/util_macro.h>
 #include <zephyr/bluetooth/byteorder.h>
+#include <zephyr/sys/util_macro.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -740,19 +740,27 @@ extern "C" {
  */
 
 /** LE PHY types */
-enum {
+enum bt_gap_le_phy {
 	/** Convenience macro for when no PHY is set. */
 	BT_GAP_LE_PHY_NONE                    = 0,
 	/** LE 1M PHY */
 	BT_GAP_LE_PHY_1M                      = BIT(0),
 	 /** LE 2M PHY */
 	BT_GAP_LE_PHY_2M                      = BIT(1),
-	/** LE Coded PHY */
+	/** LE Coded PHY, coding scheme not specified */
 	BT_GAP_LE_PHY_CODED                   = BIT(2),
+	/** LE Coded S=8 PHY. Only used for advertising reports
+	 * when Kconfig BT_EXT_ADV_CODING_SELECTION is enabled.
+	 */
+	BT_GAP_LE_PHY_CODED_S8                = BIT(3),
+	/** LE Coded S=2 PHY. Only used for advertising reports
+	 * when Kconfig BT_EXT_ADV_CODING_SELECTION is enabled.
+	 */
+	BT_GAP_LE_PHY_CODED_S2                = BIT(4),
 };
 
 /** Advertising PDU types */
-enum {
+enum bt_gap_adv_type {
 	/** Scannable and connectable advertising. */
 	BT_GAP_ADV_TYPE_ADV_IND               = 0x00,
 	/** Directed connectable advertising. */
@@ -768,7 +776,7 @@ enum {
 };
 
 /** Advertising PDU properties */
-enum {
+enum bt_gap_adv_prop {
 	/** Connectable advertising. */
 	BT_GAP_ADV_PROP_CONNECTABLE           = BIT(0),
 	/** Scannable advertising. */
@@ -810,6 +818,8 @@ enum {
 /** Maximum data time */
 #define BT_GAP_DATA_TIME_MAX                    0x4290 /* 17040 us */
 
+/** Minimum advertising set number */
+#define BT_GAP_SID_MIN                          0x00
 /** Maximum advertising set number */
 #define BT_GAP_SID_MAX                          0x0F
 /** Maximum number of consecutive periodic advertisement events that can be
@@ -826,14 +836,227 @@ enum {
 #define BT_GAP_PER_ADV_MAX_INTERVAL             0xFFFF /* 81.91875 s */
 
 /**
+ * @brief Convert periodic advertising interval (N * 0.625 ms) to microseconds
+ *
+ * Value range of @p _interval is @ref BT_LE_ADV_INTERVAL_MIN to @ref BT_LE_ADV_INTERVAL_MAX
+ */
+#define BT_GAP_ADV_INTERVAL_TO_US(_interval) ((uint32_t)((_interval) * 625U))
+
+/**
+ * @brief Convert periodic advertising interval (N * 0.625 ms) to milliseconds
+ *
+ * Value range of @p _interval is @ref BT_LE_ADV_INTERVAL_MIN to @ref BT_LE_ADV_INTERVAL_MAX
+ *
+ * @note When intervals cannot be represented in milliseconds, this will round down.
+ * For example BT_GAP_ADV_INTERVAL_TO_MS(0x0021) will become 20 ms instead of 20.625 ms
+ */
+#define BT_GAP_ADV_INTERVAL_TO_MS(_interval) (BT_GAP_ADV_INTERVAL_TO_US(_interval) / USEC_PER_MSEC)
+
+/**
+ * @brief Convert isochronous interval (N * 1.25 ms) to microseconds
+ *
+ * Value range of @p _interval is @ref BT_HCI_ISO_INTERVAL_MIN to @ref BT_HCI_ISO_INTERVAL_MAX
+ */
+#define BT_GAP_ISO_INTERVAL_TO_US(_interval) ((uint32_t)((_interval) * 1250U))
+
+/**
+ * @brief Convert isochronous interval (N * 1.25 ms) to milliseconds
+ *
+ * Value range of @p _interval is @ref BT_HCI_ISO_INTERVAL_MIN to @ref BT_HCI_ISO_INTERVAL_MAX
+ *
+ * @note When intervals cannot be represented in milliseconds, this will round down.
+ * For example BT_GAP_ISO_INTERVAL_TO_MS(0x0005) will become 6 ms instead of 6.25 ms
+ */
+#define BT_GAP_ISO_INTERVAL_TO_MS(_interval) (BT_GAP_ISO_INTERVAL_TO_US(_interval) / USEC_PER_MSEC)
+
+/** @brief Convert periodic advertising interval (N * 1.25 ms) to microseconds *
+ *
+ * Value range of @p _interval is @ref BT_HCI_LE_PER_ADV_INTERVAL_MIN to @ref
+ * BT_HCI_LE_PER_ADV_INTERVAL_MAX
+ */
+#define BT_GAP_PER_ADV_INTERVAL_TO_US(_interval) ((uint32_t)((_interval) * 1250U))
+
+/**
  * @brief Convert periodic advertising interval (N * 1.25 ms) to milliseconds
  *
- * 5 / 4 represents 1.25 ms unit.
+ * @note When intervals cannot be represented in milliseconds, this will round down.
+ * For example BT_GAP_PER_ADV_INTERVAL_TO_MS(0x0009) will become 11 ms instead of 11.25 ms
  */
-#define BT_GAP_PER_ADV_INTERVAL_TO_MS(interval) ((interval) * 5 / 4)
+#define BT_GAP_PER_ADV_INTERVAL_TO_MS(_interval)                                                   \
+	(BT_GAP_PER_ADV_INTERVAL_TO_US(_interval) / USEC_PER_MSEC)
+
+/**
+ * @brief Convert microseconds to advertising interval units (0.625 ms)
+ *
+ * Value range of @p _interval is 20000 to 1024000
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_ADV_INTERVAL(21000) will become 20625 microseconds
+ */
+#define BT_GAP_US_TO_ADV_INTERVAL(_interval) ((uint16_t)((_interval) / 625U))
+
+/**
+ * @brief Convert milliseconds to advertising interval units (0.625 ms)
+ *
+ * Value range of @p _interval is 20 to 1024
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_ADV_INTERVAL(21) will become 20.625 milliseconds
+ */
+#define BT_GAP_MS_TO_ADV_INTERVAL(_interval)                                                       \
+	(BT_GAP_US_TO_ADV_INTERVAL((_interval) * USEC_PER_MSEC))
+
+/**
+ * @brief Convert microseconds to periodic advertising interval units (1.25 ms)
+ *
+ * Value range of @p _interval is 7500 to 81918750
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_PER_ADV_INTERVAL(11000) will become 10000 microseconds
+ */
+#define BT_GAP_US_TO_PER_ADV_INTERVAL(_interval) ((uint16_t)((_interval) / 1250U))
+
+/**
+ * @brief Convert milliseconds to periodic advertising interval units (1.25 ms)
+ *
+ * Value range of @p _interval is 7.5 to 81918.75
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_PER_ADV_INTERVAL(11) will become 10 milliseconds
+ */
+#define BT_GAP_MS_TO_PER_ADV_INTERVAL(_interval)                                                   \
+	(BT_GAP_US_TO_PER_ADV_INTERVAL((_interval) * USEC_PER_MSEC))
+
+/**
+ * @brief Convert milliseconds to periodic advertising sync timeout units (10 ms)
+ *
+ * Value range of @p _timeout is 100 to 163840
+ *
+ * @note If @p _timeout is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_PER_ADV_SYNC_TIMEOUT(4005) will become 4000 milliseconds
+ */
+#define BT_GAP_MS_TO_PER_ADV_SYNC_TIMEOUT(_timeout) ((uint16_t)((_timeout) / 10U))
+
+/**
+ * @brief Convert microseconds to periodic advertising sync timeout units (10 ms)
+ *
+ * Value range of @p _timeout is 100000 to 163840000
+ *
+ * @note If @p _timeout is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_PER_ADV_SYNC_TIMEOUT(4005000) will become 4000000 microseconds
+ */
+#define BT_GAP_US_TO_PER_ADV_SYNC_TIMEOUT(_timeout)                                                \
+	(BT_GAP_MS_TO_PER_ADV_SYNC_TIMEOUT((_timeout) / USEC_PER_MSEC))
+
+/**
+ * @brief Convert microseconds to scan interval units (0.625 ms)
+ *
+ * Value range of @p _interval is 2500 to 40959375 if @kconfig{CONFIG_BT_EXT_ADV} else
+ * 2500 to 10240000
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_SCAN_INTERVAL(21000) will become 20625 microseconds
+ */
+#define BT_GAP_US_TO_SCAN_INTERVAL(_interval) ((uint16_t)((_interval) / 625U))
+
+/**
+ * @brief Convert milliseconds to scan interval units (0.625 ms)
+ *
+ * Value range of @p _interval is 2.5 to 40959.375 if @kconfig{CONFIG_BT_EXT_ADV} else
+ * 2500 to 10240
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_SCAN_INTERVAL(21) will become 20.625 milliseconds
+ */
+#define BT_GAP_MS_TO_SCAN_INTERVAL(_interval)                                                      \
+	(BT_GAP_US_TO_SCAN_INTERVAL((_interval) * USEC_PER_MSEC))
+
+/**
+ * @brief Convert microseconds to scan window units (0.625 ms)
+ *
+ * Value range of @p _window is 2500 to 40959375 if @kconfig{CONFIG_BT_EXT_ADV} else
+ * 2500 to 10240000
+ *
+ * @note If @p _window is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_SCAN_WINDOW(21000) will become 20625 microseconds
+ */
+#define BT_GAP_US_TO_SCAN_WINDOW(_window) ((uint16_t)((_window) / 625U))
+
+/**
+ * @brief Convert milliseconds to scan window units (0.625 ms)
+ *
+ * Value range of @p _window is 2.5 to 40959.375 if @kconfig{CONFIG_BT_EXT_ADV} else
+ * 2500 to 10240
+ *
+ * @note If @p _window is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_SCAN_WINDOW(21) will become 20.625 milliseconds
+ */
+#define BT_GAP_MS_TO_SCAN_WINDOW(_window) (BT_GAP_US_TO_SCAN_WINDOW((_window) * USEC_PER_MSEC))
+
+/**
+ * @brief Convert microseconds to connection interval units (1.25 ms)
+ *
+ * Value range of @p _interval is 7500 to 4000000
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_CONN_INTERVAL(21000) will become 20000 microseconds
+ */
+#define BT_GAP_US_TO_CONN_INTERVAL(_interval) ((uint16_t)((_interval) / 1250U))
+
+/**
+ * @brief Convert milliseconds to connection interval units (1.25 ms)
+ *
+ * Value range of @p _interval is 7.5 to 4000
+ *
+ * @note If @p _interval is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_CONN_INTERVAL(21) will become 20 milliseconds
+ */
+#define BT_GAP_MS_TO_CONN_INTERVAL(_interval)                                                      \
+	(BT_GAP_US_TO_CONN_INTERVAL((_interval) * USEC_PER_MSEC))
+
+/**
+ * @brief Convert milliseconds to connection supervision timeout units (10 ms)
+ *
+ * Value range of @p _timeout is 100 to 32000
+ *
+ * @note If @p _timeout is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_CONN_TIMEOUT(4005) will become 4000 milliseconds
+ */
+#define BT_GAP_MS_TO_CONN_TIMEOUT(_timeout) ((uint16_t)((_timeout) / 10U))
+
+/**
+ * @brief Convert microseconds to connection supervision timeout units (10 ms)
+
+ * Value range of @p _timeout is 100000 to 32000000
+ *
+ * @note If @p _timeout is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_CONN_TIMEOUT(4005000) will become 4000000 microseconds
+ */
+#define BT_GAP_US_TO_CONN_TIMEOUT(_timeout) (BT_GAP_MS_TO_CONN_TIMEOUT((_timeout) / USEC_PER_MSEC))
+
+/**
+ * @brief Convert milliseconds to connection event length units (0.625)
+ *
+ * Value range of @p _event_len is 0 to 40959375
+ *
+ * @note If @p _event_len is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_US_TO_CONN_EVENT_LEN(21000) will become 20625 milliseconds
+ */
+#define BT_GAP_US_TO_CONN_EVENT_LEN(_event_len) ((uint16_t)((_event_len) / 625U))
+
+/**
+ * @brief Convert milliseconds to connection event length units (0.625)
+ *
+ * Value range of @p _event_len is 0 to 40959.375
+ *
+ * @note If @p _event_len is not a multiple of the unit, it will round down to nearest.
+ * For example BT_GAP_MS_TO_CONN_EVENT_LEN(21) will become 20.625 milliseconds
+ */
+#define BT_GAP_MS_TO_CONN_EVENT_LEN(_event_len)                                                    \
+	(BT_GAP_US_TO_CONN_EVENT_LEN((_event_len) * USEC_PER_MSEC))
 
 /** Constant Tone Extension (CTE) types */
-enum {
+enum bt_gap_cte {
 	/** Angle of Arrival */
 	BT_GAP_CTE_AOA = 0x00,
 	/** Angle of Departure with 1 us slots */
@@ -845,7 +1068,7 @@ enum {
 };
 
 /** @brief Peripheral sleep clock accuracy (SCA) in ppm (parts per million) */
-enum {
+enum bt_gap_sca {
 	BT_GAP_SCA_UNKNOWN = 0,   /**< Unknown */
 	BT_GAP_SCA_251_500 = 0,   /**< 251 ppm to 500 ppm */
 	BT_GAP_SCA_151_250 = 1,   /**< 151 ppm to 250 ppm */

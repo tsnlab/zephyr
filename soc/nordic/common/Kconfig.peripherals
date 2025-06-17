@@ -118,7 +118,8 @@ config HAS_HW_NRF_MWU
 	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_MWU))
 
 config HAS_HW_NRF_NFCT
-	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_NFCT))
+	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_NFCT)) || \
+		 $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_NFCT_V2))
 
 config HAS_HW_NRF_NVMC_PE
 	def_bool $(dt_nodelabel_bool_prop,flash_controller,partial-erase)
@@ -126,8 +127,14 @@ config HAS_HW_NRF_NVMC_PE
 config HAS_HW_NRF_OSCILLATORS
 	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_OSCILLATORS))
 
-config HAS_HW_NRF_PDM
-	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_PDM))
+config HAS_HW_NRF_PDM0
+	def_bool $(dt_nodelabel_enabled_with_compat,pdm0,$(DT_COMPAT_NORDIC_NRF_PDM))
+
+config HAS_HW_NRF_PDM20
+	def_bool $(dt_nodelabel_enabled_with_compat,pdm20,$(DT_COMPAT_NORDIC_NRF_PDM))
+
+config HAS_HW_NRF_PDM21
+	def_bool $(dt_nodelabel_enabled_with_compat,pdm21,$(DT_COMPAT_NORDIC_NRF_PDM))
 
 config HAS_HW_NRF_POWER
 	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_POWER))
@@ -197,6 +204,9 @@ config HAS_HW_NRF_RADIO_BLE_2M
 
 config HAS_HW_NRF_RADIO_BLE_CODED
 	def_bool $(dt_nodelabel_bool_prop,radio,ble-coded-phy-supported)
+
+config HAS_HW_NRF_RADIO_CS
+	def_bool $(dt_nodelabel_bool_prop,radio,cs-supported)
 
 config HAS_HW_NRF_RADIO_DFE
 	def_bool $(dt_nodelabel_bool_prop,radio,dfe-supported)
@@ -270,6 +280,12 @@ config HAS_HW_NRF_SPIM21
 config HAS_HW_NRF_SPIM22
 	def_bool $(dt_nodelabel_enabled_with_compat,spi22,$(DT_COMPAT_NORDIC_NRF_SPIM))
 
+config HAS_HW_NRF_SPIM23
+	def_bool $(dt_nodelabel_enabled_with_compat,spi23,$(DT_COMPAT_NORDIC_NRF_SPIM))
+
+config HAS_HW_NRF_SPIM24
+	def_bool $(dt_nodelabel_enabled_with_compat,spi24,$(DT_COMPAT_NORDIC_NRF_SPIM))
+
 config HAS_HW_NRF_SPIM30
 	def_bool $(dt_nodelabel_enabled_with_compat,spi30,$(DT_COMPAT_NORDIC_NRF_SPIM))
 
@@ -327,11 +343,17 @@ config HAS_HW_NRF_SPIS21
 config HAS_HW_NRF_SPIS22
 	def_bool $(dt_nodelabel_enabled_with_compat,spi22,$(DT_COMPAT_NORDIC_NRF_SPIS))
 
+config HAS_HW_NRF_SPIS23
+	def_bool $(dt_nodelabel_enabled_with_compat,spi23,$(DT_COMPAT_NORDIC_NRF_SPIS))
+
+config HAS_HW_NRF_SPIS24
+	def_bool $(dt_nodelabel_enabled_with_compat,spi24,$(DT_COMPAT_NORDIC_NRF_SPIS))
+
 config HAS_HW_NRF_SPIS30
 	def_bool $(dt_nodelabel_enabled_with_compat,spi30,$(DT_COMPAT_NORDIC_NRF_SPIS))
 
 config HAS_HW_NRF_SPIS120
-	def_bool $(dt_nodelabel_enabled_with_compat,spi120,$(DT_COMPAT_NORDIC_NRF_SPIS))
+	def_bool $(dt_nodelabel_enabled_with_compat,spis120,$(DT_COMPAT_NORDIC_NRF_SPIS))
 
 config HAS_HW_NRF_SPIS130
 	def_bool $(dt_nodelabel_enabled_with_compat,spi130,$(DT_COMPAT_NORDIC_NRF_SPIS))
@@ -377,6 +399,15 @@ config HAS_HW_NRF_SWI4
 
 config HAS_HW_NRF_SWI5
 	def_bool $(dt_nodelabel_enabled_with_compat,swi5,$(DT_COMPAT_NORDIC_NRF_SWI))
+
+config HAS_HW_NRF_TDM
+	def_bool $(dt_nodelabel_enabled_with_compat,tdm,$(DT_COMPAT_NORDIC_NRF_TDM))
+
+config HAS_HW_NRF_TDM130
+	def_bool $(dt_nodelabel_enabled_with_compat,tdm130,$(DT_COMPAT_NORDIC_NRF_TDM))
+
+config HAS_HW_NRF_TDM131
+	def_bool $(dt_nodelabel_enabled_with_compat,tdm131,$(DT_COMPAT_NORDIC_NRF_TDM))
 
 config HAS_HW_NRF_TEMP
 	def_bool $(dt_compat_enabled,$(DT_COMPAT_NORDIC_NRF_TEMP))
@@ -587,6 +618,12 @@ config HAS_HW_NRF_UARTE21
 
 config HAS_HW_NRF_UARTE22
 	def_bool $(dt_nodelabel_enabled_with_compat,uart22,$(DT_COMPAT_NORDIC_NRF_UARTE))
+
+config HAS_HW_NRF_UARTE23
+	def_bool $(dt_nodelabel_enabled_with_compat,uart23,$(DT_COMPAT_NORDIC_NRF_UARTE))
+
+config HAS_HW_NRF_UARTE24
+	def_bool $(dt_nodelabel_enabled_with_compat,uart24,$(DT_COMPAT_NORDIC_NRF_UARTE))
 
 config HAS_HW_NRF_UARTE30
 	def_bool $(dt_nodelabel_enabled_with_compat,uart30,$(DT_COMPAT_NORDIC_NRF_UARTE))

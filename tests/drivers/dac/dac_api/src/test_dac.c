@@ -13,6 +13,7 @@
 	defined(CONFIG_BOARD_NUCLEO_F207ZG) || \
 	defined(CONFIG_BOARD_STM32F3_DISCO) || \
 	defined(CONFIG_BOARD_NUCLEO_F429ZI) || \
+	defined(CONFIG_BOARD_NUCLEO_F439ZI) || \
 	defined(CONFIG_BOARD_NUCLEO_F746ZG) || \
 	defined(CONFIG_BOARD_NUCLEO_F767ZI) || \
 	defined(CONFIG_BOARD_NUCLEO_F722ZE) || \
@@ -26,7 +27,9 @@
 	defined(CONFIG_BOARD_NUCLEO_L552ZE_Q) || \
 	defined(CONFIG_BOARD_STM32L562E_DK) || \
 	defined(CONFIG_BOARD_STM32H573I_DK) || \
+	defined(CONFIG_BOARD_STM32U083C_DK) || \
 	defined(CONFIG_BOARD_B_U585I_IOT02A) || \
+	defined(CONFIG_BOARD_NUCLEO_U083RC) || \
 	defined(CONFIG_BOARD_NUCLEO_U575ZI_Q) || \
 	defined(CONFIG_BOARD_NUCLEO_U5A5ZJ_Q) || \
 	defined(CONFIG_BOARD_NUCLEO_WL55JC) || \
@@ -46,6 +49,8 @@
 	defined(CONFIG_BOARD_FRDM_K64F) || \
 	defined(CONFIG_BOARD_FRDM_K22F) || \
 	defined(CONFIG_BOARD_FRDM_MCXN947) || \
+	defined(CONFIG_BOARD_MCX_N9XX_EVK) || \
+	defined(CONFIG_BOARD_FRDM_MCXA156) || \
 	defined(CONFIG_BOARD_SEEEDUINO_XIAO) || \
 	defined(CONFIG_BOARD_ARDUINO_MKRZERO) || \
 	defined(CONFIG_BOARD_ARDUINO_ZERO) || \
@@ -66,8 +71,7 @@
 #define DAC_RESOLUTION		12
 #define DAC_CHANNEL_ID		0
 
-#elif defined(CONFIG_BOARD_ESP32_DEVKITC_WROOM) || \
-	defined(CONFIG_BOARD_ESP32_DEVKITC_WROVER) || \
+#elif defined(CONFIG_BOARD_ESP32_DEVKITC) || \
 	defined(CONFIG_BOARD_ESP_WROVER_KIT) || \
 	defined(CONFIG_BOARD_ESP32S2_SAOLA) || \
 	defined(CONFIG_BOARD_ESP32S2_DEVKITC) || \
@@ -82,8 +86,8 @@
 #define DAC_RESOLUTION		12
 #define DAC_CHANNEL_ID		0
 
-#elif defined(CONFIG_BOARD_SAM_E70_XPLAINED) || \
-	defined(CONFIG_BOARD_SAM_V71_XULT)
+#elif defined(CONFIG_SOC_FAMILY_ATMEL_SAM) && \
+	!defined(CONFIG_SOC_SERIES_SAM4L)
 
 #define DAC_DEVICE_NODE		DT_NODELABEL(dacc)
 #define DAC_RESOLUTION		12
@@ -96,14 +100,30 @@
 #define DAC_RESOLUTION		10
 #define DAC_CHANNEL_ID		0
 
+#elif DT_HAS_COMPAT_STATUS_OKAY(renesas_ra_dac)
+
+#define DAC_DEVICE_NODE DT_NODELABEL(dac0)
+#define DAC_RESOLUTION  12
+#define DAC_CHANNEL_ID  0
+
+#elif defined(CONFIG_BOARD_MIMXRT1170_EVK)
+
+#define DAC_DEVICE_NODE		DT_NODELABEL(dac)
+#define DAC_RESOLUTION	12
+#define DAC_CHANNEL_ID	0
+
 #else
 #error "Unsupported board."
 #endif
 
 static const struct dac_channel_cfg dac_ch_cfg = {
-	.channel_id  = DAC_CHANNEL_ID,
-	.resolution  = DAC_RESOLUTION,
-	.buffered = true
+	.channel_id = DAC_CHANNEL_ID,
+	.resolution = DAC_RESOLUTION,
+#if defined(CONFIG_DAC_BUFFER_NOT_SUPPORT)
+	.buffered = false,
+#else
+	.buffered = true,
+#endif /* CONFIG_DAC_BUFFER_NOT_SUPPORT */
 };
 
 const struct device *get_dac_device(void)

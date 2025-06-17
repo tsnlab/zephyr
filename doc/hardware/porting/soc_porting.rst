@@ -18,7 +18,7 @@ For SoC porting, the most important terms are:
 - SoC: the exact system on a chip the board's CPU is part of.
 - SoC series: a group of tightly related SoCs.
 - SoC family: a wider group of SoCs with similar characteristics.
-- CPU Cluster: a cluster of one or more CPU cores.
+- CPU cluster: a cluster of one or more CPU cores.
 - CPU core: a particular CPU instance of a given architecture.
 - Architecture: an instruction set architecture.
 
@@ -75,6 +75,7 @@ The mandatory files are:
 
 #. :file:`soc.yml`: a YAML file describing the high-level meta data of the
    SoC such as:
+
    - SoC name: the name of the SoC
    - CPU clusters: CPU clusters if the SoC contains one or more clusters
    - SoC series: the SoC series to which the SoC belong
@@ -132,7 +133,7 @@ Multiple SoCs and SoC series in a common folder can be described in the
        - name: <series-1-name>
          socs:
            - name: <soc1>
-             cpucluster:
+             cpuclusters:
                - name: <coreA>
                - name: <coreB>
                  ...

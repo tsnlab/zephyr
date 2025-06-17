@@ -1,6 +1,16 @@
 /* att_internal.h - Attribute protocol handling */
 
+#include <stdint.h>
+#include <stddef.h>
+
+#include <zephyr/bluetooth/att.h>
+#include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/l2cap.h>
+#include <zephyr/kernel.h>
+#include <zephyr/net_buf.h>
+#include <zephyr/sys/slist.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys_clock.h>
 
 /*
  * Copyright (c) 2015-2016 Intel Corporation
@@ -10,7 +20,8 @@
 
 #define BT_EATT_PSM		0x27
 #define BT_ATT_DEFAULT_LE_MTU	23
-#define BT_ATT_TIMEOUT		K_SECONDS(30)
+#define BT_ATT_TIMEOUT_SEC	30
+#define BT_ATT_TIMEOUT		K_SECONDS(BT_ATT_TIMEOUT_SEC)
 
 /* Local ATT Rx MTU
  *

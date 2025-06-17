@@ -1,7 +1,4 @@
-.. _mpfs_icicle:
-
-Microchip mpfs_icicle
-#####################
+.. zephyr:board:: mpfs_icicle
 
 Overview
 ********
@@ -12,6 +9,8 @@ More information can be found on the `Microchip website <https://www.microchip.c
 
 Programming and debugging
 *************************
+
+.. zephyr:board-supported-runners::
 
 Building
 ========

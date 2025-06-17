@@ -8,10 +8,12 @@
 #ifndef SUBSYS_BLUETOOTH_HOST_SCAN_H_
 #define SUBSYS_BLUETOOTH_HOST_SCAN_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
-#include <zephyr/sys/atomic.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/sys/atomic.h>
 
 /**
  * Reasons why a scanner can be running.
@@ -121,4 +123,14 @@ int bt_le_scan_user_remove(enum bt_le_scan_user flag);
  * Check if the explicit scanner was enabled.
  */
 bool bt_le_explicit_scanner_running(void);
+
+/**
+ * Check if an explicit scanner uses the same parameters
+ *
+ * @param create_param Parameters used for connection establishment.
+ *
+ * @return true If explicit scanner uses the same parameters
+ * @return false If explicit scanner uses different parameters
+ */
+bool bt_le_explicit_scanner_uses_same_params(const struct bt_conn_le_create_param *create_param);
 #endif /* defined SUBSYS_BLUETOOTH_HOST_SCAN_H_ */

@@ -23,12 +23,19 @@
 #endif
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(openamp_rsc_table, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(openamp_rsc_table);
 
 #define SHM_DEVICE_NAME	"shm"
 
 #if !DT_HAS_CHOSEN(zephyr_ipc_shm)
 #error "Sample requires definition of shared memory for rpmsg"
+#endif
+
+#if CONFIG_IPM_MAX_DATA_SIZE > 0
+
+#define	IPM_SEND(dev, w, id, d, s) ipm_send(dev, w, id, d, s)
+#else
+#define IPM_SEND(dev, w, id, d, s) ipm_send(dev, w, id, NULL, 0)
 #endif
 
 /* Constants derived from device tree */
@@ -133,7 +140,7 @@ int mailbox_notify(void *priv, uint32_t id)
 	ARG_UNUSED(priv);
 
 	LOG_DBG("%s: msg received", __func__);
-	ipm_send(ipm_handle, 0, id, NULL, 0);
+	IPM_SEND(ipm_handle, 0, id, &id, 4);
 
 	return 0;
 }
@@ -299,7 +306,7 @@ void app_rpmsg_tty(void *arg1, void *arg2, void *arg3)
 		k_sem_take(&data_tty_sem,  K_FOREVER);
 		if (tty_msg.len) {
 			LOG_INF("[Linux TTY] incoming msg: %.*s",
-				tty_msg.len, (char *)tty_msg.data);
+				(int)tty_msg.len, (char *)tty_msg.data);
 			snprintf(tx_buff, 13, "TTY 0x%04x: ", tty_ept.addr);
 			memcpy(&tx_buff[12], tty_msg.data, tty_msg.len);
 			rpmsg_send(&tty_ept, tx_buff, tty_msg.len + 12);

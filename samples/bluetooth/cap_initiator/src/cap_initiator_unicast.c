@@ -20,6 +20,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/bluetooth/iso.h>
 #include <zephyr/bluetooth/uuid.h>
@@ -27,7 +28,7 @@
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_core.h>
-#include <zephyr/net/buf.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
@@ -91,7 +92,7 @@ static bool is_tx_stream(struct bt_bap_stream *stream)
 }
 
 static void unicast_stream_configured_cb(struct bt_bap_stream *stream,
-					 const struct bt_audio_codec_qos_pref *pref)
+					 const struct bt_bap_qos_cfg_pref *pref)
 {
 	LOG_INF("Configured stream %p", stream);
 
@@ -598,7 +599,8 @@ static bool check_audio_support_and_connect_cb(struct bt_data *data, void *user_
 		return false;
 	}
 
-	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN, BT_LE_CONN_PARAM_DEFAULT, &peer.conn);
+	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN, BT_BAP_CONN_PARAM_RELAXED,
+				&peer.conn);
 	if (err != 0) {
 		LOG_WRN("Create conn to failed: %d, restarting scan", err);
 		start_scan();

@@ -3,6 +3,7 @@
 / {
 	chosen {
 		zephyr,display = &st7796s_lcdic;
+		zephyr,touch = &ft7401;
 	};
 
 	lvgl_pointer {
@@ -16,6 +17,8 @@
 &lcdic {
 	status = "okay";
 	nxp,swap-bytes;
+	/* Raise the timer0 ratio to enable longer reset delay */
+	nxp,timer0-ratio = <15>;
 	/*
 	 * Settings to connect this display:
 	 * Populate the following resistors:
@@ -86,6 +89,6 @@
 		compatible = "focaltech,ft5336";
 		reg = <0x38>;
 		reset-gpios = <&hsgpio0 15 GPIO_ACTIVE_LOW>;
-		int-gpios = <&hsgpio0 11 GPIO_ACTIVE_HIGH>;
+		int-gpios = <&hsgpio0 11 GPIO_ACTIVE_LOW>;
 	};
 };

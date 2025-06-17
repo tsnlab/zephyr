@@ -693,7 +693,7 @@ static void test_disconnect(void)
 {
 	int ret;
 
-	ret = mqtt_disconnect(&client_ctx);
+	ret = mqtt_disconnect(&client_ctx, NULL);
 	zassert_ok(ret, "MQTT client failed to disconnect (%d)", ret);
 	broker_process(MQTT_PKT_TYPE_DISCONNECT);
 
@@ -704,6 +704,23 @@ static void test_disconnect(void)
 
 ZTEST(mqtt_client, test_mqtt_connect)
 {
+	test_connect();
+	zassert_true(test_ctx.connected, "MQTT client should be connected");
+	test_disconnect();
+	zassert_false(test_ctx.connected, "MQTT client should be disconnected");
+}
+
+ZTEST(mqtt_client, test_mqtt_connect_with_binding)
+{
+	char name_buf[IFNAMSIZ] = { 0 };
+	int ret = net_if_get_name(net_if_get_first_by_type(&NET_L2_GET_NAME(DUMMY)),
+				  name_buf, sizeof(name_buf));
+
+
+	zassert_true(ret > 0, "Failed to get loopback interface name");
+
+	client_ctx.transport.if_name = name_buf;
+
 	test_connect();
 	zassert_true(test_ctx.connected, "MQTT client should be connected");
 	test_disconnect();

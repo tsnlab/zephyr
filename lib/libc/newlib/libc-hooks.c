@@ -23,10 +23,14 @@
 #include <zephyr/kernel/mm.h>
 #include <sys/time.h>
 
+#ifdef CONFIG_XTENSA
+#include <xtensa/config/core-isa.h>
+#endif
+
 int _fstat(int fd, struct stat *st);
 int _read(int fd, void *buf, int nbytes);
 int _write(int fd, const void *buf, int nbytes);
-int _open(const char *name, int mode);
+int _open(const char *name, int flags, ...);
 int _close(int file);
 int _lseek(int file, int ptr, int dir);
 int _kill(int pid, int sig);
@@ -88,6 +92,9 @@ int _getpid(void);
 		#elif defined(CONFIG_ARC)
 			#define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, \
 							  Z_ARC_MPU_ALIGN)
+		#elif defined(CONFIG_XTENSA)
+			#define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, \
+							  XCHAL_MPU_ALIGN)
 		#else
 			#error "Unsupported platform"
 		#endif /* CONFIG_<arch> */
@@ -239,7 +246,7 @@ int _write(int fd, const void *buf, int nbytes)
 }
 __weak FUNC_ALIAS(_write, write, int);
 
-int _open(const char *name, int mode)
+int _open(const char *name, int flags, ...)
 {
 	return -1;
 }
@@ -518,7 +525,7 @@ int _open_r(struct _reent *r, const char *name, int flags, int mode)
 	ARG_UNUSED(r);
 	ARG_UNUSED(flags);
 
-	return _open(name, mode);
+	return _open(name, flags, mode);
 }
 
 int _close_r(struct _reent *r, int file)

@@ -247,9 +247,8 @@ uint8_t ll_scan_enable(uint8_t enable)
 	lll->rl_idx = FILTER_IDX_NONE;
 	lll->rpa_gen = 0;
 
-	if ((lll->type & 0x1) &&
-	    (own_addr_type == BT_ADDR_LE_PUBLIC_ID ||
-	     own_addr_type == BT_ADDR_LE_RANDOM_ID)) {
+	if ((lll->type & 0x1) && (own_addr_type == BT_HCI_OWN_ADDR_RPA_OR_PUBLIC ||
+				  own_addr_type == BT_HCI_OWN_ADDR_RPA_OR_RANDOM)) {
 		/* Generate RPAs if required */
 		ull_filter_rpa_update(false);
 		lll->rpa_gen = 1;
@@ -412,16 +411,8 @@ uint8_t ull_scan_enable(struct ll_scan_set *scan)
 	ticks_interval = HAL_TICKER_US_TO_TICKS((uint64_t)lll->interval *
 						SCAN_INT_UNIT_US);
 
-	/* TODO: active_to_start feature port */
-	scan->ull.ticks_active_to_start = 0U;
-	scan->ull.ticks_prepare_to_start =
-		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_XTAL_US);
-	scan->ull.ticks_preempt_to_start =
-		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_PREEMPT_MIN_US);
-
 	if (IS_ENABLED(CONFIG_BT_CTLR_LOW_LAT)) {
-		ticks_slot_overhead = MAX(scan->ull.ticks_active_to_start,
-					  scan->ull.ticks_prepare_to_start);
+		ticks_slot_overhead = HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_XTAL_US);
 	} else {
 		ticks_slot_overhead = 0U;
 	}
@@ -611,6 +602,9 @@ uint8_t ull_scan_enable(struct ll_scan_set *scan)
 	ret_cb = TICKER_STATUS_BUSY;
 
 #if defined(CONFIG_BT_TICKER_EXT)
+#if defined(CONFIG_BT_TICKER_EXT_EXPIRE_INFO)
+	ll_scan_ticker_ext[handle].expire_info_id = TICKER_NULL;
+#endif /* CONFIG_BT_TICKER_EXT_EXPIRE_INFO */
 	ret = ticker_start_ext(
 #else
 	ret = ticker_start(
@@ -666,6 +660,13 @@ uint8_t ull_scan_disable(uint8_t handle, struct ll_scan_set *scan)
 	}
 
 #if defined(CONFIG_BT_CTLR_ADV_EXT)
+#if defined(CONFIG_BT_CTLR_SCAN_AUX_USE_CHAINS)
+	/* Stop associated auxiliary scan contexts */
+	err = ull_scan_aux_stop(&scan->lll);
+	if (err && (err != -EALREADY)) {
+		return BT_HCI_ERR_CMD_DISALLOWED;
+	}
+#else /* !CONFIG_BT_CTLR_SCAN_AUX_USE_CHAINS */
 	/* Find and stop associated auxiliary scan contexts */
 	for (uint8_t aux_handle = 0; aux_handle < CONFIG_BT_CTLR_SCAN_AUX_SET;
 	     aux_handle++) {
@@ -698,6 +699,7 @@ uint8_t ull_scan_disable(uint8_t handle, struct ll_scan_set *scan)
 			LL_ASSERT(!parent || (parent != aux_scan_lll));
 		}
 	}
+#endif /* !CONFIG_BT_CTLR_SCAN_AUX_USE_CHAINS */
 #endif /* CONFIG_BT_CTLR_ADV_EXT */
 
 	return 0;

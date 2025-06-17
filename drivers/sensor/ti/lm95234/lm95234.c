@@ -135,14 +135,7 @@ static int lm95234_sample_fetch(const struct device *dev,
 {
 	struct lm95234_data *data = dev->data;
 	const struct lm95234_config *cfg = dev->config;
-	enum pm_device_state pm_state;
 	int ret;
-
-	(void)pm_device_state_get(dev, &pm_state);
-	if (pm_state != PM_DEVICE_STATE_ACTIVE) {
-		ret = -EIO;
-		return ret;
-	}
 
 	switch ((uint32_t)chan) {
 	case SENSOR_CHAN_ALL:
@@ -204,7 +197,7 @@ static int lm95234_channel_get(const struct device *dev,
 	return 0;
 }
 
-static const struct sensor_driver_api lm95234_driver_api = {
+static DEVICE_API(sensor, lm95234_driver_api) = {
 	.sample_fetch = lm95234_sample_fetch,
 	.channel_get = lm95234_channel_get,
 };

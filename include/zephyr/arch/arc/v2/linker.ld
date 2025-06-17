@@ -142,13 +142,6 @@ SECTIONS {
 #include <snippets-rodata.ld>
 #include <zephyr/linker/kobject-rom.ld>
 
-#if defined(CONFIG_CPP) && !defined(CONFIG_STATIC_INIT_GNU) && defined(__MWDT_LINKER_CMD__)
-		. = ALIGN(4);
-		_fctors = .;
-		KEEP(*(.ctors*))
-		_ectors = .;
-#endif /* CONFIG_CPP && !CONFIG_STATIC_INIT_GNU && __MWDT_LINKER_CMD__ */
-
 /* This extra MPU alignment of RAMABLE_REGION is only required if we put ROMABLE_REGION and
  * RAMABLE_REGION into the same (continuous) memory - otherwise we can get beginning of the
  * RAMABLE_REGION in the end of ROMABLE_REGION MPU aperture.
@@ -291,9 +284,15 @@ SECTIONS {
 
 #include <zephyr/linker/ram-end.ld>
 
-    GROUP_END(RAMABLE_REGION)
+	GROUP_END(RAMABLE_REGION)
 
 #include <zephyr/linker/debug-sections.ld>
+
+	SECTION_PROLOGUE(.arcextmap, 0,) {
+		*(.arcextmap)
+		*(.arcextmap.*)
+		*(.gnu.linkonce.arcextmap.*)
+	}
 
 	SECTION_PROLOGUE(.ARC.attributes, 0,) {
 		KEEP(*(.ARC.attributes))
@@ -311,11 +310,9 @@ SECTIONS {
 #endif
 
 	/DISCARD/ : {
-#if defined(CONFIG_CPP) && !defined(CONFIG_STATIC_INIT_GNU) && defined(__MWDT_LINKER_CMD__)
+		/* Discard all destructors */
 		*(.dtors*)
 		*(.fini*)
-		*(.eh_frame*)
-#endif /* CONFIG_CPP && !CONFIG_STATIC_INIT_GNU && __MWDT_LINKER_CMD__ */
 		*(.note.GNU-stack)
 		*(.got.plt)
 		*(.igot.plt)

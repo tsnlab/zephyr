@@ -215,7 +215,7 @@ static int flash_mspi_emul_write(const struct device *flash, off_t offset,
 	data->xfer.cmd_length          = data->dev_cfg.cmd_length;
 	data->xfer.addr_length         = data->dev_cfg.addr_length;
 	data->xfer.hold_ce             = false;
-	data->xfer.priority            = 1;
+	data->xfer.priority            = MSPI_XFER_PRIORITY_MEDIUM;
 	data->xfer.packets             = &data->packet;
 	data->xfer.num_packet          = 1;
 	data->xfer.timeout             = CONFIG_MSPI_COMPLETION_TIMEOUT_TOLERANCE;
@@ -288,7 +288,7 @@ static int flash_mspi_emul_read(const struct device *flash, off_t offset,
 	data->xfer.cmd_length          = data->dev_cfg.cmd_length;
 	data->xfer.addr_length         = data->dev_cfg.addr_length;
 	data->xfer.hold_ce             = false;
-	data->xfer.priority            = 1;
+	data->xfer.priority            = MSPI_XFER_PRIORITY_MEDIUM;
 	data->xfer.packets             = &data->packet;
 	data->xfer.num_packet          = 1;
 	data->xfer.timeout             = CONFIG_MSPI_COMPLETION_TIMEOUT_TOLERANCE;
@@ -339,7 +339,7 @@ static void flash_mspi_emul_pages_layout(const struct device *flash,
 }
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
-static const struct flash_driver_api flash_mspi_emul_device_api = {
+static DEVICE_API(flash, flash_mspi_emul_device_api) = {
 	.erase = flash_mspi_emul_erase,
 	.write = flash_mspi_emul_write,
 	.read = flash_mspi_emul_read,

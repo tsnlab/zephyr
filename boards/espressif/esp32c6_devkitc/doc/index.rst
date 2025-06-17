@@ -1,9 +1,13 @@
-.. _esp32c6_devkitc:
-
-ESP32-C6-DevKitC-1
-##################
+.. zephyr:board:: esp32c6_devkitc
 
 Overview
+********
+
+ESP32-C6-DevKitC is an entry-level development board based on ESP32-C6-WROOM-1(U),
+a general-purpose module with a 8 MB SPI flash. This board integrates complete Wi-Fi,
+Bluetooth LE, Zigbee, and Thread functions. For more information, check `ESP32-C6-DevKitC`_.
+
+Hardware
 ********
 
 ESP32-C6 is Espressif's first Wi-Fi 6 SoC integrating 2.4 GHz Wi-Fi 6, Bluetooth 5.3 (LE) and the
@@ -11,14 +15,14 @@ ESP32-C6 is Espressif's first Wi-Fi 6 SoC integrating 2.4 GHz Wi-Fi 6, Bluetooth
 features and multiple memory resources for IoT products.
 It consists of a high-performance (HP) 32-bit RISC-V processor, which can be clocked up to 160 MHz,
 and a low-power (LP) 32-bit RISC-V processor, which can be clocked up to 20 MHz.
-It has a 320KB ROM, a 512KB SRAM, and works with external flash. [1]_
+It has a 320KB ROM, a 512KB SRAM, and works with external flash.
 
-ESP32-C6-DevKitC-1 is an entry-level development board based on ESP32-C6-WROOM-1(U),
+ESP32-C6-DevKitC is an entry-level development board based on ESP32-C6-WROOM-1(U),
 a general-purpose module with a 8 MB SPI flash.
 
 Most of the I/O pins are broken out to the pin headers on both sides for easy interfacing.
-Developers can either connect peripherals with jumper wires or mount ESP32-C6-DevKitC-1 on
-a breadboard. [2]_
+Developers can either connect peripherals with jumper wires or mount ESP32-C6-DevKitC on
+a breadboard.
 
 ESP32-C6 includes the following features:
 
@@ -74,38 +78,13 @@ Security:
 - Cryptographic hardware acceleration: (AES-128/256, ECC, HMAC, RSA, SHA, Digital signature, Hash)
 - Random number generator (RNG)
 
-For more information, check the datasheet at `ESP32C6 Datasheet`_
+For more information, check the datasheet at `ESP32-C6 Datasheet`_ or the technical reference
+manual at `ESP32-C6 Technical Reference Manual`_.
 
 Supported Features
 ==================
 
-Current Zephyr's ESP32-C6-DevKitC board supports the following features:
-
-+------------+------------+-------------------------------------+
-| Interface  | Controller | Driver/Component                    |
-+============+============+=====================================+
-| UART       | on-chip    | serial port                         |
-+------------+------------+-------------------------------------+
-| GPIO       | on-chip    | gpio                                |
-+------------+------------+-------------------------------------+
-| PINMUX     | on-chip    | pinmux                              |
-+------------+------------+-------------------------------------+
-| USB-JTAG   | on-chip    | hardware interface                  |
-+------------+------------+-------------------------------------+
-| SPI Master | on-chip    | spi                                 |
-+------------+------------+-------------------------------------+
-| Watchdog   | on-chip    | watchdog                            |
-+------------+------------+-------------------------------------+
-| LEDC       | on-chip    | pwm                                 |
-+------------+------------+-------------------------------------+
-| SPI DMA    | on-chip    | spi                                 |
-+------------+------------+-------------------------------------+
-| GDMA       | on-chip    | dma                                 |
-+------------+------------+-------------------------------------+
-| TRNG       | on-chip    | entropy                             |
-+------------+------------+-------------------------------------+
-| USB-CDC    | on-chip    | serial                              |
-+------------+------------+-------------------------------------+
+.. zephyr:board-supported-hw::
 
 System requirements
 *******************
@@ -127,6 +106,8 @@ below to retrieve those files.
 Building & Flashing
 *******************
 
+.. zephyr:board-supported-runners::
+
 Simple boot
 ===========
 
@@ -141,7 +122,7 @@ MCUboot bootloader
 ==================
 
 User may choose to use MCUboot bootloader instead. In that case the bootloader
-must be build (and flash) at least once.
+must be built (and flashed) at least once.
 
 There are two options to be used when building an application:
 
@@ -167,8 +148,8 @@ To build the sample application using sysbuild use the command:
 
 .. zephyr-app-commands::
    :tool: west
-   :app: samples/hello_world
-   :board: esp32c6_devkitc
+   :zephyr-app: samples/hello_world
+   :board: esp32c6_devkitc/esp32c6/hpcore
    :goals: build
    :west-args: --sysbuild
    :compact:
@@ -203,7 +184,7 @@ Manual build
 ============
 
 During the development cycle, it is intended to build & flash as quickly possible.
-For that reason, images can be build one at a time using traditional build.
+For that reason, images can be built one at a time using traditional build.
 
 The instructions following are relevant for both manual build and sysbuild.
 The only difference is the structure of the build directory.
@@ -217,16 +198,16 @@ Build and flash applications as usual (see :ref:`build_an_application` and
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32c6_devkitc
+   :board: esp32c6_devkitc/esp32c6/hpcore
    :goals: build
 
 The usual ``flash`` target will work with the ``esp32c6_devkitc`` board
-configuration. Here is an example for the :ref:`hello_world`
+configuration. Here is an example for the :zephyr:code-sample:`hello_world`
 application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32c6_devkitc
+   :board: esp32c6_devkitc/esp32c6/hpcore
    :goals: flash
 
 Open the serial monitor using the following command:
@@ -241,41 +222,64 @@ message in the monitor:
 .. code-block:: console
 
    ***** Booting Zephyr OS vx.x.x-xxx-gxxxxxxxxxxxx *****
-   Hello World! esp32c6_devkitc
+   Hello World! esp32c6_devkitc/esp32c6/hpcore
 
 Debugging
 *********
 
 As with much custom hardware, the ESP32-C6 modules require patches to
 OpenOCD that are not upstreamed yet. Espressif maintains their own fork of
-the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_
+the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_.
 
 The Zephyr SDK uses a bundled version of OpenOCD by default. You can overwrite that behavior by adding the
 ``-DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>``
 parameter when building.
 
-Here is an example for building the :ref:`hello_world` application.
+Here is an example for building the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32c6_devkitc
+   :board: esp32c6_devkitc/esp32c6/hpcore
    :goals: build flash
    :gen-args: -DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>
 
-You can debug an application in the usual way. Here is an example for the :ref:`hello_world` application.
+You can debug an application in the usual way. Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: esp32c6_devkitc
+   :board: esp32c6_devkitc/esp32c6/hpcore
    :goals: debug
 
-.. _`OpenOCD ESP32`: https://github.com/espressif/openocd-esp32/releases
+Low-Power CPU (LP CORE)
+***********************
+
+The ESP32-C6 SoC has two RISC-V cores: the High-Performance Core (HP CORE) and the Low-Power Core (LP CORE).
+The LP Core features ultra low power consumption, an interrupt controller, a debug module and a system bus
+interface for memory and peripheral access.
+
+The LP Core is in sleep mode by default. It has two application scenarios:
+
+- Power insensitive scenario: When the High-Performance CPU (HP Core) is active, the LP Core can assist the HP CPU with some speed and efficiency-insensitive controls and computations.
+- Power sensitive scenario: When the HP CPU is in the power-down state to save power, the LP Core can be woken up to handle some external wake-up events.
+
+For more information, check the datasheet at `ESP32-C6 Datasheet`_ or the technical reference
+manual at `ESP32-C6 Technical Reference Manual`_.
+
+The LP Core support is fully integrated with :ref:`sysbuild`. The user can enable the LP Core by adding
+the following configuration to the project:
+
+.. code:: cfg
+
+   CONFIG_ULP_COPROC_ENABLED=y
+
+See :zephyr:code-sample-category:`lp-core` folder as code reference.
 
 References
 **********
 
-.. [1] https://www.espressif.com/en/products/socs/esp32-c6
-.. [2] https://docs.espressif.com/projects/espressif-esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/user_guide.html
-.. _ESP32C6 Devkitm User Guide: https://docs.espressif.com/projects/espressif-esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/user_guide.html
-.. _ESP32C6 Technical Reference Manual: https://espressif.com/sites/default/files/documentation/esp32-c6_technical_reference_manual_en.pdf
-.. _ESP32C6 Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32-c6_datasheet_en.pdf
+.. target-notes::
+
+.. _`ESP32-C6-DevKitC`: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/user_guide.html
+.. _`ESP32-C6 Datasheet`: https://www.espressif.com/sites/default/files/documentation/esp32-c6_datasheet_en.pdf
+.. _`ESP32-C6 Technical Reference Manual`: https://espressif.com/sites/default/files/documentation/esp32-c6_technical_reference_manual_en.pdf
+.. _`OpenOCD ESP32`: https://github.com/espressif/openocd-esp32/releases

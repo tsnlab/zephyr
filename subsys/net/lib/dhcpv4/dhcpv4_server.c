@@ -516,6 +516,10 @@ static uint8_t *dhcpv4_encode_requested_params(
 			break;
 
 		case DHCPV4_OPTIONS_ROUTER:
+			if (!IS_ENABLED(CONFIG_NET_DHCPV4_SERVER_OPTION_ROUTER)) {
+				break;
+			}
+
 			buf = dhcpv4_encode_router_option(
 				buf, buflen, &ctx->iface->config.ip.ipv4->gw);
 			if (buf == NULL) {
@@ -524,6 +528,10 @@ static uint8_t *dhcpv4_encode_requested_params(
 			break;
 
 		case DHCPV4_OPTIONS_DNS_SERVER:
+			if (strlen(CONFIG_NET_DHCPV4_SERVER_OPTION_DNS_ADDRESS) == 0) {
+				break;
+			}
+
 			buf = dhcpv4_encode_dns_server_option(buf, buflen);
 			if (buf == NULL) {
 				goto out;
@@ -1489,10 +1497,8 @@ static void dhcpv4_process_data(struct dhcpv4_server_ctx *ctx, uint8_t *data,
 	k_mutex_unlock(&server_lock);
 }
 
-static void dhcpv4_server_cb(struct k_work *work)
+static void dhcpv4_server_cb(struct net_socket_service_event *evt)
 {
-	struct net_socket_service_event *evt =
-		CONTAINER_OF(work, struct net_socket_service_event, work);
 	struct dhcpv4_server_ctx *ctx = NULL;
 	uint8_t recv_buf[NET_IPV4_MTU];
 	int ret;
@@ -1534,7 +1540,7 @@ static void dhcpv4_server_cb(struct k_work *work)
 	dhcpv4_process_data(ctx, recv_buf, ret);
 }
 
-NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(dhcpv4_server, NULL, dhcpv4_server_cb,
+NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(dhcpv4_server, dhcpv4_server_cb,
 				      CONFIG_NET_DHCPV4_SERVER_INSTANCES);
 
 int net_dhcpv4_server_start(struct net_if *iface, struct in_addr *base_addr)

@@ -6,7 +6,7 @@
 #ifndef ZEPHYR_INCLUDE_POSIX_UNISTD_H_
 #define ZEPHYR_INCLUDE_POSIX_UNISTD_H_
 
-#include "posix_types.h"
+#include <zephyr/posix/posix_types.h>
 
 #ifdef CONFIG_POSIX_API
 #include <zephyr/fs/fs.h>
@@ -76,6 +76,10 @@ size_t confstr(int name, char *buf, size_t len);
 #else
 long sysconf(int opt);
 #endif /* CONFIG_POSIX_SYSCONF_IMPL_FULL */
+
+#if _XOPEN_SOURCE >= 500
+long gethostid(void);
+#endif
 
 #ifdef __cplusplus
 }

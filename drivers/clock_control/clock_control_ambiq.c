@@ -11,7 +11,7 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control/clock_control_ambiq.h>
-#include <am_mcu_apollo.h>
+#include <soc.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control_ambiq, CONFIG_CLOCK_CONTROL_LOG_LEVEL);
@@ -119,7 +119,7 @@ static int ambiq_clock_init(const struct device *dev)
 	return 0;
 }
 
-static const struct clock_control_driver_api ambiq_clock_driver_api = {
+static DEVICE_API(clock_control, ambiq_clock_driver_api) = {
 	.on = ambiq_clock_on,
 	.off = ambiq_clock_off,
 	.get_rate = ambiq_clock_get_rate,

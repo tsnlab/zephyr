@@ -31,6 +31,7 @@ LOG_MODULE_REGISTER(lp5569, CONFIG_LED_LOG_LEVEL);
 
 #define LP5569_MISC          0x2F
 #define LP5569_POWERSAVE_EN  BIT(5)
+#define LP5569_EN_AUTO_INCR  BIT(6)
 #define LP5569_CP_MODE_SHIFT 3
 
 /* PWM base Register for controlling the duty-cycle */
@@ -48,12 +49,12 @@ static int lp5569_led_set_brightness(const struct device *dev, uint32_t led, uin
 	uint8_t val;
 	int ret;
 
-	if (led >= LP5569_NUM_LEDS || brightness > 100) {
+	if (led >= LP5569_NUM_LEDS) {
 		return -EINVAL;
 	}
 
 	/* Map 0-100 % to 0-255 pwm register value */
-	val = brightness * 255 / 100;
+	val = brightness * 255 / LED_BRIGHTNESS_MAX;
 
 	ret = i2c_reg_write_byte_dt(&config->bus, LP5569_LED0_PWM + led, val);
 	if (ret < 0) {
@@ -64,16 +65,21 @@ static int lp5569_led_set_brightness(const struct device *dev, uint32_t led, uin
 	return 0;
 }
 
-static inline int lp5569_led_on(const struct device *dev, uint32_t led)
+static int lp5569_write_channels(const struct device *dev, uint32_t start_channel,
+				 uint32_t num_channels, const uint8_t *buf)
 {
-	/* Set LED brightness to 100 % */
-	return lp5569_led_set_brightness(dev, led, 100);
-}
+	const struct lp5569_config *config = dev->config;
+	uint32_t i2c_len = num_channels + 1;
+	uint8_t i2c_msg[LP5569_NUM_LEDS + 1];
 
-static inline int lp5569_led_off(const struct device *dev, uint32_t led)
-{
-	/* Set LED brightness to 0 % */
-	return lp5569_led_set_brightness(dev, led, 0);
+	if ((uint64_t)start_channel + num_channels > LP5569_NUM_LEDS) {
+		return -EINVAL;
+	}
+
+	i2c_msg[0] = LP5569_LED0_PWM + start_channel;
+	memcpy(&i2c_msg[1], buf, num_channels);
+
+	return i2c_write_dt(&config->bus, i2c_msg, i2c_len);
 }
 
 static int lp5569_enable(const struct device *dev)
@@ -110,7 +116,7 @@ static int lp5569_enable(const struct device *dev)
 	}
 
 	ret = i2c_reg_write_byte_dt(&config->bus, LP5569_MISC,
-				    LP5569_POWERSAVE_EN |
+				    LP5569_POWERSAVE_EN | LP5569_EN_AUTO_INCR |
 					    (config->cp_mode << LP5569_CP_MODE_SHIFT));
 	if (ret < 0) {
 		LOG_ERR("LED reg update failed");
@@ -165,10 +171,9 @@ static int lp5569_pm_action(const struct device *dev, enum pm_device_action acti
 }
 #endif /* CONFIG_PM_DEVICE */
 
-static const struct led_driver_api lp5569_led_api = {
+static DEVICE_API(led, lp5569_led_api) = {
 	.set_brightness = lp5569_led_set_brightness,
-	.on = lp5569_led_on,
-	.off = lp5569_led_off,
+	.write_channels = lp5569_write_channels,
 };
 
 #define LP5569_DEFINE(id)                                                                          \

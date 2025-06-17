@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /** @defgroup thread_analyzer Thread analyzer
- *  @ingroup os_services
+ *  @ingroup debug
  *  @brief Module for analyzing threads
  *
  *  This module implements functions and the configuration that simplifies
@@ -38,6 +38,14 @@ struct thread_analyzer_info {
 #ifdef CONFIG_SCHED_THREAD_USAGE
 	k_thread_runtime_stats_t  usage;
 #endif
+#endif
+
+#ifdef CONFIG_THREAD_ANALYZER_PRIV_STACK_USAGE
+	/** Total size of privileged stack */
+	size_t priv_stack_size;
+
+	/** Privileged stack size in used */
+	size_t priv_stack_used;
 #endif
 };
 

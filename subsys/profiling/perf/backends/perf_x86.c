@@ -6,6 +6,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/linker/linker-defs.h>
 
 static bool valid_stack(uintptr_t addr, k_tid_t current)
 {
@@ -15,9 +16,7 @@ static bool valid_stack(uintptr_t addr, k_tid_t current)
 
 static inline bool in_text_region(uintptr_t addr)
 {
-	extern uintptr_t __text_region_start, __text_region_end;
-
-	return (addr >= (uintptr_t)&__text_region_start) && (addr < (uintptr_t)&__text_region_end);
+	return (addr >= (uintptr_t)__text_region_start) && (addr < (uintptr_t)__text_region_end);
 }
 
 /* interruption stack frame */
@@ -36,8 +35,9 @@ struct isf {
  */
 size_t arch_perf_current_stack_trace(uintptr_t *buf, size_t size)
 {
-	if (size < 1U)
+	if (size < 1U) {
 		return 0;
+	}
 
 	size_t idx = 0;
 
@@ -67,8 +67,9 @@ size_t arch_perf_current_stack_trace(uintptr_t *buf, size_t size)
 
 	buf[idx++] = (uintptr_t)isf->eip;
 	while (valid_stack((uintptr_t)fp, _current)) {
-		if (idx >= size)
+		if (idx >= size) {
 			return 0;
+		}
 
 		if (!in_text_region((uintptr_t)fp[1])) {
 			break;

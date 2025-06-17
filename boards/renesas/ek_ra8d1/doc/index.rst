@@ -1,7 +1,4 @@
-.. _ek_ra8d1:
-
-RA8D1 Evaluation Kit
-####################
+.. zephyr:board:: ek_ra8d1
 
 Overview
 ********
@@ -20,7 +17,7 @@ The key features of the EK-RA8D1 board are categorized in three groups as follow
 - MCU current measurement points for precision current consumption measurement
 - Multiple clock sources - RA8D1 MCU oscillator and sub-clock oscillator crystals,
   providing precision 20.000MHz and 32,768 Hz refeence clocks.
-  Additional low precision clocks are avaialbe internal to the RA8D1 MCU
+  Additional low precision clocks are available internal to the RA8D1 MCU
 
 **System Control and Ecosystem Access**
 
@@ -61,48 +58,67 @@ The key features of the EK-RA8D1 board are categorized in three groups as follow
 - 512 Mb (64 MB) External Octo-SPI Flash (present in the MCU Native Pin Access area of the EK-RA8D1 board)
 - CAN FD (3-pin header)
 
-.. figure:: ek-ra8d1-board.jpg
-	:align: center
-	:alt: RA8D1 Evaluation Kit
-
-	EK-RA8D1 Board Functional Area Definitions (Credit: Renesas Electronics Corporation)
-
 Hardware
 ********
-Detail Hardware feature for the RA8D1 MCU group can be found at `RA8D1 Group User's Manual Hardware`_
+Detailed Hardware features for the RA8D1 MCU group can be found at `RA8D1 Group User's Manual Hardware`_
 
-.. figure:: ra8d1-block-diagram.png
+.. figure:: ra8d1_block_diagram.png
 	:width: 442px
 	:align: center
 	:alt: RA8D1 MCU group feature
 
 	RA8D1 Block diagram (Credit: Renesas Electronics Corporation)
 
-Detail Hardware feature for the EK-RA8D1 MCU can be found at `EK-RA8D1 - User's Manual`_
+Detailed Hardware features for the EK-RA8D1 MCU can be found at `EK-RA8D1 - User's Manual`_
 
 Supported Features
 ==================
 
-The below features are currently supported on Zephyr OS for EK-RA8D1 board:
+.. zephyr:board-supported-hw::
 
-+--------------+------------+------------------+
-| Interface    | Controller | Driver/Component |
-+==============+============+==================+
-| GPIO         | on-chip    | gpio             |
-+--------------+------------+------------------+
-| MPU          | on-chip    | arch/arm         |
-+--------------+------------+------------------+
-| NVIC         | on-chip    | arch/arm         |
-+--------------+------------+------------------+
-| UART         | on-chip    | serial           |
-+--------------+------------+------------------+
-| CLOCK        | on-chip    | clock control    |
-+--------------+------------+------------------+
+.. note::
 
-Other hardware features are currently not supported by the port.
+   - For using Ethernet on RA8D1 board please set switch SW1 as following configuration:
+
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     | SW1-1 PMOD1 | SW1-2 TRACE | SW1-3 CAMERA | SW1-4 ETHA | SW1-5 ETHB | SW1-6 GLCD | SW1-7 SDRAM | SW1-8 I3C |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     |     OFF     |      OFF    |      OFF     |     OFF    |     ON     |      OFF   |      OFF    |     OFF   |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+
+   - For using SDHC channel 1 on RA8D1 board please set switch SW1 as following configuration:
+
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     | SW1-1 PMOD1 | SW1-2 TRACE | SW1-3 CAMERA | SW1-4 ETHA | SW1-5 ETHB | SW1-6 GLCD | SW1-7 SDRAM | SW1-8 I3C |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     |     OFF     |      OFF    |      OFF     |     OFF    |     OFF    |      OFF   |      OFF    |     OFF   |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+
+   - For using MIPI Graphics Expansion Port (J58) on RA8D1 board please set switch SW1 as following configuration:
+
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     | SW1-1 PMOD1 | SW1-2 TRACE | SW1-3 CAMERA | SW1-4 ETHA | SW1-5 ETHB | SW1-6 GLCD | SW1-7 SDRAM | SW1-8 I3C |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     |     OFF     |     OFF     |      OFF     |     OFF    |     OFF    |     ON     |     ON      |    OFF    |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+
+   - For using the Parallel Graphics Expansion Port (J57) with the Graphics Expansion Board supplied as part of the kit,
+     please set switch SW1 as following configuration:
+
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     | SW1-1 PMOD1 | SW1-2 TRACE | SW1-3 CAMERA | SW1-4 ETHA | SW1-5 ETHB | SW1-6 GLCD | SW1-7 SDRAM | SW1-8 I3C |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+     |     OFF     |     OFF     |      OFF     |     OFF    |     OFF    |     ON     |     ON      |    OFF    |
+     +-------------+-------------+--------------+------------+------------+------------+-------------+-----------+
+
+.. warning::
+
+   Do not enable SW1-4 and SW1-5 together
 
 Programming and Debugging
 *************************
+
+.. zephyr:board-supported-runners::
 
 Applications for the ``ek_ra8d1`` board configuration can be
 built, flashed, and debugged in the usual way. See
@@ -116,15 +132,15 @@ Flashing
 ========
 
 Program can be flashed to EK-RA8D1 via the on-board SEGGER J-Link debugger.
-SEGGER J-link's drivers are avaialbe at https://www.segger.com/downloads/jlink/
+SEGGER J-link's drivers are available at https://www.segger.com/downloads/jlink/
 
 To flash the program to board
 
-  1. Connect to J-Link OB via USB port to host PC
+1. Connect to J-Link OB via USB port to host PC
 
-  2. Make sure J-Link OB jumper is in default configuration as describe in `EK-RA8D1 - User's Manual`_
+2. Make sure J-Link OB jumper is in default configuration as describe in `EK-RA8D1 - User's Manual`_
 
-  3. Execute west command
+3. Execute west command
 
 	.. code-block:: console
 

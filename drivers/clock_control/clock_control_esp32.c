@@ -1,11 +1,11 @@
 /*
  * Copyright (c) 2020 Mohamed ElShahawi.
- * Copyright (c) 2021-2024 Espressif Systems (Shanghai) Co., Ltd.
+ * Copyright (c) 2021-2025 Espressif Systems (Shanghai) Co., Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT espressif_esp32_rtc
+#define DT_DRV_COMPAT espressif_esp32_clock
 
 #define CPU_RESET_REASON RTC_SW_CPU_RESET
 
@@ -47,6 +47,7 @@
 #include <hal/clk_tree_ll.h>
 #include <hal/usb_serial_jtag_ll.h>
 #include <esp_private/esp_pmu.h>
+#include <esp_private/esp_modem_clock.h>
 #include <ocode_init.h>
 #endif
 
@@ -87,10 +88,25 @@ static bool reset_reason_is_cpu_reset(void)
 #if defined(CONFIG_SOC_SERIES_ESP32C6)
 static void esp32_clock_perip_init(void)
 {
+	soc_rtc_slow_clk_src_t rtc_slow_clk_src = rtc_clk_slow_src_get();
+	modem_clock_lpclk_src_t modem_lpclk_src =
+		(modem_clock_lpclk_src_t)((rtc_slow_clk_src == SOC_RTC_SLOW_CLK_SRC_RC_SLOW)
+						  ? MODEM_CLOCK_LPCLK_SRC_RC_SLOW
+					  : (rtc_slow_clk_src == SOC_RTC_SLOW_CLK_SRC_XTAL32K)
+						  ? MODEM_CLOCK_LPCLK_SRC_XTAL32K
+					  : (rtc_slow_clk_src == SOC_RTC_SLOW_CLK_SRC_RC32K)
+						  ? MODEM_CLOCK_LPCLK_SRC_RC32K
+					  : (rtc_slow_clk_src == SOC_RTC_SLOW_CLK_SRC_OSC_SLOW)
+						  ? MODEM_CLOCK_LPCLK_SRC_EXT32K
+						  : MODEM_CLOCK_LPCLK_SRC_RC_SLOW);
+
+	modem_clock_select_lp_clock_source(PERIPH_WIFI_MODULE, modem_lpclk_src, 0);
+
 	soc_reset_reason_t rst_reason = esp_rom_get_reset_reason(0);
 
 	if ((rst_reason != RESET_REASON_CPU0_MWDT0) && (rst_reason != RESET_REASON_CPU0_MWDT1) &&
-	    (rst_reason != RESET_REASON_CPU0_SW) && (rst_reason != RESET_REASON_CPU0_RTC_WDT)) {
+	    (rst_reason != RESET_REASON_CPU0_SW) && (rst_reason != RESET_REASON_CPU0_RTC_WDT) &&
+	    (rst_reason != RESET_REASON_CPU0_JTAG)) {
 
 		periph_ll_disable_clk_set_rst(PERIPH_UART1_MODULE);
 		periph_ll_disable_clk_set_rst(PERIPH_I2C0_MODULE);
@@ -125,7 +141,9 @@ static void esp32_clock_perip_init(void)
 		REG_CLR_BIT(PCR_PVT_MONITOR_FUNC_CLK_CONF_REG, PCR_PVT_MONITOR_FUNC_CLK_EN);
 		WRITE_PERI_REG(PCR_CTRL_CLK_OUT_EN_REG, 0);
 
+#if CONFIG_SERIAL_ESP32_USB
 		usb_serial_jtag_ll_enable_bus_clock(false);
+#endif
 	}
 
 	if ((rst_reason == RESET_REASON_CHIP_POWER_ON) ||
@@ -144,6 +162,7 @@ static void esp32_clock_perip_init(void)
 	}
 }
 #else
+#if !defined(CONFIG_SOC_ESP32_APPCPU) && !defined(CONFIG_SOC_ESP32S3_APPCPU)
 static void esp32_clock_perip_init(void)
 {
 	uint32_t common_perip_clk;
@@ -152,7 +171,6 @@ static void esp32_clock_perip_init(void)
 #if !defined(CONFIG_SOC_SERIES_ESP32)
 	uint32_t common_perip_clk1;
 #endif
-
 	/* For reason that only reset CPU, do not disable the clocks
 	 * that have been enabled before reset.
 	 */
@@ -176,10 +194,10 @@ static void esp32_clock_perip_init(void)
 		common_perip_clk =
 #if defined(CONFIG_SOC_SERIES_ESP32C2)
 			SYSTEM_SPI2_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 0
+#if CONFIG_ESP_CONSOLE_UART_NUM != 0
 			SYSTEM_UART_CLK_EN |
 #endif
-#if ESP_CONSOLE_UART_NUM != 1
+#if CONFIG_ESP_CONSOLE_UART_NUM != 1
 			SYSTEM_UART1_CLK_EN |
 #endif
 			SYSTEM_LEDC_CLK_EN |
@@ -188,14 +206,14 @@ static void esp32_clock_perip_init(void)
 #elif (defined(CONFIG_SOC_SERIES_ESP32C3) || defined(CONFIG_SOC_SERIES_ESP32S3))
 			SYSTEM_WDG_CLK_EN |
 			SYSTEM_I2S0_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 0
+#if CONFIG_ESP_CONSOLE_UART_NUM != 0
 			SYSTEM_UART_CLK_EN |
 #endif
-#if ESP_CONSOLE_UART_NUM != 1
+#if CONFIG_ESP_CONSOLE_UART_NUM != 1
 			SYSTEM_UART1_CLK_EN |
 #endif
 #if defined(CONFIG_SOC_SERIES_ESP32S3)
-#if ESP_CONSOLE_UART_NUM != 2
+#if CONFIG_ESP_CONSOLE_UART_NUM != 2
 			SYSTEM_UART2_CLK_EN |
 #endif
 			SYSTEM_USB_CLK_EN |
@@ -296,23 +314,23 @@ static void esp32_clock_perip_init(void)
 	common_perip_clk |=
 #if defined(CONFIG_SOC_SERIES_ESP32C2)
 			SYSTEM_SPI2_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 0
+#if CONFIG_ESP_CONSOLE_UART_NUM != 0
 			SYSTEM_UART_CLK_EN |
 #endif
-#if ESP_CONSOLE_UART_NUM != 1
+#if CONFIG_ESP_CONSOLE_UART_NUM != 1
 			SYSTEM_UART1_CLK_EN |
 #endif
 			SYSTEM_I2C_EXT0_CLK_EN;
 #elif (defined(CONFIG_SOC_SERIES_ESP32C3) || defined(CONFIG_SOC_SERIES_ESP32S3))
 			SYSTEM_I2S0_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 0
+#if CONFIG_ESP_CONSOLE_UART_NUM != 0
 			SYSTEM_UART_CLK_EN |
 #endif
-#if ESP_CONSOLE_UART_NUM != 1
+#if CONFIG_ESP_CONSOLE_UART_NUM != 1
 			SYSTEM_UART1_CLK_EN |
 #endif
 #if defined(CONFIG_SOC_SERIES_ESP32S3)
-#if ESP_CONSOLE_UART_NUM != 2
+#if CONFIG_ESP_CONSOLE_UART_NUM != 2
 			SYSTEM_UART2_CLK_EN |
 #endif
 			SYSTEM_USB_CLK_EN |
@@ -337,15 +355,15 @@ static void esp32_clock_perip_init(void)
 			DPORT_UHCI1_CLK_EN |
 			DPORT_SPI3_CLK_EN |
 			DPORT_I2C_EXT1_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 0
+#if CONFIG_ESP_CONSOLE_UART_NUM != 0
 			DPORT_UART_CLK_EN |
 #endif
-#if ESP_CONSOLE_UART_NUM != 1
+#if CONFIG_ESP_CONSOLE_UART_NUM != 1
 			DPORT_UART1_CLK_EN |
 #endif
 #if defined(CONFIG_SOC_SERIES_ESP32)
 			DPORT_SPI_DMA_CLK_EN |
-#if ESP_CONSOLE_UART_NUM != 2
+#if CONFIG_ESP_CONSOLE_UART_NUM != 2
 			DPORT_UART2_CLK_EN |
 #endif
 #endif /* CONFIG_SOC_SERIES_ESP32 */
@@ -466,6 +484,7 @@ static void esp32_clock_perip_init(void)
 	periph_module_enable(PERIPH_TIMG0_MODULE);
 #endif
 }
+#endif
 #endif
 
 static enum clock_control_status clock_control_esp32_get_status(const struct device *dev,
@@ -614,13 +633,12 @@ static int esp32_cpu_clock_configure(const struct esp32_cpu_clock_config *cpu_cf
 	rtc_cpu_freq_config_t old_config;
 	rtc_cpu_freq_config_t new_config;
 	rtc_clk_config_t rtc_clk_cfg = RTC_CLK_CONFIG_DEFAULT();
-	uint32_t uart_clock_src_hz;
 	bool ret;
 
 	rtc_clk_cfg.xtal_freq = cpu_cfg->xtal_freq;
 	rtc_clk_cfg.cpu_freq_mhz = cpu_cfg->cpu_freq;
 
-	esp_rom_uart_tx_wait_idle(ESP_CONSOLE_UART_NUM);
+	esp_rom_uart_tx_wait_idle(CONFIG_ESP_CONSOLE_UART_NUM);
 
 #if defined(CONFIG_SOC_SERIES_ESP32C6)
 	rtc_clk_modem_clock_domain_active_state_icg_map_preinit();
@@ -685,16 +703,15 @@ static int esp32_cpu_clock_configure(const struct esp32_cpu_clock_config *cpu_cf
 	esp_cpu_set_cycle_count((uint64_t)esp_cpu_get_cycle_count() * rtc_clk_cfg.cpu_freq_mhz /
 				old_config.freq_mhz);
 
+#if defined(CONFIG_ESP_CONSOLE_UART)
 #if !defined(CONFIG_SOC_SERIES_ESP32C2) && !defined(CONFIG_SOC_SERIES_ESP32C6)
-#if ESP_ROM_UART_CLK_IS_XTAL
-	uart_clock_src_hz = (uint32_t)rtc_clk_xtal_freq_get() * MHZ(1);
+#if defined(CONFIG_MCUBOOT) && defined(ESP_ROM_UART_CLK_IS_XTAL)
+	uint32_t uart_clock_src_hz = (uint32_t)rtc_clk_xtal_freq_get() * MHZ(1);
 #else
-	uart_clock_src_hz = esp_clk_apb_freq();
+	uint32_t uart_clock_src_hz = esp_clk_apb_freq();
 #endif
-
-#if !defined(ESP_CONSOLE_UART_NONE)
-	esp_rom_uart_set_clock_baudrate(ESP_CONSOLE_UART_NUM, uart_clock_src_hz,
-					ESP_CONSOLE_UART_BAUDRATE);
+	esp_rom_uart_set_clock_baudrate(CONFIG_ESP_CONSOLE_UART_NUM, uart_clock_src_hz,
+					CONFIG_ESP_CONSOLE_UART_BAUDRATE);
 #endif
 #endif
 	return 0;
@@ -703,8 +720,6 @@ static int esp32_cpu_clock_configure(const struct esp32_cpu_clock_config *cpu_cf
 static int clock_control_esp32_configure(const struct device *dev, clock_control_subsys_t sys,
 					 void *data)
 {
-
-	const struct esp32_clock_config *cfg = dev->config;
 	struct esp32_clock_config *new_cfg = data;
 	int ret = 0;
 
@@ -766,6 +781,8 @@ static int clock_control_esp32_init(const struct device *dev)
 		return ret;
 	}
 
+	/* Prevent APPCPU from interfering with the clock setup */
+#if !defined(CONFIG_SOC_ESP32_APPCPU) && !defined(CONFIG_SOC_ESP32S3_APPCPU)
 	rtc_clk_fast_src_set(cfg->rtc.rtc_fast_clock_src);
 
 	ret = esp32_select_rtc_slow_clk(cfg->rtc.rtc_slow_clock_src);
@@ -775,11 +792,12 @@ static int clock_control_esp32_init(const struct device *dev)
 	}
 
 	esp32_clock_perip_init();
+#endif
 
 	return 0;
 }
 
-static const struct clock_control_driver_api clock_control_esp32_api = {
+static DEVICE_API(clock_control, clock_control_esp32_api) = {
 	.on = clock_control_esp32_on,
 	.off = clock_control_esp32_off,
 	.get_rate = clock_control_esp32_get_rate,
@@ -794,8 +812,8 @@ static const struct esp32_cpu_clock_config esp32_cpu_clock_config0 = {
 };
 
 static const struct esp32_rtc_clock_config esp32_rtc_clock_config0 = {
-	.rtc_fast_clock_src = DT_PROP(DT_INST(0, espressif_esp32_rtc), fast_clk_src),
-	.rtc_slow_clock_src = DT_PROP(DT_INST(0, espressif_esp32_rtc), slow_clk_src),
+	.rtc_fast_clock_src = DT_PROP(DT_INST(0, espressif_esp32_clock), fast_clk_src),
+	.rtc_slow_clock_src = DT_PROP(DT_INST(0, espressif_esp32_clock), slow_clk_src),
 };
 
 static const struct esp32_clock_config esp32_clock_config0 = {
@@ -803,7 +821,7 @@ static const struct esp32_clock_config esp32_clock_config0 = {
 	.rtc = esp32_rtc_clock_config0
 };
 
-DEVICE_DT_DEFINE(DT_NODELABEL(rtc),
+DEVICE_DT_DEFINE(DT_NODELABEL(clock),
 		 clock_control_esp32_init,
 		 NULL,
 		 NULL,

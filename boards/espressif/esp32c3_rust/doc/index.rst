@@ -1,12 +1,16 @@
-.. _esp32c3_rust:
-
-ESP32-C3-DevKit-RUST-1
-######################
+.. zephyr:board:: esp32c3_rust
 
 Overview
 ********
 
-This board is based on the ESP32-C3 [1]_ and includes sensors, LEDs, buttons, a battery charger, and USB type-C connector.
+ESP32-C3-DevKit-RUST is based on the ESP32-C3, a single-core Wi-Fi and Bluetooth 5 (LE) microcontroller SoC,
+based on the open-source RISC-V architecture. This special board also includes the ESP32-C3-MINI-1 module,
+a 6DoF IMU, a temperature and humidity sensor, a Li-Ion battery charger, and a Type-C USB. The board is designed
+to be easily used in training sessions, demonstrating its capabilities with all the board peripherals.
+For more information, check `ESP32-C3-DevKit-RUST`_.
+
+Hardware
+********
 
 SoC Features:
 
@@ -32,44 +36,13 @@ SoC Features:
 - 2 x 12-bit SAR ADCs, up to 6 channels
 - 1 x temperature sensor
 
+For more information, check the datasheet at `ESP32-C3 Datasheet`_ or the technical reference
+manual at `ESP32-C3 Technical Reference Manual`_.
+
 Supported Features
 ==================
 
-Current Zephyr's ESP32-C3-DevKit-RUST-1 board supports the following features:
-
-+------------+------------+-------------------------------------+
-| Interface  | Controller | Driver/Component                    |
-+============+============+=====================================+
-| UART       | on-chip    | serial port                         |
-+------------+------------+-------------------------------------+
-| GPIO       | on-chip    | gpio                                |
-+------------+------------+-------------------------------------+
-| PINMUX     | on-chip    | pinmux                              |
-+------------+------------+-------------------------------------+
-| USB-JTAG   | on-chip    | hardware interface                  |
-+------------+------------+-------------------------------------+
-| SPI Master | on-chip    | spi                                 |
-+------------+------------+-------------------------------------+
-| Timers     | on-chip    | counter                             |
-+------------+------------+-------------------------------------+
-| Watchdog   | on-chip    | watchdog                            |
-+------------+------------+-------------------------------------+
-| TRNG       | on-chip    | entropy                             |
-+------------+------------+-------------------------------------+
-| LEDC       | on-chip    | pwm                                 |
-+------------+------------+-------------------------------------+
-| SPI DMA    | on-chip    | spi                                 |
-+------------+------------+-------------------------------------+
-| TWAI       | on-chip    | can                                 |
-+------------+------------+-------------------------------------+
-| USB-CDC    | on-chip    | serial                              |
-+------------+------------+-------------------------------------+
-| ADC        | on-chip    | adc                                 |
-+------------+------------+-------------------------------------+
-| Wi-Fi      | on-chip    |                                     |
-+------------+------------+-------------------------------------+
-| Bluetooth  | on-chip    |                                     |
-+------------+------------+-------------------------------------+
+.. zephyr:board-supported-hw::
 
 I2C Peripherals
 ===============
@@ -136,6 +109,8 @@ below to retrieve those files.
 Building & Flashing
 *******************
 
+.. zephyr:board-supported-runners::
+
 Simple boot
 ===========
 
@@ -150,7 +125,7 @@ MCUboot bootloader
 ==================
 
 User may choose to use MCUboot bootloader instead. In that case the bootloader
-must be build (and flash) at least once.
+must be built (and flashed) at least once.
 
 There are two options to be used when building an application:
 
@@ -176,7 +151,7 @@ To build the sample application using sysbuild use the command:
 
 .. zephyr-app-commands::
    :tool: west
-   :app: samples/hello_world
+   :zephyr-app: samples/hello_world
    :board: esp32c3_rust
    :goals: build
    :west-args: --sysbuild
@@ -212,7 +187,7 @@ Manual build
 ============
 
 During the development cycle, it is intended to build & flash as quickly possible.
-For that reason, images can be build one at a time using traditional build.
+For that reason, images can be built one at a time using traditional build.
 
 The instructions following are relevant for both manual build and sysbuild.
 The only difference is the structure of the build directory.
@@ -230,7 +205,7 @@ Build and flash applications as usual (see :ref:`build_an_application` and
    :goals: build
 
 The usual ``flash`` target will work with the ``esp32c3_rust`` board
-configuration. Here is an example for the :ref:`hello_world`
+configuration. Here is an example for the :zephyr:code-sample:`hello_world`
 application.
 
 .. zephyr-app-commands::
@@ -257,13 +232,13 @@ Debugging
 
 As with much custom hardware, the ESP32-C3 modules require patches to
 OpenOCD that are not upstreamed yet. Espressif maintains their own fork of
-the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_
+the project. The custom OpenOCD can be obtained at `OpenOCD ESP32`_.
 
 The Zephyr SDK uses a bundled version of OpenOCD by default. You can overwrite that behavior by adding the
 ``-DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>``
 parameter when building.
 
-Here is an example for building the :ref:`hello_world` application.
+Here is an example for building the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
@@ -271,19 +246,19 @@ Here is an example for building the :ref:`hello_world` application.
    :goals: build flash
    :gen-args: -DOPENOCD=<path/to/bin/openocd> -DOPENOCD_DEFAULT_PATH=<path/to/openocd/share/openocd/scripts>
 
-You can debug an application in the usual way. Here is an example for the :ref:`hello_world` application.
+You can debug an application in the usual way. Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
    :board: esp32c3_rust
    :goals: debug
 
-.. _`OpenOCD ESP32`: https://github.com/espressif/openocd-esp32/releases
-
 References
 **********
 
-.. [1] https://www.espressif.com/en/products/socs/esp32-c3
-.. _ESP32-C3-DevKit-RUST-1: https://github.com/esp-rs/esp-rust-board/tree/v1.2
-.. _ESP32C3 Technical Reference Manual: https://espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf
-.. _ESP32C3 Datasheet: https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf
+.. target-notes::
+
+.. _`ESP32-C3-DevKit-RUST`: https://github.com/esp-rs/esp-rust-board/tree/v1.2
+.. _`ESP32-C3 Datasheet`: https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf
+.. _`ESP32-C3 Technical Reference Manual`: https://espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf
+.. _`OpenOCD ESP32`: https://github.com/espressif/openocd-esp32/releases

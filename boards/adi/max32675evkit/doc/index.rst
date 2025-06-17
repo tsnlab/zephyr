@@ -1,7 +1,4 @@
-.. _max32675_evkit:
-
-MAX32675EVKIT
-#############
+.. zephyr:board:: max32675evkit
 
 Overview
 ********
@@ -12,10 +9,6 @@ HART modem which enables the bidirectional transfer of digital data over a curre
 industrial sensors for configuration and diagnostics.
 
 The Zephyr port is running on the MAX32675 MCU.
-
-.. image:: img/max32675evkit.webp
-   :align: center
-   :alt: MAX32675EVKIT
 
 Hardware
 ********
@@ -75,29 +68,7 @@ Hardware
 Supported Features
 ==================
 
-Below interfaces are supported by Zephyr on MAX32675EVKIT.
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| SYSTICK   | on-chip    | systick                             |
-+-----------+------------+-------------------------------------+
-| CLOCK     | on-chip    | clock and reset control             |
-+-----------+------------+-------------------------------------+
-| GPIO      | on-chip    | gpio                                |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial                              |
-+-----------+------------+-------------------------------------+
-| TRNG      | on-chip    | entropy                             |
-+-----------+------------+-------------------------------------+
-| SPI       | on-chip    | spi                                 |
-+-----------+------------+-------------------------------------+
-| DMA       | on-chip    | dma controller                      |
-+-----------+------------+-------------------------------------+
-| I2C       | on-chip    | i2c                                 |
-+-----------+------------+-------------------------------------+
+.. zephyr:board-supported-hw::
 
 Connections and IOs
 ===================
@@ -373,6 +344,8 @@ respectively. If the pushbutton is pressed, the attached port pin is pulled low.
 Programming and Debugging
 *************************
 
+.. zephyr:board-supported-runners::
+
 Flashing
 ========
 
@@ -382,7 +355,8 @@ is supplied externally. Be sure to remove jumper JP15 (LDO_DUT_EN) to disconnect
 the 3.3V LDO if supplying VDD and VDDA externally.
 
 Once the debug probe is connected to your host computer, then you can simply run the
-``west flash`` command to write a firmware image into flash.
+``west flash`` command to write a firmware image into flash. To perform a full erase,
+pass the ``--erase`` option when executing ``west flash``.
 
 .. note::
 

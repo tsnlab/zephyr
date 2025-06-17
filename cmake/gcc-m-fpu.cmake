@@ -7,7 +7,7 @@ if(CONFIG_FPU)
 
 if("${ARCH}" STREQUAL "arm")
   if(CONFIG_CPU_AARCH32_CORTEX_R)
-    if(CONFIG_CPU_CORTEX_R4 OR CONFIG_CPU_CORTEX_R5) # VFPv3
+    if(CONFIG_CPU_CORTEX_R4 OR CONFIG_CPU_CORTEX_R5 OR CONFIG_CPU_CORTEX_R8) # VFPv3
       if(CONFIG_VFP_FEATURE_DOUBLE_PRECISION)
         set(GCC_M_FPU vfpv3-d16)
       elseif(CONFIG_VFP_FEATURE_SINGLE_PRECISION)
@@ -45,6 +45,10 @@ if("${ARCH}" STREQUAL "arm")
     set(FPU_FOR_cortex-m85+nodsp    auto)
 
     set(GCC_M_FPU ${FPU_FOR_${GCC_M_CPU}})
+  elseif(CONFIG_CPU_AARCH32_CORTEX_A)
+    if(CONFIG_CPU_CORTEX_A7)
+      set(GCC_M_FPU vfpv4-d16)
+    endif()
   endif()
 endif()
 

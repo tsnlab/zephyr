@@ -12,12 +12,10 @@
 namespace
 {
 
-#define GET_TARGET_DEVICE(node_id, prop, n) DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, n)),
-
 /* Get the devicetree constants */
 constexpr const struct device *controller = DEVICE_DT_GET(CONTROLLER_LABEL);
 constexpr const struct device *targets[FORWARD_COUNT] = {
-	DT_FOREACH_PROP_ELEM(CONTROLLER_LABEL, forwards, GET_TARGET_DEVICE)};
+	DT_FOREACH_PROP_ELEM_SEP(CONTROLLER_LABEL, forwards, DEVICE_DT_GET_BY_IDX, (,))};
 
 static void *i2c_emul_forwarding_setup(void)
 {
@@ -55,7 +53,7 @@ ZTEST_SUITE(i2c_emul_forwarding, NULL, i2c_emul_forwarding_setup, i2c_emul_forwa
 
 ZTEST(i2c_emul_forwarding, test_invalid_address_for_target)
 {
-	uint8_t data;
+	uint8_t data = 0;
 	int rc = i2c_write(targets[0], &data, 1, emulated_target_config[0].address + 1);
 	zassert_equal(-EINVAL, rc, "Expected %d (-EINVAL), but got %d", -EINVAL, rc);
 	zexpect_equal(0, target_read_requested_0_fake.call_count);
@@ -69,7 +67,7 @@ ZTEST(i2c_emul_forwarding, test_invalid_address_for_target)
 
 ZTEST(i2c_emul_forwarding, test_error_in_stop)
 {
-	uint8_t data;
+	uint8_t data = 0;
 
 	target_stop_0_fake.return_val = -EINTR;
 	zassert_equal(-EINTR, i2c_write(controller, &data, 1, emulated_target_config[0].address));

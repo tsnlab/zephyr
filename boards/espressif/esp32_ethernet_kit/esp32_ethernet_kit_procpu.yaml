@@ -10,8 +10,5 @@ supported:
   - uart
   - nvs
   - pwm
-testing:
-  ignore_tags:
-    - net
-    - bluetooth
+  - i2s
 vendor: espressif

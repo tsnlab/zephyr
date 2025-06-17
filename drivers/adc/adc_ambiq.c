@@ -16,15 +16,13 @@
 #include "adc_context.h"
 
 /* ambiq-sdk includes */
-#include <am_mcu_apollo.h>
+#include <soc.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(adc_ambiq, CONFIG_ADC_LOG_LEVEL);
 
-typedef int (*ambiq_adc_pwr_func_t)(void);
-#define PWRCTRL_MAX_WAIT_US   5
 /* Number of slots available. */
-#define AMBIQ_ADC_SLOT_BUMBER AM_HAL_ADC_MAX_SLOTS
+#define AMBIQ_ADC_SLOT_NUMBER AM_HAL_ADC_MAX_SLOTS
 
 struct adc_ambiq_config {
 	uint32_t base;
@@ -32,7 +30,6 @@ struct adc_ambiq_config {
 	uint8_t num_channels;
 	void (*irq_config_func)(void);
 	const struct pinctrl_dev_config *pin_cfg;
-	ambiq_adc_pwr_func_t pwr_func;
 };
 
 struct adc_ambiq_data {
@@ -55,9 +52,11 @@ static int adc_ambiq_set_resolution(am_hal_adc_slot_prec_e *prec, uint8_t adc_re
 	case 12:
 		*prec = AM_HAL_ADC_SLOT_12BIT;
 		break;
+#if defined(CONFIG_SOC_SERIES_APOLLO3X)
 	case 14:
 		*prec = AM_HAL_ADC_SLOT_14BIT;
 		break;
+#endif
 	default:
 		return -ENOTSUP;
 	}
@@ -81,6 +80,9 @@ static int adc_ambiq_slot_config(const struct device *dev, const struct adc_sequ
 	ADCSlotConfig.eChannel = channel;
 	ADCSlotConfig.bWindowCompare = false;
 	ADCSlotConfig.bEnabled = true;
+#if !defined(CONFIG_SOC_SERIES_APOLLO3X)
+	ADCSlotConfig.ui32TrkCyc = AM_HAL_ADC_MIN_TRKCYC;
+#endif
 	if (AM_HAL_STATUS_SUCCESS !=
 	    am_hal_adc_configure_slot(data->adcHandle, ui32SlotNumber, &ADCSlotConfig)) {
 		LOG_ERR("configuring ADC Slot 0 failed.\n");
@@ -99,8 +101,6 @@ static void adc_ambiq_isr(const struct device *dev)
 
 	/* Read the interrupt status. */
 	am_hal_adc_interrupt_status(data->adcHandle, &ui32IntMask, true);
-	/* Clear the ADC interrupt.*/
-	am_hal_adc_interrupt_clear(data->adcHandle, ui32IntMask);
 
 	/*
 	 * If we got a conversion completion interrupt (which should be our only
@@ -114,8 +114,11 @@ static void adc_ambiq_isr(const struct device *dev)
 						&Sample);
 			*data->buffer++ = Sample.ui32Sample;
 		}
+		am_hal_adc_disable(data->adcHandle);
 		adc_context_on_sampling_done(&data->ctx, dev);
 	}
+	/* Clear the ADC interrupt.*/
+	am_hal_adc_interrupt_clear(data->adcHandle, ui32IntMask);
 }
 
 static int adc_ambiq_check_buffer_size(const struct adc_sequence *sequence, uint8_t active_channels)
@@ -157,9 +160,15 @@ static int adc_ambiq_start_read(const struct device *dev, const struct adc_seque
 		LOG_ERR("No channel selected");
 		return -EINVAL;
 	}
+
+	error = adc_ambiq_check_buffer_size(sequence, active_channels);
+	if (error < 0) {
+		return error;
+	}
+
 	active_channels = POPCOUNT(sequence->channels);
-	if (active_channels > AMBIQ_ADC_SLOT_BUMBER) {
-		LOG_ERR("Too many channels for sequencer. Max: %d", AMBIQ_ADC_SLOT_BUMBER);
+	if (active_channels > AMBIQ_ADC_SLOT_NUMBER) {
+		LOG_ERR("Too many channels for sequencer. Max: %d", AMBIQ_ADC_SLOT_NUMBER);
 		return -ENOTSUP;
 	}
 
@@ -174,13 +183,6 @@ static int adc_ambiq_start_read(const struct device *dev, const struct adc_seque
 	}
 	__ASSERT_NO_MSG(channels == 0);
 
-	/* Enable the ADC. */
-	am_hal_adc_enable(data->adcHandle);
-
-	error = adc_ambiq_check_buffer_size(sequence, active_channels);
-	if (error < 0) {
-		return error;
-	}
 	data->active_channels = active_channels;
 	data->buffer = sequence->buffer;
 	/* Start ADC conversion */
@@ -193,25 +195,26 @@ static int adc_ambiq_start_read(const struct device *dev, const struct adc_seque
 static int adc_ambiq_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	struct adc_ambiq_data *data = dev->data;
-	int error;
+	int error = 0;
 
-#if defined(CONFIG_PM_DEVICE_RUNTIME)
 	error = pm_device_runtime_get(dev);
 	if (error < 0) {
 		LOG_ERR("pm_device_runtime_get failed: %d", error);
 	}
-#endif
 
 	adc_context_lock(&data->ctx, false, NULL);
 	error = adc_ambiq_start_read(dev, sequence);
 	adc_context_release(&data->ctx, error);
 
-#if defined(CONFIG_PM_DEVICE_RUNTIME)
+	int ret = error;
+
 	error = pm_device_runtime_put(dev);
 	if (error < 0) {
 		LOG_ERR("pm_device_runtime_put failed: %d", error);
 	}
-#endif
+
+	error = ret;
+
 	return error;
 }
 
@@ -261,6 +264,8 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 	struct adc_ambiq_data *data = CONTAINER_OF(ctx, struct adc_ambiq_data, ctx);
 
 	data->repeat_buffer = data->buffer;
+	/* Enable the ADC. */
+	am_hal_adc_enable(data->adcHandle);
 	/*Trigger the ADC*/
 	am_hal_adc_sw_trigger(data->adcHandle);
 }
@@ -275,23 +280,27 @@ static int adc_ambiq_init(const struct device *dev)
 
 	/* Initialize the ADC and get the handle*/
 	if (AM_HAL_STATUS_SUCCESS !=
-	    am_hal_adc_initialize((cfg->base - REG_ADC_BASEADDR) / (cfg->size * 4),
-				  &data->adcHandle)) {
+		am_hal_adc_initialize(0, &data->adcHandle)) {
 		ret = -ENODEV;
-		LOG_ERR("Faile to initialize ADC, code:%d", ret);
+		LOG_ERR("Failed to initialize ADC, code:%d", ret);
 		return ret;
 	}
 
 	/* power on ADC*/
-	ret = cfg->pwr_func();
+	ret = am_hal_adc_power_control(data->adcHandle, AM_HAL_SYSCTRL_WAKE, false);
 
 	/* Set up the ADC configuration parameters. These settings are reasonable
 	 *  for accurate measurements at a low sample rate.
 	 */
+#if defined(CONFIG_SOC_SERIES_APOLLO3X)
 	ADCConfig.eClock = AM_HAL_ADC_CLKSEL_HFRC;
+	ADCConfig.eReference = AM_HAL_ADC_REFSEL_INT_1P5;
+#else
+	ADCConfig.eClock = AM_HAL_ADC_CLKSEL_HFRC_24MHZ;
+	ADCConfig.eRepeatTrigger = AM_HAL_ADC_RPTTRIGSEL_TMR,
+#endif
 	ADCConfig.ePolarity = AM_HAL_ADC_TRIGPOL_RISING;
 	ADCConfig.eTrigger = AM_HAL_ADC_TRIGSEL_SOFTWARE;
-	ADCConfig.eReference = AM_HAL_ADC_REFSEL_INT_1P5;
 	ADCConfig.eClockMode = AM_HAL_ADC_CLKMODE_LOW_POWER;
 	ADCConfig.ePowerMode = AM_HAL_ADC_LPMODE0;
 	ADCConfig.eRepeat = AM_HAL_ADC_SINGLE_SCAN;
@@ -315,11 +324,40 @@ static int adc_ambiq_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_ADC_ASYNC
+static int adc_ambiq_read_async(const struct device *dev, const struct adc_sequence *sequence,
+				struct k_poll_signal *async)
+{
+	struct adc_ambiq_data *data = dev->data;
+	int error = 0;
+
+	error = pm_device_runtime_get(dev);
+	if (error < 0) {
+		LOG_ERR("pm_device_runtime_get failed: %d", error);
+	}
+
+	adc_context_lock(&data->ctx, true, async);
+	error = adc_ambiq_start_read(dev, sequence);
+	adc_context_release(&data->ctx, error);
+
+	int ret = error;
+
+	error = pm_device_runtime_put(dev);
+	if (error < 0) {
+		LOG_ERR("pm_device_runtime_put failed: %d", error);
+	}
+
+	error = ret;
+
+	return error;
+}
+#endif
+
 #ifdef CONFIG_PM_DEVICE
 static int adc_ambiq_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	struct adc_ambiq_data *data = dev->data;
-	uint32_t ret;
+	uint32_t ret = 0;
 	am_hal_sysctrl_power_state_e status;
 
 	switch (action) {
@@ -343,47 +381,47 @@ static int adc_ambiq_pm_action(const struct device *dev, enum pm_device_action a
 }
 #endif /* CONFIG_PM_DEVICE */
 
-#define ADC_AMBIQ_DRIVER_API(n)                                                            \
-	static const struct adc_driver_api adc_ambiq_driver_api_##n = {                        \
+#ifdef CONFIG_ADC_ASYNC
+#define ADC_AMBIQ_DRIVER_API(n)                                                                    \
+	static DEVICE_API(adc, adc_ambiq_driver_api_##n) = {                                       \
+		.channel_setup = adc_ambiq_channel_setup,                                          \
+		.read = adc_ambiq_read,                                                            \
+		.read_async = adc_ambiq_read_async,                                                \
+		.ref_internal = DT_INST_PROP(n, internal_vref_mv),                                 \
+	};
+#else
+#define ADC_AMBIQ_DRIVER_API(n)                                                                    \
+	static DEVICE_API(adc, adc_ambiq_driver_api_##n) = {                                       \
 		.channel_setup = adc_ambiq_channel_setup,                                          \
 		.read = adc_ambiq_read,                                                            \
 		.ref_internal = DT_INST_PROP(n, internal_vref_mv),                                 \
 	};
+#endif
 
-#define ADC_AMBIQ_INIT(n)                                                                  \
-	PINCTRL_DT_INST_DEFINE(n);                                                             \
-	ADC_AMBIQ_DRIVER_API(n);                                                               \
-	static int pwr_on_ambiq_adc_##n(void)                                                  \
-	{                                                                                      \
-		uint32_t addr = DT_REG_ADDR(DT_INST_PHANDLE(n, ambiq_pwrcfg)) +                    \
-				DT_INST_PHA(n, ambiq_pwrcfg, offset);                              \
-		sys_write32((sys_read32(addr) | DT_INST_PHA(n, ambiq_pwrcfg, mask)), addr);        \
-		k_busy_wait(PWRCTRL_MAX_WAIT_US);                                                  \
-		return 0;                                                                          \
-	}                                                                                      \
-	static void adc_irq_config_func_##n(void)                                              \
-	{                                                                                      \
+#define ADC_AMBIQ_INIT(n)                                                                          \
+	PINCTRL_DT_INST_DEFINE(n);                                                                 \
+	ADC_AMBIQ_DRIVER_API(n);                                                                   \
+	static void adc_irq_config_func_##n(void)                                                  \
+	{                                                                                          \
 		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), adc_ambiq_isr,              \
 			    DEVICE_DT_INST_GET(n), 0);                                             \
 		irq_enable(DT_INST_IRQN(n));                                                       \
-	};                                                                                     \
-	static struct adc_ambiq_data adc_ambiq_data_##n = {                                    \
+	};                                                                                         \
+	static struct adc_ambiq_data adc_ambiq_data_##n = {                                        \
 		ADC_CONTEXT_INIT_TIMER(adc_ambiq_data_##n, ctx),                                   \
 		ADC_CONTEXT_INIT_LOCK(adc_ambiq_data_##n, ctx),                                    \
 		ADC_CONTEXT_INIT_SYNC(adc_ambiq_data_##n, ctx),                                    \
-	};                                                                                     \
-	const static struct adc_ambiq_config adc_ambiq_config_##n = {                          \
+	};                                                                                         \
+	const static struct adc_ambiq_config adc_ambiq_config_##n = {                              \
 		.base = DT_INST_REG_ADDR(n),                                                       \
 		.size = DT_INST_REG_SIZE(n),                                                       \
 		.num_channels = DT_PROP(DT_DRV_INST(n), channel_count),                            \
 		.irq_config_func = adc_irq_config_func_##n,                                        \
 		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                      \
-		.pwr_func = pwr_on_ambiq_adc_##n,                                                  \
-	};                                                                                     \
-	PM_DEVICE_DT_INST_DEFINE(n, adc_ambiq_pm_action);                                      \
-	DEVICE_DT_INST_DEFINE(n, &adc_ambiq_init, PM_DEVICE_DT_INST_GET(n),       \
-				&adc_ambiq_data_##n,                                          \
-				&adc_ambiq_config_##n, POST_KERNEL, CONFIG_ADC_INIT_PRIORITY, \
-				&adc_ambiq_driver_api_##n);
+	};                                                                                         \
+	PM_DEVICE_DT_INST_DEFINE(n, adc_ambiq_pm_action);                                          \
+	DEVICE_DT_INST_DEFINE(n, &adc_ambiq_init, PM_DEVICE_DT_INST_GET(n), &adc_ambiq_data_##n,   \
+			      &adc_ambiq_config_##n, POST_KERNEL, CONFIG_ADC_INIT_PRIORITY,        \
+			      &adc_ambiq_driver_api_##n);
 
 DT_INST_FOREACH_STATUS_OKAY(ADC_AMBIQ_INIT)

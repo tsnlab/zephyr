@@ -204,6 +204,7 @@ static bool set_pmp_entry(unsigned int *index_p, uint8_t perm,
 	return ok;
 }
 
+#ifdef CONFIG_PMP_STACK_GUARD
 static inline bool set_pmp_mprv_catchall(unsigned int *index_p,
 					 unsigned long *pmp_addr, unsigned long *pmp_cfg,
 					 unsigned int index_limit)
@@ -231,6 +232,7 @@ static inline bool set_pmp_mprv_catchall(unsigned int *index_p,
 
 	return ok;
 }
+#endif /* CONFIG_PMP_STACK_GUARD */
 
 /**
  * @brief Write a range of PMP entries to corresponding PMP registers
@@ -348,8 +350,8 @@ static unsigned int global_pmp_end_index;
  */
 void z_riscv_pmp_init(void)
 {
-	unsigned long pmp_addr[5];
-	unsigned long pmp_cfg[2];
+	unsigned long pmp_addr[CONFIG_PMP_SLOTS];
+	unsigned long pmp_cfg[CONFIG_PMP_SLOTS / PMPCFG_STRIDE];
 	unsigned int index = 0;
 
 	/* The read-only area is always there for every mode */
@@ -370,6 +372,7 @@ void z_riscv_pmp_init(void)
 #endif
 
 #ifdef CONFIG_PMP_STACK_GUARD
+#ifdef CONFIG_MULTITHREADING
 	/*
 	 * Set the stack guard for this CPU's IRQ stack by making the bottom
 	 * addresses inaccessible. This will never change so we do it here
@@ -397,6 +400,21 @@ void z_riscv_pmp_init(void)
 	/* And forget about that last entry as we won't need it later */
 	index--;
 #else
+	/* Without multithreading setup stack guards for IRQ and main stacks */
+	set_pmp_entry(&index, PMP_NONE | PMP_L,
+		      (uintptr_t)z_interrupt_stacks,
+		      Z_RISCV_STACK_GUARD_SIZE,
+		      pmp_addr, pmp_cfg, ARRAY_SIZE(pmp_addr));
+
+	set_pmp_entry(&index, PMP_NONE | PMP_L,
+		      (uintptr_t)z_main_stack,
+		      Z_RISCV_STACK_GUARD_SIZE,
+		      pmp_addr, pmp_cfg, ARRAY_SIZE(pmp_addr));
+
+	/* Write those entries to PMP regs. */
+	write_pmp_entries(0, index, true, pmp_addr, pmp_cfg, ARRAY_SIZE(pmp_addr));
+#endif /* CONFIG_MULTITHREADING */
+#else
 	 /* Write those entries to PMP regs. */
 	write_pmp_entries(0, index, true, pmp_addr, pmp_cfg, ARRAY_SIZE(pmp_addr));
 #endif
@@ -419,7 +437,6 @@ void z_riscv_pmp_init(void)
 	}
 #endif
 
-	__ASSERT(index <= PMPCFG_STRIDE, "provision for one global word only");
 	global_pmp_cfg[0] = pmp_cfg[0];
 	global_pmp_last_addr = pmp_addr[index - 1];
 	global_pmp_end_index = index;
@@ -432,6 +449,7 @@ void z_riscv_pmp_init(void)
 /**
  * @Brief Initialize the per-thread PMP register copy with global values.
  */
+#if (defined(CONFIG_PMP_STACK_GUARD) && defined(CONFIG_MULTITHREADING)) || defined(CONFIG_USERSPACE)
 static inline unsigned int z_riscv_pmp_thread_init(unsigned long *pmp_addr,
 						   unsigned long *pmp_cfg,
 						   unsigned int index_limit)
@@ -451,9 +469,11 @@ static inline unsigned int z_riscv_pmp_thread_init(unsigned long *pmp_addr,
 
 	return global_pmp_end_index;
 }
+#endif
 
 #ifdef CONFIG_PMP_STACK_GUARD
 
+#ifdef CONFIG_MULTITHREADING
 /**
  * @brief Prepare the PMP stackguard content for given thread.
  *
@@ -510,6 +530,8 @@ void z_riscv_pmp_stackguard_enable(struct k_thread *thread)
 	/* Activate our non-locked PMP entries in m-mode */
 	csr_set(mstatus, MSTATUS_MPRV);
 }
+
+#endif /* CONFIG_MULTITHREADING */
 
 /**
  * @brief Remove PMP stackguard content to actual PMP registers

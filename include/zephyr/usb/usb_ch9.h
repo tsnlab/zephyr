@@ -41,12 +41,12 @@ struct usb_setup_packet {
 	union {
 		uint8_t bmRequestType;
 		struct usb_req_type_field RequestType;
-	};
+	} __packed;
 	uint8_t bRequest;
 	uint16_t wValue;
 	uint16_t wIndex;
 	uint16_t wLength;
-};
+} __packed;
 
 /** USB Setup packet RequestType Direction values (from Table 9-2) */
 #define USB_REQTYPE_DIR_TO_DEVICE	0
@@ -135,6 +135,13 @@ static inline bool usb_reqtype_is_to_device(const struct usb_setup_packet *setup
 #define USB_SFS_ENDPOINT_HALT		0x00
 #define USB_SFS_REMOTE_WAKEUP		0x01
 #define USB_SFS_TEST_MODE		0x02
+
+/** USB Test Mode Selectors defined in spec. Table 9-7 */
+#define USB_SFS_TEST_MODE_J		0x01
+#define USB_SFS_TEST_MODE_K		0x02
+#define USB_SFS_TEST_MODE_SE0_NAK	0x03
+#define USB_SFS_TEST_MODE_PACKET	0x04
+#define USB_SFS_TEST_MODE_FORCE_ENABLE	0x05
 
 /** Bits used for GetStatus response defined in spec. Figure 9-4 */
 #define USB_GET_STATUS_SELF_POWERED	BIT(0)
@@ -283,7 +290,12 @@ struct usb_association_descriptor {
 /** Macro to obtain descriptor index from USB_SREQ_GET_DESCRIPTOR request */
 #define USB_GET_DESCRIPTOR_INDEX(wValue)	((uint8_t)(wValue))
 
-/** USB Control Endpoints maximum packet size (MPS) */
+/**
+ * USB Control Endpoints maximum packet size (MPS)
+ *
+ * This value may not be correct for devices operating at speeds other than
+ * high speed.
+ */
 #define USB_CONTROL_EP_MPS		64U
 
 /** USB endpoint direction mask */
@@ -362,6 +374,12 @@ struct usb_association_descriptor {
 #define USB_TPL_TO_MPS(tpl)				\
 	(((tpl) > 2048) ? ((2 << 11) | ((tpl) / 3)) :	\
 	 ((tpl) > 1024) ? ((1 << 11) | ((tpl) / 2)) :	\
+	 (tpl))
+
+/** Round up total payload length to next valid value */
+#define USB_TPL_ROUND_UP(tpl)				\
+	(((tpl) > 2048) ? ROUND_UP(tpl, 3) :		\
+	 ((tpl) > 1024) ? ROUND_UP(tpl, 2) :		\
 	 (tpl))
 
 /** Determine whether total payload length value is valid according to USB 2.0 */

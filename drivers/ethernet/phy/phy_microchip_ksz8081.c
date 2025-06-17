@@ -26,11 +26,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define PHY_MC_KSZ8081_OMSO_REG			0x16
 #define PHY_MC_KSZ8081_OMSO_FACTORY_MODE_MASK	BIT(15)
 #define PHY_MC_KSZ8081_OMSO_NAND_TREE_MASK	BIT(5)
+#define PHY_MC_KSZ8081_OMSO_RMII_OVERRIDE_MASK	BIT(1)
+#define PHY_MC_KSZ8081_OMSO_MII_OVERRIDE_MASK	BIT(0)
 
 #define PHY_MC_KSZ8081_CTRL2_REG		0x1F
 #define PHY_MC_KSZ8081_CTRL2_REF_CLK_SEL	BIT(7)
-
-#define PHY_MC_KSZ8081_RESET_HOLD_TIME
 
 enum ksz8081_interface {
 	KSZ8081_MII,
@@ -161,13 +161,11 @@ static int phy_mc_ksz8081_get_link(const struct device *dev,
 	ret = phy_mc_ksz8081_read(dev, MII_BMSR, &bmsr);
 	if (ret) {
 		LOG_ERR("Error reading phy (%d) basic status register", config->addr);
-		k_mutex_unlock(&data->mutex);
-		return ret;
+		goto done;
 	}
 	state->is_up = bmsr & MII_BMSR_LINK_STATUS;
 
 	if (!state->is_up) {
-		k_mutex_unlock(&data->mutex);
 		goto result;
 	}
 
@@ -175,31 +173,26 @@ static int phy_mc_ksz8081_get_link(const struct device *dev,
 	ret = phy_mc_ksz8081_read(dev, MII_ANAR, &anar);
 	if (ret) {
 		LOG_ERR("Error reading phy (%d) advertising register", config->addr);
-		k_mutex_unlock(&data->mutex);
-		return ret;
+		goto done;
 	}
 
 	/* Read link partner capability */
 	ret = phy_mc_ksz8081_read(dev, MII_ANLPAR, &anlpar);
 	if (ret) {
 		LOG_ERR("Error reading phy (%d) link partner register", config->addr);
-		k_mutex_unlock(&data->mutex);
-		return ret;
+		goto done;
 	}
-
-	/* Unlock mutex */
-	k_mutex_unlock(&data->mutex);
 
 	uint32_t mutual_capabilities = anar & anlpar;
 
 	if (mutual_capabilities & MII_ADVERTISE_100_FULL) {
-		state->speed = LINK_FULL_100BASE_T;
+		state->speed = LINK_FULL_100BASE;
 	} else if (mutual_capabilities & MII_ADVERTISE_100_HALF) {
-		state->speed = LINK_HALF_100BASE_T;
+		state->speed = LINK_HALF_100BASE;
 	} else if (mutual_capabilities & MII_ADVERTISE_10_FULL) {
-		state->speed = LINK_FULL_10BASE_T;
+		state->speed = LINK_FULL_10BASE;
 	} else if (mutual_capabilities & MII_ADVERTISE_10_HALF) {
-		state->speed = LINK_HALF_10BASE_T;
+		state->speed = LINK_HALF_10BASE;
 	} else {
 		ret = -EIO;
 	}
@@ -213,6 +206,9 @@ result:
 				PHY_LINK_IS_FULL_DUPLEX(state->speed) ? "full" : "half");
 		}
 	}
+
+done:
+	k_mutex_unlock(&data->mutex);
 
 	return ret;
 }
@@ -237,6 +233,10 @@ static int phy_mc_ksz8081_static_cfg(const struct device *dev)
 
 	omso &= ~PHY_MC_KSZ8081_OMSO_FACTORY_MODE_MASK &
 		~PHY_MC_KSZ8081_OMSO_NAND_TREE_MASK;
+	if (config->phy_iface == KSZ8081_RMII) {
+		omso &= ~PHY_MC_KSZ8081_OMSO_MII_OVERRIDE_MASK;
+		omso |= PHY_MC_KSZ8081_OMSO_RMII_OVERRIDE_MASK;
+	}
 
 	ret = phy_mc_ksz8081_write(dev, PHY_MC_KSZ8081_OMSO_REG, (uint32_t)omso);
 	if (ret) {
@@ -263,11 +263,44 @@ static int phy_mc_ksz8081_static_cfg(const struct device *dev)
 	return 0;
 }
 
+#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios)
+static int phy_ksz8081_reset_gpio(const struct mc_ksz8081_config *config)
+{
+	int ret;
+
+	if (!config->reset_gpio.port) {
+		return -ENODEV;
+	}
+
+	/* Start reset */
+	ret = gpio_pin_set_dt(&config->reset_gpio, 0);
+	if (ret) {
+		return ret;
+	}
+
+	/* Wait for at least 500 us as specified by datasheet */
+	k_busy_wait(1000);
+
+	/* Reset over */
+	ret = gpio_pin_set_dt(&config->reset_gpio, 1);
+
+	/* After deasserting reset, must wait at least 100 us to use programming interface */
+	k_busy_wait(200);
+
+	return ret;
+}
+#else
+static int phy_ksz8081_reset_gpio(const struct mc_ksz8081_config *config)
+{
+	ARG_UNUSED(config);
+
+	return -ENODEV;
+}
+#endif /* DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios) */
+
 static int phy_mc_ksz8081_reset(const struct device *dev)
 {
-#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios)
 	const struct mc_ksz8081_config *config = dev->config;
-#endif /* DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios) */
 	struct mc_ksz8081_data *data = dev->data;
 	int ret;
 
@@ -278,31 +311,20 @@ static int phy_mc_ksz8081_reset(const struct device *dev)
 		return ret;
 	}
 
-#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios)
-	if (!config->reset_gpio.port) {
-		goto skip_reset_gpio;
-	}
-
-	/* Start reset */
-	ret = gpio_pin_set_dt(&config->reset_gpio, 0);
-	if (ret) {
+	ret = phy_ksz8081_reset_gpio(config);
+	if (ret != -ENODEV) { /* On -ENODEV, attempt command-based reset */
 		goto done;
 	}
 
-	/* Wait for 500 ms as specified by datasheet */
-	k_busy_wait(USEC_PER_MSEC * 500);
-
-	/* Reset over */
-	ret = gpio_pin_set_dt(&config->reset_gpio, 1);
-	goto done;
-skip_reset_gpio:
-#endif /* DT_ANY_INST_HAS_PROP_STATUS_OKAY(reset_gpios) */
 	ret = phy_mc_ksz8081_write(dev, MII_BMCR, MII_BMCR_RESET);
 	if (ret) {
 		goto done;
 	}
-	/* Wait for 500 ms as specified by datasheet */
-	k_busy_wait(USEC_PER_MSEC * 500);
+
+	/* According to IEEE 802.3, Section 2, Subsection 22.2.4.1.1,
+	 * a PHY reset may take up to 0.5 s.
+	 */
+	k_busy_wait(500 * USEC_PER_MSEC);
 
 done:
 	/* Unlock mutex */
@@ -329,12 +351,6 @@ static int phy_mc_ksz8081_cfg_link(const struct device *dev,
 	/* We are going to reconfigure the phy, don't need to monitor until done */
 	k_work_cancel_delayable(&data->phy_monitor_work);
 
-	/* Reset PHY */
-	ret = phy_mc_ksz8081_reset(dev);
-	if (ret) {
-		goto done;
-	}
-
 	/* DT configurations */
 	ret = phy_mc_ksz8081_static_cfg(dev);
 	if (ret) {
@@ -349,22 +365,22 @@ static int phy_mc_ksz8081_cfg_link(const struct device *dev,
 	}
 
 	/* Setup advertising register */
-	if (speeds & LINK_FULL_100BASE_T) {
+	if (speeds & LINK_FULL_100BASE) {
 		anar |= MII_ADVERTISE_100_FULL;
 	} else {
 		anar &= ~MII_ADVERTISE_100_FULL;
 	}
-	if (speeds & LINK_HALF_100BASE_T) {
+	if (speeds & LINK_HALF_100BASE) {
 		anar |= MII_ADVERTISE_100_HALF;
 	} else {
 		anar &= ~MII_ADVERTISE_100_HALF;
 	}
-	if (speeds & LINK_FULL_10BASE_T) {
+	if (speeds & LINK_FULL_10BASE) {
 		anar |= MII_ADVERTISE_10_FULL;
 	} else {
 		anar &= ~MII_ADVERTISE_10_FULL;
 	}
-	if (speeds & LINK_HALF_10BASE_T) {
+	if (speeds & LINK_HALF_10BASE) {
 		anar |= MII_ADVERTISE_10_HALF;
 	} else {
 		anar &= ~MII_ADVERTISE_10_HALF;
@@ -500,7 +516,7 @@ skip_int_gpio:
 	return 0;
 }
 
-static const struct ethphy_driver_api mc_ksz8081_phy_api = {
+static DEVICE_API(ethphy, mc_ksz8081_phy_api) = {
 	.get_link = phy_mc_ksz8081_get_link,
 	.cfg_link = phy_mc_ksz8081_cfg_link,
 	.link_cb_set = phy_mc_ksz8081_link_cb_set,

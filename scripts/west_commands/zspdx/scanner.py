@@ -11,11 +11,12 @@ from west import log
 from zspdx.licenses import LICENSES
 from zspdx.util import getHashes
 
+
 # ScannerConfig contains settings used to configure how the SPDX
 # Document scanning should occur.
 class ScannerConfig:
     def __init__(self):
-        super(ScannerConfig, self).__init__()
+        super().__init__()
 
         # when assembling a Package's data, should we auto-conclude the
         # Package's license, based on the licenses of its Files?
@@ -36,6 +37,7 @@ class ScannerConfig:
         # should we calculate MD5 hashes for each Package's Files?
         self.doMD5 = False
 
+
 def parseLineForExpression(line):
     """Return parsed SPDX expression if tag found in line, or None otherwise."""
     p = line.partition("SPDX-License-Identifier:")
@@ -46,6 +48,7 @@ def parseLineForExpression(line):
     expression = expression.rstrip("/*")
     expression = expression.strip()
     return expression
+
 
 def getExpressionData(filePath, numLines):
     """
@@ -60,11 +63,9 @@ def getExpressionData(filePath, numLines):
     """
     log.dbg(f"  - getting licenses for {filePath}")
 
-    with open(filePath, "r") as f:
+    with open(filePath) as f:
         try:
-            lineno = 0
-            for line in f:
-                lineno += 1
+            for lineno, line in enumerate(f, start=1):
                 if lineno > numLines > 0:
                     break
                 expression = parseLineForExpression(line)
@@ -76,6 +77,7 @@ def getExpressionData(filePath, numLines):
 
     # if we get here, we didn't find an expression
     return None
+
 
 def splitExpression(expression):
     """
@@ -96,6 +98,7 @@ def splitExpression(expression):
 
     return sorted(e4)
 
+
 def calculateVerificationCode(pkg):
     """
     Calculate the SPDX Package Verification Code for all files in the package.
@@ -110,9 +113,10 @@ def calculateVerificationCode(pkg):
     hashes.sort()
     filelist = "".join(hashes)
 
-    hSHA1 = hashlib.sha1()
+    hSHA1 = hashlib.sha1(usedforsecurity=False)
     hSHA1.update(filelist.encode('utf-8'))
     return hSHA1.hexdigest()
+
 
 def checkLicenseValid(lic, doc):
     """
@@ -125,6 +129,7 @@ def checkLicenseValid(lic, doc):
     """
     if lic not in LICENSES:
         doc.customLicenseIDs.add(lic)
+
 
 def getPackageLicenses(pkg):
     """
@@ -142,6 +147,7 @@ def getPackageLicenses(pkg):
         for licInfo in f.licenseInfoInFile:
             licsFromFiles.add(licInfo)
     return sorted(list(licsConcluded)), sorted(list(licsFromFiles))
+
 
 def normalizeExpression(licsConcluded):
     """
@@ -169,6 +175,7 @@ def normalizeExpression(licsConcluded):
         else:
             revised.append(lic)
     return " AND ".join(revised)
+
 
 def scanDocument(cfg, doc):
     """

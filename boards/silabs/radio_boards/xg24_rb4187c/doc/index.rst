@@ -1,7 +1,4 @@
-.. _xg24_rb4187c:
-
-EFR32xG24 2.4 GHz 20 dBm (xG24-RB4187C)
-#######################################
+.. zephyr:board:: xg24_rb4187c
 
 Overview
 ********
@@ -10,12 +7,6 @@ The EFR32MG24 Mighty Gecko Radio Board is one of the two
 radio boards delivered with `xG24-PK6010A Website`_. It contains
 a Wireless System-On-Chip from the EFR32MG24 family built on an
 ARM Cortex®-M33F processor with excellent low power capabilities.
-
-.. figure:: efr32mg24-xg24-rb4187c.jpg
-   :align: center
-   :alt: xG24-RB4187C Mighty Gecko Radio Board
-
-   xG24-RB4187C (image courtesy of Silicon Labs)
 
 The BRD4187C a.k.a. xG24-RB4187C radio board plugs into the Wireless Pro Kit
 Mainboard BRD4002A and is supported as one of :ref:`silabs_radio_boards`.
@@ -43,67 +34,13 @@ documents:
 Supported Features
 ==================
 
-The board configuration supports the following hardware features:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| MPU       | on-chip    | memory protection unit              |
-+-----------+------------+-------------------------------------+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| SYSTICK   | on-chip    | systick                             |
-+-----------+------------+-------------------------------------+
-| COUNTER   | on-chip    | stimer                              |
-+-----------+------------+-------------------------------------+
-| FLASH     | on-chip    | flash memory                        |
-+-----------+------------+-------------------------------------+
-| GPIO      | on-chip    | gpio                                |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial                              |
-+-----------+------------+-------------------------------------+
-| I2C       | on-chip    | i2c                                 |
-+-----------+------------+-------------------------------------+
-| TRNG      | on-chip    | semailbox                           |
-+-----------+------------+-------------------------------------+
-| WATCHDOG  | on-chip    | watchdog                            |
-+-----------+------------+-------------------------------------+
-
-Other hardware features are currently not supported by the port.
-
-Connections and IOs
-===================
-
-In the following table, the column **Name** contains Pin names. For example, PA2
-means Pin number 2 on PORTA, as used in the board's datasheets and manuals.
-
-+-------+-------------+-------------------------------------+
-| Name  | Function    | Usage                               |
-+=======+=============+=====================================+
-| PB2   | GPIO        | LED0                                |
-+-------+-------------+-------------------------------------+
-| PB4   | GPIO        | LED1                                |
-+-------+-------------+-------------------------------------+
-| PB1   | GPIO        | Push Button 0                       |
-+-------+-------------+-------------------------------------+
-| PB3   | GPIO        | Push Button 1                       |
-+-------+-------------+-------------------------------------+
-| PB0   | GPIO        | Board Controller Enable             |
-|       |             | VCOM_ENABLE                         |
-+-------+-------------+-------------------------------------+
-| PA8   | USART0_TX   | UART Console VCOM_TX US0_TX         |
-+-------+-------------+-------------------------------------+
-| PA9   | USART0_RX   | UART Console VCOM_RX US0_RX         |
-+-------+-------------+-------------------------------------+
-
-The default configuration can be found in
-:zephyr_file:`boards/silabs/radio_boards/xg24_rb4187c/xg24_rb4187c_defconfig`
+.. zephyr:board-supported-hw::
 
 System Clock
 ============
 
-The EFR32MG24 SoC is configured to use the 39 MHz external oscillator on the
-board.
+The EFR32MG24 SoC is configured to use the HFRCODPLL oscillator at 78 MHz as the system clock,
+locked to the 39 MHz external crystal oscillator on the board.
 
 Serial Port
 ===========
@@ -114,13 +51,15 @@ USART0 is connected to the board controller and is used for the console.
 Programming and Debugging
 *************************
 
+.. zephyr:board-supported-runners::
+
 Flashing
 ========
 
 Connect the BRD4002A board with a mounted BRD4187C radio module to your host
 computer using the USB port.
 
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world

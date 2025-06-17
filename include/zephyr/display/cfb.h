@@ -9,8 +9,8 @@
  * @brief Public Monochrome Character Framebuffer API
  */
 
-#ifndef __CFB_H__
-#define __CFB_H__
+#ifndef ZEPHYR_INCLUDE_DISPLAY_CFB_H_
+#define ZEPHYR_INCLUDE_DISPLAY_CFB_H_
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/display.h>
@@ -28,7 +28,7 @@ extern "C" {
  */
 
 enum cfb_display_param {
-	CFB_DISPLAY_HEIGH		= 0,
+	CFB_DISPLAY_HEIGHT		= 0,
 	CFB_DISPLAY_WIDTH,
 	CFB_DISPLAY_PPT,
 	CFB_DISPLAY_ROWS,
@@ -256,4 +256,4 @@ void cfb_framebuffer_deinit(const struct device *dev);
  * @}
  */
 
-#endif /* __CFB_H__ */
+#endif /* ZEPHYR_INCLUDE_DISPLAY_CFB_H_ */

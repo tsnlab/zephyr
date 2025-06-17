@@ -194,7 +194,7 @@ struct pm_state_constraint {
  * @param idx Index within the array.
  */
 #define Z_DT_PHANDLE_01(node_id, prop, idx) \
-	COND_CODE_1(DT_NODE_HAS_STATUS(DT_PHANDLE_BY_IDX(node_id, prop, idx), okay), \
+	COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_PHANDLE_BY_IDX(node_id, prop, idx)), \
 		    (1), (0))
 
 /**
@@ -207,7 +207,7 @@ struct pm_state_constraint {
  * @param node_id A node identifier with compatible zephyr,power-state
  */
 #define Z_PM_STATE_INFO_FROM_DT_CPU(i, node_id)                                                   \
-	COND_CODE_1(DT_NODE_HAS_STATUS(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i), okay),    \
+	COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i)),     \
 		    (PM_STATE_INFO_DT_INIT(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i)),), ())
 
 /**
@@ -220,7 +220,7 @@ struct pm_state_constraint {
  * @param node_id A node identifier with compatible zephyr,power-state
  */
 #define Z_PM_STATE_FROM_DT_CPU(i, node_id)                                                        \
-	COND_CODE_1(DT_NODE_HAS_STATUS(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i), okay),    \
+	COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i)),     \
 		    (PM_STATE_DT_INIT(DT_PHANDLE_BY_IDX(node_id, cpu_power_states, i)),), ())
 
 /** @endcond */
@@ -371,6 +371,18 @@ struct pm_state_constraint {
 uint8_t pm_state_cpu_get_all(uint8_t cpu, const struct pm_state_info **states);
 
 /**
+ * Get power state structure.
+ *
+ * Function searches in all states assigned to the CPU and in disabled states.
+ *
+ * @param cpu CPU index.
+ * @param state Power state.
+ * @param substate_id Substate.
+ *
+ * @return Pointer to the power state structure or NULL if state is not found.
+ */
+const struct pm_state_info *pm_state_get(uint8_t cpu, enum pm_state state, uint8_t substate_id);
+/**
  * @}
  */
 
@@ -382,6 +394,17 @@ static inline uint8_t pm_state_cpu_get_all(uint8_t cpu, const struct pm_state_in
 	ARG_UNUSED(states);
 
 	return 0;
+}
+
+static inline const struct pm_state_info *pm_state_get(uint8_t cpu,
+						       enum pm_state state,
+						       uint8_t substate_id)
+{
+	ARG_UNUSED(cpu);
+	ARG_UNUSED(state);
+	ARG_UNUSED(substate_id);
+
+	return NULL;
 }
 
 #endif /* CONFIG_PM */

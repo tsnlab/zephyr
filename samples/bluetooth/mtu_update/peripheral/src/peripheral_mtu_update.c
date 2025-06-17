@@ -91,14 +91,16 @@ void run_peripheral_sample(uint8_t *notify_data, size_t notify_data_size, uint16
 	struct bt_gatt_attr *notify_crch =
 		bt_gatt_find_by_uuid(mtu_test.attrs, 0xffff, &notify_characteristic_uuid.uuid);
 
-	bt_le_adv_start(BT_LE_ADV_CONN_ONE_TIME, adv_ad_data, ARRAY_SIZE(adv_ad_data), NULL, 0);
+	bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, adv_ad_data, ARRAY_SIZE(adv_ad_data), NULL, 0);
 
 	bool infinite = seconds == 0;
 
 	for (int i = 0; (i < seconds) || infinite; i++) {
 		k_sleep(K_SECONDS(1));
+		if (default_conn == NULL) {
+			printk("Skipping notification since connection is not yet established\n");
 		/* Only send the notification if the UATT MTU supports the required length */
-		if (bt_gatt_get_uatt_mtu(default_conn) >= ATT_NTF_SIZE(notify_data_size)) {
+		} else if (bt_gatt_get_uatt_mtu(default_conn) >= ATT_NTF_SIZE(notify_data_size)) {
 			bt_gatt_notify(default_conn, notify_crch, notify_data, notify_data_size);
 		} else {
 			printk("Skipping notification since UATT MTU is not sufficient."

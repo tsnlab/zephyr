@@ -123,7 +123,6 @@ static int pcnt_esp32_channel_get(const struct device *dev, enum sensor_channel 
 
 static int pcnt_esp32_configure_pinctrl(const struct device *dev)
 {
-	int ret;
 	struct pcnt_esp32_config *config = (struct pcnt_esp32_config *)dev->config;
 
 	return pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
@@ -358,7 +357,7 @@ static int pcnt_esp32_trigger_set(const struct device *dev, const struct sensor_
 }
 #endif /* CONFIG_PCNT_ESP32_TRIGGER */
 
-static const struct sensor_driver_api pcnt_esp32_api = {
+static DEVICE_API(sensor, pcnt_esp32_api) = {
 	.sample_fetch = pcnt_esp32_sample_fetch,
 	.channel_get = pcnt_esp32_channel_get,
 	.attr_set = pcnt_esp32_attr_set,

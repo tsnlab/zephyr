@@ -396,6 +396,11 @@ ZTEST(util, test_IS_EQ) {
 	zassert_true(IS_EQ(0, 0), "Unexpected IS_EQ result");
 	zassert_true(IS_EQ(1, 1), "Unexpected IS_EQ result");
 	zassert_true(IS_EQ(7, 7), "Unexpected IS_EQ result");
+	zassert_true(IS_EQ(0U, 0U), "Unexpected IS_EQ result");
+	zassert_true(IS_EQ(1U, 1U), "Unexpected IS_EQ result");
+	zassert_true(IS_EQ(7U, 7U), "Unexpected IS_EQ result");
+	zassert_true(IS_EQ(1, 1U), "Unexpected IS_EQ result");
+	zassert_true(IS_EQ(1U, 1), "Unexpected IS_EQ result");
 
 	zassert_false(IS_EQ(0, 1), "Unexpected IS_EQ result");
 	zassert_false(IS_EQ(1, 7), "Unexpected IS_EQ result");
@@ -911,6 +916,57 @@ ZTEST(util, test_utf8_lcpy_null_termination)
 	utf8_lcpy(dest_str, test_str, sizeof(dest_str));
 
 	zassert_str_equal(dest_str, expected_result, "Failed to truncate");
+}
+
+ZTEST(util, test_util_eq)
+{
+	uint8_t src1[16];
+	uint8_t src2[16];
+
+	bool mem_area_matching_1;
+	bool mem_area_matching_2;
+
+	memset(src1, 0, sizeof(src1));
+	memset(src2, 0, sizeof(src2));
+
+	for (size_t i = 0U; i < 16; i++) {
+		src1[i] = 0xAB;
+		src2[i] = 0xAB;
+	}
+
+	src1[15] = 0xCD;
+	src2[15] = 0xEF;
+
+	mem_area_matching_1 = util_eq(src1, sizeof(src1), src2, sizeof(src2));
+	mem_area_matching_2 = util_eq(src1, sizeof(src1) - 1, src2, sizeof(src2) - 1);
+
+	zassert_false(mem_area_matching_1);
+	zassert_true(mem_area_matching_2);
+}
+
+ZTEST(util, test_util_memeq)
+{
+	uint8_t src1[16];
+	uint8_t src2[16];
+	uint8_t src3[16];
+
+	bool mem_area_matching_1;
+	bool mem_area_matching_2;
+
+	memset(src1, 0, sizeof(src1));
+	memset(src2, 0, sizeof(src2));
+
+	for (size_t i = 0U; i < 16; i++) {
+		src1[i] = 0xAB;
+		src2[i] = 0xAB;
+		src3[i] = 0xCD;
+	}
+
+	mem_area_matching_1 = util_memeq(src1, src2, sizeof(src1));
+	mem_area_matching_2 = util_memeq(src1, src3, sizeof(src1));
+
+	zassert_true(mem_area_matching_1);
+	zassert_false(mem_area_matching_2);
 }
 
 ZTEST_SUITE(util, NULL, NULL, NULL, NULL, NULL);

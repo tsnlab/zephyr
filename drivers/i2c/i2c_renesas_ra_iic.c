@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Renesas Electronics Corporation
+ * Copyright (c) 2024-2025 Renesas Electronics Corporation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -473,21 +473,16 @@ static void calc_iic_master_clock_setting(const struct device *dev, const uint32
 		clk_cfg->brl_value, clk_cfg->brh_value, clk_cfg->cks_value);
 }
 
-static const struct i2c_driver_api i2c_ra_iic_driver_api = {
+static DEVICE_API(i2c, i2c_ra_iic_driver_api) = {
 	.configure = i2c_ra_iic_configure,
 	.get_config = i2c_ra_iic_get_config,
 	.transfer = i2c_ra_iic_transfer,
 };
 
-#define _ELC_EVENT_IIC_RXI(channel) ELC_EVENT_IIC##channel##_RXI
-#define _ELC_EVENT_IIC_TXI(channel) ELC_EVENT_IIC##channel##_TXI
-#define _ELC_EVENT_IIC_TEI(channel) ELC_EVENT_IIC##channel##_TEI
-#define _ELC_EVENT_IIC_ERI(channel) ELC_EVENT_IIC##channel##_ERI
-
-#define ELC_EVENT_IIC_RXI(channel) _ELC_EVENT_IIC_RXI(channel)
-#define ELC_EVENT_IIC_TXI(channel) _ELC_EVENT_IIC_TXI(channel)
-#define ELC_EVENT_IIC_TEI(channel) _ELC_EVENT_IIC_TEI(channel)
-#define ELC_EVENT_IIC_ERI(channel) _ELC_EVENT_IIC_ERI(channel)
+#define EVENT_IIC_RXI(channel) BSP_PRV_IELS_ENUM(CONCAT(EVENT_IIC, channel, _RXI))
+#define EVENT_IIC_TXI(channel) BSP_PRV_IELS_ENUM(CONCAT(EVENT_IIC, channel, _TXI))
+#define EVENT_IIC_TEI(channel) BSP_PRV_IELS_ENUM(CONCAT(EVENT_IIC, channel, _TEI))
+#define EVENT_IIC_ERI(channel) BSP_PRV_IELS_ENUM(CONCAT(EVENT_IIC, channel, _ERI))
 
 #define I2C_RA_IIC_INIT(index)                                                                     \
                                                                                                    \
@@ -496,26 +491,26 @@ static const struct i2c_driver_api i2c_ra_iic_driver_api = {
 	static void i2c_ra_iic_irq_config_func##index(const struct device *dev)                    \
 	{                                                                                          \
 		R_ICU->IELSR[DT_INST_IRQ_BY_NAME(index, rxi, irq)] =                               \
-			ELC_EVENT_IIC_RXI(DT_INST_PROP(index, channel));                           \
+			EVENT_IIC_RXI(DT_INST_PROP(index, channel));                               \
 		R_ICU->IELSR[DT_INST_IRQ_BY_NAME(index, txi, irq)] =                               \
-			ELC_EVENT_IIC_TXI(DT_INST_PROP(index, channel));                           \
+			EVENT_IIC_TXI(DT_INST_PROP(index, channel));                               \
 		R_ICU->IELSR[DT_INST_IRQ_BY_NAME(index, tei, irq)] =                               \
-			ELC_EVENT_IIC_TEI(DT_INST_PROP(index, channel));                           \
+			EVENT_IIC_TEI(DT_INST_PROP(index, channel));                               \
 		R_ICU->IELSR[DT_INST_IRQ_BY_NAME(index, eri, irq)] =                               \
-			ELC_EVENT_IIC_ERI(DT_INST_PROP(index, channel));                           \
+			EVENT_IIC_ERI(DT_INST_PROP(index, channel));                               \
                                                                                                    \
-		IRQ_DIRECT_CONNECT(DT_INST_IRQ_BY_NAME(index, rxi, irq),                           \
-				   DT_INST_IRQ_BY_NAME(index, rxi, priority), iic_master_rxi_isr,  \
-				   0);                                                             \
-		IRQ_DIRECT_CONNECT(DT_INST_IRQ_BY_NAME(index, txi, irq),                           \
-				   DT_INST_IRQ_BY_NAME(index, txi, priority), iic_master_txi_isr,  \
-				   0);                                                             \
-		IRQ_DIRECT_CONNECT(DT_INST_IRQ_BY_NAME(index, tei, irq),                           \
-				   DT_INST_IRQ_BY_NAME(index, tei, priority), iic_master_tei_isr,  \
-				   0);                                                             \
-		IRQ_DIRECT_CONNECT(DT_INST_IRQ_BY_NAME(index, eri, irq),                           \
-				   DT_INST_IRQ_BY_NAME(index, eri, priority), iic_master_eri_isr,  \
-				   0);                                                             \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(index, rxi, irq),                                  \
+			    DT_INST_IRQ_BY_NAME(index, rxi, priority), iic_master_rxi_isr,         \
+			    DEVICE_DT_INST_GET(index), 0);                                         \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(index, txi, irq),                                  \
+			    DT_INST_IRQ_BY_NAME(index, txi, priority), iic_master_txi_isr,         \
+			    DEVICE_DT_INST_GET(index), 0);                                         \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(index, tei, irq),                                  \
+			    DT_INST_IRQ_BY_NAME(index, tei, priority), iic_master_tei_isr,         \
+			    DEVICE_DT_INST_GET(index), 0);                                         \
+		IRQ_CONNECT(DT_INST_IRQ_BY_NAME(index, eri, irq),                                  \
+			    DT_INST_IRQ_BY_NAME(index, eri, priority), iic_master_eri_isr,         \
+			    DEVICE_DT_INST_GET(index), 0);                                         \
                                                                                                    \
 		irq_enable(DT_INST_IRQ_BY_NAME(index, rxi, irq));                                  \
 		irq_enable(DT_INST_IRQ_BY_NAME(index, txi, irq));                                  \

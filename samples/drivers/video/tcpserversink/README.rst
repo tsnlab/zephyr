@@ -15,13 +15,13 @@ Requirements
 
 This samples requires a video capture device and network support.
 
-- :ref:`mimxrt1064_evk`
+- :zephyr:board:`mimxrt1064_evk`
 - `MT9M114 camera module`_
 
 Wiring
 ******
 
-On :ref:`mimxrt1064_evk`, The MT9M114 camera module should be plugged in the
+On :zephyr:board:`mimxrt1064_evk`, The MT9M114 camera module should be plugged in the
 J35 camera connector. A USB cable should be connected from a host to the micro
 USB debug connector (J41) in order to get console output via the freelink
 interface. Ethernet cable must be connected to RJ45 connector.
@@ -29,13 +29,23 @@ interface. Ethernet cable must be connected to RJ45 connector.
 Building and Running
 ********************
 
-For :ref:`mimxrt1064_evk`, the sample can be built with the following command.
+For :zephyr:board:`mimxrt1064_evk`, the sample can be built with the following command.
 If a mt9m114 camera shield is missing, video software generator will be used instead.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/drivers/video/tcpserversink
    :board: mimxrt1064_evk
    :shield: dvp_fpc24_mt9m114
+   :goals: build
+   :compact:
+
+For testing purpose and without the need of any real video capture hardware,
+a video software pattern generator is supported by using :ref:`snippet-video-sw-generator`:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/video/capture
+   :board: native_sim/native/64
+   :snippets: video-sw-generator
    :goals: build
    :compact:
 
@@ -63,5 +73,7 @@ For video software generator, the default resolution should be width=320 and hei
 
 References
 **********
+
+.. target-notes::
 
 .. _MT9M114 camera module: https://www.onsemi.com/PowerSolutions/product.do?id=MT9M114

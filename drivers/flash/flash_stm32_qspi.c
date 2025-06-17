@@ -187,9 +187,16 @@ static inline int qspi_prepare_quad_program(const struct device *dev,
 			dev_data->qspi_write_cmd == SPI_NOR_CMD_PP_1_4_4);
 
 	cmd->Instruction = dev_data->qspi_write_cmd;
+#if defined(CONFIG_USE_MICROCHIP_QSPI_FLASH_WITH_STM32)
+	/* Microchip qspi-NOR flash, does not follow the standard rules */
+	if (cmd->Instruction == SPI_NOR_CMD_PP_1_1_4) {
+		cmd->AddressMode = QSPI_ADDRESS_4_LINES;
+	}
+#else
 	cmd->AddressMode = ((cmd->Instruction == SPI_NOR_CMD_PP_1_1_4)
 				? QSPI_ADDRESS_1_LINE
 				: QSPI_ADDRESS_4_LINES);
+#endif /* CONFIG_USE_MICROCHIP_QSPI_FLASH_WITH_STM32 */
 	cmd->DataMode = QSPI_DATA_4_LINES;
 	cmd->DummyCycles = 0;
 
@@ -310,11 +317,12 @@ static int qspi_read_jedec_id(const struct device *dev, uint8_t *id)
 {
 	struct flash_stm32_qspi_data *dev_data = dev->data;
 	uint8_t data[JESD216_READ_ID_LEN];
+	uint32_t dummy_cycles = DT_INST_PROP(0, st_read_id_dummy_cycles);
 
 	QSPI_CommandTypeDef cmd = {
 		.Instruction = JESD216_CMD_READ_ID,
 		.AddressSize = QSPI_ADDRESS_NONE,
-		.DummyCycles = 8,
+		.DummyCycles = dummy_cycles,
 		.InstructionMode = QSPI_INSTRUCTION_1_LINE,
 		.AddressMode = QSPI_ADDRESS_1_LINE,
 		.DataMode = QSPI_DATA_1_LINE,
@@ -326,7 +334,7 @@ static int qspi_read_jedec_id(const struct device *dev, uint8_t *id)
 	hal_ret = HAL_QSPI_Command_IT(&dev_data->hqspi, &cmd);
 
 	if (hal_ret != HAL_OK) {
-		LOG_ERR("%d: Failed to send OSPI instruction", hal_ret);
+		LOG_ERR("%d: Failed to send QSPI instruction", hal_ret);
 		return -EIO;
 	}
 
@@ -344,6 +352,27 @@ static int qspi_read_jedec_id(const struct device *dev, uint8_t *id)
 	return 0;
 }
 #endif /* CONFIG_FLASH_JESD216_API */
+
+static int qspi_write_unprotect(const struct device *dev)
+{
+	int ret = 0;
+	QSPI_CommandTypeDef cmd_unprotect = {
+			.Instruction = SPI_NOR_CMD_ULBPR,
+			.InstructionMode = QSPI_INSTRUCTION_1_LINE,
+	};
+
+	if (IS_ENABLED(DT_INST_PROP(0, requires_ulbpr))) {
+		ret = qspi_send_cmd(dev, &cmd_write_en);
+
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = qspi_send_cmd(dev, &cmd_unprotect);
+	}
+
+	return ret;
+}
 
 /*
  * Read Serial Flash Discovery Parameter
@@ -727,6 +756,15 @@ flash_stm32_qspi_get_parameters(const struct device *dev)
 	return &flash_stm32_qspi_parameters;
 }
 
+static int flash_stm32_qspi_get_size(const struct device *dev, uint64_t *size)
+{
+	const struct flash_stm32_qspi_config *dev_cfg = dev->config;
+
+	*size = (uint64_t)dev_cfg->flash_size;
+
+	return 0;
+}
+
 static void flash_stm32_qspi_isr(const struct device *dev)
 {
 	struct flash_stm32_qspi_data *dev_data = dev->data;
@@ -848,11 +886,12 @@ static void flash_stm32_qspi_pages_layout(const struct device *dev,
 }
 #endif
 
-static const struct flash_driver_api flash_stm32_qspi_driver_api = {
+static DEVICE_API(flash, flash_stm32_qspi_driver_api) = {
 	.read = flash_stm32_qspi_read,
 	.write = flash_stm32_qspi_write,
 	.erase = flash_stm32_qspi_erase,
 	.get_parameters = flash_stm32_qspi_get_parameters,
+	.get_size = flash_stm32_qspi_get_size,
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = flash_stm32_qspi_pages_layout,
 #endif
@@ -1491,6 +1530,13 @@ static int flash_stm32_qspi_init(const struct device *dev)
 	}
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
+	ret = qspi_write_unprotect(dev);
+	if (ret != 0) {
+		LOG_ERR("write unprotect failed: %d", ret);
+		return -ENODEV;
+	}
+	LOG_DBG("Write Un-protected");
+
 #ifdef CONFIG_STM32_MEMMAP
 #if DT_PROP(DT_NODELABEL(quadspi), dual_flash) && defined(QUADSPI_CR_DFM)
 	/*
@@ -1572,7 +1618,7 @@ static const struct flash_stm32_qspi_config flash_stm32_qspi_cfg = {
 		.bus = DT_CLOCKS_CELL(STM32_QSPI_NODE, bus)
 	},
 	.irq_config = flash_stm32_qspi_irq_config_func,
-	.flash_size = DT_INST_REG_ADDR_BY_IDX(0, 1) << STM32_QSPI_DOUBLE_FLASH,
+	.flash_size = DT_INST_REG_SIZE(0) << STM32_QSPI_DOUBLE_FLASH,
 	.max_frequency = DT_INST_PROP(0, qspi_max_frequency),
 	.pcfg = PINCTRL_DT_DEV_CONFIG_GET(STM32_QSPI_NODE),
 #if STM32_QSPI_RESET_GPIO

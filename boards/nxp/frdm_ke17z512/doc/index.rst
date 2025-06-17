@@ -1,7 +1,4 @@
-.. _frdm_ke17z512:
-
-NXP  FRDM-KE17Z512
-##################
+.. zephyr:board:: frdm_ke17z512
 
 Overview
 ********
@@ -10,12 +7,6 @@ The FRDM-KE17Z512 is a development board for NXP Kinetis KE1xZ 32-bit
 MCU-based platforms. The onboard OpenSDAv2 serial and debug adapter,
 running an open source bootloader, offers options for serial
 communication, flash programming, and run-control debugging.
-
-.. figure:: frdm_ke17z512.webp
-   :align: center
-   :alt: FRDM-KE17Z512
-
-   FRDM-KE17Z512 (Credit: NXP)
 
 Hardware
 ********
@@ -44,44 +35,7 @@ these NXP reference documents:
 Supported Features
 ==================
 
-The frdm_ke17z512 board configuration supports the following hardware
-features:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| SYSTICK   | on-chip    | systick                             |
-+-----------+------------+-------------------------------------+
-| ADC       | on-chip    | adc                                 |
-+-----------+------------+-------------------------------------+
-| GPIO      | on-chip    | gpio                                |
-+-----------+------------+-------------------------------------+
-| LPTMR     | on-chip    | counter                             |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | uart polling;                       |
-|           |            | uart interrupt                      |
-+-----------+------------+-------------------------------------+
-| FTM       | on-chip    | pwm                                 |
-+-----------+------------+-------------------------------------+
-| I2C       | on-chip    | I2C                                 |
-+-----------+------------+-------------------------------------+
-| RTC       | on-chip    | counter                             |
-+-----------+------------+-------------------------------------+
-| ACMP      | on-chip    | sensor                              |
-+-----------+------------+-------------------------------------+
-| SPI       | on-chip    | spi                                 |
-+-----------+------------+-------------------------------------+
-| DMA       | on-chip    | dma                                 |
-+-----------+------------+-------------------------------------+
-| WATCHDOG  | on-chip    | watchdog                            |
-+-----------+------------+-------------------------------------+
-
-The default configuration can be found in the defconfig file:
-``boards/nxp/frdm_ke17z512/frdm_ke17z512_defconfig``.
-
-Other hardware features are not currently supported by the port.
+.. zephyr:board-supported-hw::
 
 System Clock
 ============
@@ -95,6 +49,8 @@ The KE17Z9 SoC has three LPUARTs. UART2 is configured for the console.
 
 Programming and Debugging
 *************************
+
+.. zephyr:board-supported-runners::
 
 Build and flash applications as usual (see :ref:`build_an_application` and
 :ref:`application_run` for more details).
@@ -152,7 +108,7 @@ etc.):
 Flashing
 ========
 
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
@@ -170,7 +126,7 @@ see the following message in the terminal:
 Debugging
 =========
 
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
@@ -184,6 +140,9 @@ should see the following message in the terminal:
 
    *** Booting Zephyr OS build v3.6.0-xxxx-gxxxxxxxxxxxx ***
    Hello World! frdm_ke17z512/mke17z9
+
+.. include:: ../../common/board-footer.rst
+   :start-after: nxp-board-footer
 
 .. _FRDM-KE17Z512 Website:
    https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/frdm-development-board-for-96-mhz-ke17z-ke13z-ke12z-with-512-kb-flash-mcus:FRDM-KE17Z512

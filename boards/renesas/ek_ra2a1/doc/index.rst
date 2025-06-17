@@ -1,7 +1,4 @@
-.. _ek_ra2a1:
-
-RA2A1 Evaluation Kit
-####################
+.. zephyr:board:: ek_ra2a1
 
 Overview
 ********
@@ -34,6 +31,17 @@ Renesas RA2A1 Microcontroller Group has following features
 Hardware
 ********
 
+Detail Hardware feature for the RA2A1 MCU group can be found at `RA2A1 Group User's Manual Hardware`_
+
+.. figure:: ra2a1_block_diagram.webp
+	:width: 442px
+	:align: center
+	:alt: RA2A1 MCU group feature
+
+	RA2A1 Block diagram (Credit: Renesas Electronics Corporation)
+
+Detail Hardware feature for the EK-RA2A1 MCU can be found at `EK-RA2A1 - User's Manual`_
+
 EK-RA2A1 has following features.
 
 - Native pin access through 4x 40-pin male headers
@@ -47,34 +55,19 @@ EK-RA2A1 has following features.
 Supported Features
 ==================
 
-The Renesas EK-RA2A1 board configuration supports the following
-hardware features:
-
-+-----------+------------+-------------------------------+
-| Interface | Controller | Driver/components             |
-+===========+============+===============================+
-| PINCTRL   | on-chip    | pinctrl                       |
-+-----------+------------+-------------------------------+
-| CLOCK     | on-chip    | clock_control                 |
-+-----------+------------+-------------------------------+
-| GPIO      | on-chip    | gpio                          |
-+-----------+------------+-------------------------------+
-| UART      | on-chip    | uart                          |
-+-----------+------------+-------------------------------+
-
-The default configuration can be found in
-:zephyr_file:`boards/renesas/ek_ra2a1/ek_ra2a1_defconfig`
-
+.. zephyr:board-supported-hw::
 
 Programming and debugging
 *************************
+
+.. zephyr:board-supported-runners::
 
 Building & Flashing
 ===================
 
 You can build and flash an application with onboard J-Link debug adapter.
 :ref:`build_an_application` and
-:ref:`application_run` for more details).
+:ref:`application_run` for more details.
 
 Here is an example for building and flashing the :zephyr:code-sample:`blinky` application.
 
@@ -101,5 +94,13 @@ Also, see the instructions specific to the debug server that you use.
 References
 **********
 
+.. target-notes::
+
 .. EK-RA2A1 Web site:
    https://www.renesas.com/us/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra2a1-evaluation-kit-ra2a1-mcu-group
+
+.. _RA2A1 Group User's Manual Hardware:
+   https://www.renesas.com/en/document/mah/renesas-ra2a1-group-users-manual-hardware
+
+.. _EK-RA2A1 - User's Manual:
+   https://www.renesas.com/en/document/mah/renesas-ra2a1-group-users-manual-hardware

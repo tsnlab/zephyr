@@ -167,10 +167,10 @@
 					 NO_FUNC NO_FUNC 0xf016f1 0xf016f1>;
 			func3-en-mask = <0       0       0x02     0x02
 					 0       0       0x10     0x10    >;
-			func4-gcr =     <NO_FUNC NO_FUNC 0xf02046 0xf02046
-					 NO_FUNC NO_FUNC NO_FUNC  NO_FUNC >;
-			func4-en-mask = <0       0       0x40     0x40
-					 0       0       0        0       >;
+			func4-gcr =     <0xf016f7 NO_FUNC 0xf02046 0xf02046
+					 NO_FUNC  NO_FUNC NO_FUNC  NO_FUNC >;
+			func4-en-mask = <0x20     0       0x40     0x40
+					 0        0       0        0       >;
 			volt-sel =      <0xf016d4 0xf016d4 0xf016e5 0xf016e5
 					 0xf016e5 0xf016e6 0xf016e6 0xf016e6>;
 			volt-sel-mask = <0x10     0x20     0x04     0x02
@@ -625,6 +625,16 @@
 		sha0: sha@f0202d {
 			compatible = "ite,it8xxx2-sha";
 			reg = <0x00f0202d 0x3>;
+			status = "disabled";
+		};
+
+		spi0: spi@f02600  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "ite,it8xxx2-spi";
+			reg = <0x00f02600 0x34>;
+			interrupt-parent = <&intc>;
+			interrupts = <37 IRQ_TYPE_EDGE_RISING>;
 			status = "disabled";
 		};
 	};

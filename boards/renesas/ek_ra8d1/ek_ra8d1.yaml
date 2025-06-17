@@ -10,3 +10,8 @@ toolchain:
 supported:
   - gpio
   - uart
+  - watchdog
+  - usbd
+  - display
+  - counter
+vendor: renesas

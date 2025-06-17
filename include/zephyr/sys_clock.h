@@ -79,7 +79,7 @@ typedef struct {
  */
 #define K_TIMEOUT_EQ(a, b) ((a).ticks == (b).ticks)
 
-/** number of nanoseconds per micorsecond */
+/** number of nanoseconds per microsecond */
 #define NSEC_PER_USEC 1000U
 
 /** number of nanoseconds per millisecond */
@@ -93,6 +93,12 @@ typedef struct {
 
 /** number of seconds per minute */
 #define SEC_PER_MIN 60U
+
+/** number of seconds per hour */
+#define SEC_PER_HOUR 3600U
+
+/** number of seconds per day */
+#define SEC_PER_DAY 86400U
 
 /** number of minutes per hour */
 #define MIN_PER_HOUR 60U
@@ -109,12 +115,14 @@ typedef struct {
 /** @} */
 
 /** @cond INTERNAL_HIDDEN */
-#define Z_TIMEOUT_NO_WAIT ((k_timeout_t) {0})
+#define Z_TIMEOUT_NO_WAIT_INIT {0}
+#define Z_TIMEOUT_NO_WAIT ((k_timeout_t) Z_TIMEOUT_NO_WAIT_INIT)
 #if defined(__cplusplus) && ((__cplusplus - 0) < 202002L)
-#define Z_TIMEOUT_TICKS(t) ((k_timeout_t) { (t) })
+#define Z_TIMEOUT_TICKS_INIT(t) { (t) }
 #else
-#define Z_TIMEOUT_TICKS(t) ((k_timeout_t) { .ticks = (t) })
+#define Z_TIMEOUT_TICKS_INIT(t) { .ticks = (t) }
 #endif
+#define Z_TIMEOUT_TICKS(t) ((k_timeout_t) Z_TIMEOUT_TICKS_INIT(t))
 #define Z_FOREVER Z_TIMEOUT_TICKS(K_TICKS_FOREVER)
 
 #ifdef CONFIG_TIMEOUT_64BIT
@@ -141,16 +149,32 @@ typedef struct {
  */
 #define Z_TICK_ABS(t) (K_TICKS_FOREVER - 1 - (t))
 
+/* Test for relative timeout */
+#if CONFIG_TIMEOUT_64BIT
+/* Positive values are relative/delta timeouts and negative values are absolute
+ * timeouts, except -1 which is reserved for K_TIMEOUT_FOREVER. 0 is K_NO_WAIT,
+ * which is historically considered a relative timeout.
+ * K_TIMEOUT_FOREVER is not considered a relative timeout and neither is it
+ * considerd an absolute timeouts (so !Z_IS_TIMEOUT_RELATIVE() does not
+ * necessarily mean it is an absolute timeout if ticks == -1);
+ */
+#define Z_IS_TIMEOUT_RELATIVE(timeout)  (((timeout).ticks) >= 0)
+#else
+#define Z_IS_TIMEOUT_RELATIVE(timeout)  true
+#endif
+
 /* added tick needed to account for tick in progress */
 #define _TICK_ALIGN 1
 
 /** @endcond */
 
-#if defined(CONFIG_SYS_CLOCK_EXISTS) && \
-	(CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 0)
+#ifndef CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME
+#if defined(CONFIG_SYS_CLOCK_EXISTS)
+#if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 0
 #error "SYS_CLOCK_HW_CYCLES_PER_SEC must be non-zero!"
-#endif
-
+#endif /* CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 0 */
+#endif /* CONFIG_SYS_CLOCK_EXISTS */
+#endif /* CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME */
 
 /* kernel clocks */
 
@@ -250,21 +274,6 @@ k_timepoint_t sys_timepoint_calc(k_timeout_t timeout);
  * @see sys_timepoint_calc()
  */
 k_timeout_t sys_timepoint_timeout(k_timepoint_t timepoint);
-
-/**
- * @brief Provided for backward compatibility.
- *
- * This is deprecated. Consider `sys_timepoint_calc()` instead.
- *
- * @see sys_timepoint_calc()
- */
-__deprecated
-static inline uint64_t sys_clock_timeout_end_calc(k_timeout_t timeout)
-{
-	k_timepoint_t tp = sys_timepoint_calc(timeout);
-
-	return tp.tick;
-}
 
 /**
  * @brief Compare two timepoint values.

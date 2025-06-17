@@ -1,7 +1,4 @@
-.. _stm32h7s78_dk_board:
-
-ST STM32H7S78-DK Discovery
-##########################
+.. zephyr:board:: stm32h7s78_dk
 
 Overview
 ********
@@ -40,10 +37,6 @@ the STM32H7S78-DK Discovery board:
 
 - 4 user LEDs
 - User and reset push-buttons
-
-.. image:: img/stm32h7s78_dk.jpg
-   :align: center
-   :alt: STM32H7S78-DK Discovery
 
 More information about the board can be found at the `STM32H7S78-DK Discovery website`_.
 
@@ -154,40 +147,7 @@ More information about STM32H7S7 can be found here:
 Supported Features
 ==================
 
-The Zephyr STM32H7S78_DK board configuration supports the following
-hardware features:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| CLOCK     | on-chip    | reset and clock control             |
-+-----------+------------+-------------------------------------+
-| GPIO      | on-chip    | gpio                                |
-+-----------+------------+-------------------------------------+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
-+-----------+------------+-------------------------------------+
-| RNG       | on-chip    | True Random number generator        |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
-+-----------+------------+-------------------------------------+
-| WATCHDOG  | on-chip    | independent watchdog                |
-+-----------+------------+-------------------------------------+
-| ADC       | on-chip    | ADC Controller                      |
-+-----------+------------+-------------------------------------+
-| SPI       | on-chip    | spi bus                             |
-+-----------+------------+-------------------------------------+
-
-Other hardware features are not yet supported on this Zephyr port.
-
-The default configuration can be found in the defconfig and dts files:
-
-- Secure target:
-
-  - :zephyr_file:`boards/st/stm32h7s78_dk/stm32h7s78_dk_defconfig`
-  - :zephyr_file:`boards/st/stm32h7s78_dk/stm32h7s78_dk.dts`
+.. zephyr:board-supported-hw::
 
 Zephyr board options
 ====================
@@ -222,6 +182,8 @@ Default Zephyr Peripheral Mapping:
 - LD3 (red) : PM2
 - LD4 (blue) : PM3
 - ADC1 channel 6 input : PF12
+- USB OTG FS DM/DP : PM12/PM11
+- XSPI1 NCS/DQS0/DQS1/CLK/IO: PO0/PO2/PO3/PO4/PP0..15
 
 System Clock
 ------------
@@ -236,9 +198,18 @@ Serial Port
 STM32H7S78-DK Discovery board has 2 U(S)ARTs. The Zephyr console output is
 assigned to USART4. Default settings are 115200 8N1.
 
+USB
+---
+
+STM32H7S78-DK Discovery board has 2 USB Type-C connectors. Currently, only
+USB port2 (FS) is supported.
 
 Programming and Debugging
 *************************
+
+.. zephyr:board-supported-runners::
+
+STM32H7S78-DK Discovery board includes an ST-LINK/V3E embedded debug tool interface.
 
 Applications for the ``stm32h7s78_dk`` board configuration can be built and
 flashed in the usual way (see :ref:`build_an_application` and
@@ -247,17 +218,15 @@ flashed in the usual way (see :ref:`build_an_application` and
 Flashing
 ========
 
-STM32H7S78-DK Discovery board includes an ST-LINK/V3E embedded debug tool
-interface. Support is available on STM32CubeProgrammer V2.13.0.
-
-Alternatively, this interface will be supported by a next openocd version.
+The board is configured to be flashed using west `STM32CubeProgrammer`_ runner,
+so its :ref:`installation <stm32cubeprog-flash-host-tools>` is required.
 
 Flashing an application to STM32H7S78-DK Discovery
 --------------------------------------------------
 
 Connect the STM32H7S78-DK Discovery to your host computer using the USB port.
 Then build and flash an application. Here is an example for the
-:ref:`hello_world` application.
+:zephyr:code-sample:`hello_world` application.
 
 Run a serial host program to connect with your Nucleo board:
 
@@ -282,7 +251,7 @@ Debugging
 =========
 
 You can debug an application in the usual way.  Here is an example for the
-:ref:`hello_world` application.
+:zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world

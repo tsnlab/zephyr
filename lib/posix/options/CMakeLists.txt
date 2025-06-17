@@ -2,9 +2,11 @@
 
 set(GEN_DIR ${ZEPHYR_BINARY_DIR}/include/generated)
 
+zephyr_syscall_header_ifdef(CONFIG_POSIX_CLOCK_SELECTION posix_clock.h)
 zephyr_syscall_header_ifdef(CONFIG_POSIX_TIMERS posix_clock.h)
+zephyr_syscall_header_ifdef(CONFIG_XSI_SINGLE_PROCESS posix_clock.h)
 
-if(CONFIG_POSIX_API)
+if(CONFIG_POSIX_SYSTEM_HEADERS)
   zephyr_include_directories(${ZEPHYR_BASE}/include/zephyr/posix)
 endif()
 
@@ -44,6 +46,13 @@ if (NOT CONFIG_TC_PROVIDES_POSIX_BARRIERS)
   zephyr_library_sources_ifdef(CONFIG_POSIX_BARRIERS barrier.c)
 endif()
 
+if (NOT CONFIG_TC_PROVIDES_POSIX_CLOCK_SELECTION)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_CLOCK_SELECTION
+    clock_common.c
+    clock_selection.c
+  )
+endif()
+
 if (NOT CONFIG_TC_PROVIDES_POSIX_C_LIB_EXT)
   zephyr_library_sources_ifdef(CONFIG_POSIX_C_LIB_EXT
     fnmatch.c
@@ -71,9 +80,9 @@ if (NOT CONFIG_TC_PROVIDES_POSIX_FILE_SYSTEM)
   zephyr_library_sources_ifdef(CONFIG_POSIX_FILE_SYSTEM fs.c)
 endif()
 
-zephyr_library_sources_ifdef(CONFIG_POSIX_FSYNC fsync.c)
-zephyr_library_sources_ifdef(CONFIG_POSIX_MEMLOCK mlockall.c)
-zephyr_library_sources_ifdef(CONFIG_POSIX_MEMLOCK_RANGE mlock.c)
+if (NOT CONFIG_TC_PROVIDES_POSIX_FILE_SYSTEM_R)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_FILE_SYSTEM_R file_system_r.c)
+endif()
 
 if (NOT CONFIG_TC_PROVIDES_POSIX_MEMORY_PROTECTION)
 zephyr_library_sources_ifdef(CONFIG_POSIX_MEMORY_PROTECTION mprotect.c)
@@ -82,8 +91,6 @@ endif()
 if (NOT CONFIG_TC_PROVIDES_POSIX_MAPPED_FILES)
   zephyr_library_sources_ifdef(CONFIG_POSIX_MAPPED_FILES mmap.c)
 endif()
-
-zephyr_library_sources_ifdef(CONFIG_POSIX_MESSAGE_PASSING mqueue.c)
 
 if (NOT CONFIG_TC_PROVIDES_POSIX_MULTI_PROCESS)
   zephyr_library_sources_ifdef(CONFIG_POSIX_MULTI_PROCESS
@@ -96,10 +103,6 @@ if (NOT CONFIG_TC_PROVIDES_POSIX_NETWORKING)
   zephyr_library_sources_ifdef(CONFIG_POSIX_NETWORKING net.c)
 endif()
 
-if (NOT CONFIG_TC_PROVIDES_POSIX_SHARED_MEMORY_OBJECTS)
-  zephyr_library_sources_ifdef(CONFIG_POSIX_SHARED_MEMORY_OBJECTS shm.c)
-endif()
-
 if (NOT CONFIG_TC_PROVIDES_POSIX_SIGNALS)
   zephyr_library_sources_ifdef(CONFIG_POSIX_SIGNALS signal.c ${STRSIGNAL_TABLE_H})
 endif()
@@ -108,6 +111,7 @@ if (NOT CONFIG_TC_PROVIDES_POSIX_SINGLE_PROCESS)
   zephyr_library_sources_ifdef(CONFIG_POSIX_SINGLE_PROCESS
     confstr.c
     env.c
+    env_common.c
     sysconf.c
     uname.c
   )
@@ -120,12 +124,11 @@ endif()
 if (NOT CONFIG_TC_PROVIDES_POSIX_TIMERS)
   zephyr_library_sources_ifdef(CONFIG_POSIX_TIMERS
     clock.c
+    clock_common.c
     timer.c
     timespec_to_timeout.c
   )
 endif()
-
-zephyr_library_sources_ifdef(CONFIG_POSIX_PRIORITY_SCHEDULING sched.c)
 
 if (NOT CONFIG_TC_PROVIDES_POSIX_READER_WRITER_LOCKS)
   # Note: the Option is _POSIX_READER_WRITER_LOCKS, while the Option Group is POSIX_RW_LOCKS.
@@ -150,7 +153,24 @@ if (NOT CONFIG_TC_PROVIDES_POSIX_THREADS)
   )
 endif()
 
+if(NOT CONFIG_TC_PROVIDES_XSI_REALTIME)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_FSYNC fsync.c)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_MEMLOCK mlockall.c)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_MEMLOCK_RANGE mlock.c)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_MESSAGE_PASSING mqueue.c)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_PRIORITY_SCHEDULING sched.c)
+  zephyr_library_sources_ifdef(CONFIG_POSIX_SHARED_MEMORY_OBJECTS shm.c)
+endif()
+
 zephyr_library_sources_ifdef(CONFIG_XOPEN_STREAMS stropts.c)
+
+if (NOT CONFIG_TC_PROVIDES_XSI_SINGLE_PROCESS)
+  zephyr_library_sources_ifdef(CONFIG_XSI_SINGLE_PROCESS
+    clock_common.c
+    env_common.c
+    xsi_single_process.c
+  )
+endif()
 
 if (NOT CONFIG_TC_PROVIDES_XSI_SYSTEM_LOGGING)
   zephyr_library_sources_ifdef(CONFIG_XSI_SYSTEM_LOGGING syslog.c)
@@ -169,3 +189,5 @@ zephyr_library_include_directories(
 )
 
 zephyr_library_property(ALLOW_EMPTY TRUE)
+
+zephyr_library_compile_options(-U_POSIX_C_SOURCE -D_POSIX_C_SOURCE=200809L)

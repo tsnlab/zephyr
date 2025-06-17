@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <stddef.h>
 #include <string.h>
 #include <zephyr/device.h>
@@ -35,20 +36,10 @@ const struct device *z_impl_device_get_binding(const char *name)
 		return NULL;
 	}
 
-	/* Split the search into two loops: in the common scenario, where
-	 * device names are stored in ROM (and are referenced by the user
-	 * with CONFIG_* macros), only cheap pointer comparisons will be
-	 * performed. Reserve string comparisons for a fallback.
-	 */
+	/* Return NULL if the device matching 'name' is not ready. */
 	STRUCT_SECTION_FOREACH(device, dev) {
-		if (z_impl_device_is_ready(dev) && (dev->name == name)) {
-			return dev;
-		}
-	}
-
-	STRUCT_SECTION_FOREACH(device, dev) {
-		if (z_impl_device_is_ready(dev) && (strcmp(name, dev->name) == 0)) {
-			return dev;
+		if ((dev->name == name) || (strcmp(name, dev->name) == 0)) {
+			return z_impl_device_is_ready(dev) ? dev : NULL;
 		}
 	}
 
@@ -151,6 +142,43 @@ bool z_impl_device_is_ready(const struct device *dev)
 
 	return dev->state->initialized && (dev->state->init_res == 0U);
 }
+
+int z_impl_device_deinit(const struct device *dev)
+{
+#ifdef CONFIG_DEVICE_DEINIT_SUPPORT
+	int ret;
+
+	if (!dev->state->initialized) {
+		return -EPERM;
+	}
+
+	if (dev->ops.deinit == NULL) {
+		return -ENOTSUP;
+	}
+
+	ret = dev->ops.deinit(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
+	dev->state->initialized = false;
+
+	return 0;
+#else
+	ARG_UNUSED(dev);
+	return -ENOTSUP;
+#endif /* CONFIG_DEVICE_DEINIT_SUPPORT */
+}
+
+#ifdef CONFIG_USERSPACE
+static inline int z_vrfy_device_deinit(const struct device *dev)
+{
+	K_OOPS(K_SYSCALL_OBJ_INIT(dev, K_OBJ_ANY));
+
+	return z_impl_device_deinit(dev);
+}
+#include <zephyr/syscalls/device_deinit_mrsh.c>
+#endif
 
 #ifdef CONFIG_DEVICE_DEPS
 

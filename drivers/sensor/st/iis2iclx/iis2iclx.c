@@ -15,7 +15,6 @@
 #include <zephyr/device.h>
 #include <zephyr/init.h>
 #include <string.h>
-#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/logging/log.h>
 
@@ -64,20 +63,6 @@ static int iis2iclx_accel_range_to_fs_val(int32_t range)
 	}
 
 	return -EINVAL;
-}
-
-static inline int iis2iclx_reboot(const struct device *dev)
-{
-	const struct iis2iclx_config *cfg = dev->config;
-
-	if (iis2iclx_boot_set((stmdev_ctx_t *)&cfg->ctx, 1) < 0) {
-		return -EIO;
-	}
-
-	/* Wait sensor turn-on time as per datasheet */
-	k_msleep(35);
-
-	return 0;
 }
 
 static int iis2iclx_accel_set_fs_raw(const struct device *dev, uint8_t fs)
@@ -204,8 +189,8 @@ static int iis2iclx_sample_fetch_accel(const struct device *dev)
 		return -EIO;
 	}
 
-	data->acc[0] = sys_le16_to_cpu(buf[0]);
-	data->acc[1] = sys_le16_to_cpu(buf[1]);
+	data->acc[0] = buf[0];
+	data->acc[1] = buf[1];
 
 	return 0;
 }
@@ -222,7 +207,7 @@ static int iis2iclx_sample_fetch_temp(const struct device *dev)
 		return -EIO;
 	}
 
-	data->temp_sample = sys_le16_to_cpu(buf);
+	data->temp_sample = buf;
 
 	return 0;
 }
@@ -518,7 +503,7 @@ static int iis2iclx_channel_get(const struct device *dev,
 	return 0;
 }
 
-static const struct sensor_driver_api iis2iclx_driver_api = {
+static DEVICE_API(sensor, iis2iclx_driver_api) = {
 	.attr_set = iis2iclx_attr_set,
 #if CONFIG_IIS2ICLX_TRIGGER
 	.trigger_set = iis2iclx_trigger_set,

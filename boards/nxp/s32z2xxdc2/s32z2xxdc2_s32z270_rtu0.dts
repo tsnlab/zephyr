@@ -13,8 +13,10 @@
 	compatible = "nxp,s32z270";
 
 	chosen {
-		zephyr,sram = &sram0;
+		zephyr,sram = &dram0;
+		zephyr,flash = &cram0;
 		zephyr,canbus = &canxl0;
+		zephyr,flash-controller = &s26hs512t;
 	};
 
 	aliases {

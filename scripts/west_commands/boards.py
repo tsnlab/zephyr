@@ -4,19 +4,18 @@
 
 import argparse
 import os
-from pathlib import Path
 import re
 import sys
 import textwrap
+from pathlib import Path
 
-from west import log
 from west.commands import WestCommand
-
 from zephyr_ext_common import ZEPHYR_BASE
 
 sys.path.append(os.fspath(Path(__file__).parent.parent))
 import list_boards
 import zephyr_module
+
 
 class Boards(WestCommand):
 
@@ -49,6 +48,9 @@ class Boards(WestCommand):
             The following arguments are available:
 
             - name: board name
+            - full_name: board full name (typically, its commercial name)
+            - revision_default: board default revision
+            - revisions: list of board revisions
             - qualifiers: board qualifiers (will be empty for legacy boards)
             - arch: board architecture (deprecated)
                     (arch is ambiguous for boards described in new hw model)
@@ -93,15 +95,32 @@ class Boards(WestCommand):
         for board in list_boards.find_boards(args):
             if name_re is not None and not name_re.search(board.name):
                 continue
-            log.inf(args.format.format(name=board.name, arch=board.arch,
-                                       dir=board.dir, hwm=board.hwm, qualifiers=''))
 
-        for board in list_boards.find_v2_boards(args):
+            if board.revisions:
+                revisions_list = ' '.join([rev.name for rev in board.revisions])
+            else:
+                revisions_list = 'None'
+
+            self.inf(args.format.format(name=board.name, arch=board.arch,
+                                        revision_default=board.revision_default,
+                                        revisions=revisions_list,
+                                        dir=board.dir, hwm=board.hwm, qualifiers=''))
+
+        for board in list_boards.find_v2_boards(args).values():
             if name_re is not None and not name_re.search(board.name):
                 continue
-            log.inf(
+
+            if board.revisions:
+                revisions_list = ' '.join([rev.name for rev in board.revisions])
+            else:
+                revisions_list = 'None'
+
+            self.inf(
                 args.format.format(
                     name=board.name,
+                    full_name=board.full_name,
+                    revision_default=board.revision_default,
+                    revisions=revisions_list,
                     dir=board.dir,
                     hwm=board.hwm,
                     vendor=board.vendor,

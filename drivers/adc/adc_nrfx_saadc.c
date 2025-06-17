@@ -7,8 +7,12 @@
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
 #include <haly/nrfy_saadc.h>
-#include <zephyr/dt-bindings/adc/nrf-adc.h>
+#include <zephyr/dt-bindings/adc/nrf-saadc-v3.h>
+#include <zephyr/dt-bindings/adc/nrf-saadc-nrf54l.h>
+#include <zephyr/dt-bindings/adc/nrf-saadc-haltium.h>
 #include <zephyr/linker/devicetree_regions.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #define LOG_LEVEL CONFIG_ADC_LOG_LEVEL
 #include <zephyr/logging/log.h>
@@ -19,8 +23,8 @@ LOG_MODULE_REGISTER(adc_nrfx_saadc);
 
 #if (NRF_SAADC_HAS_AIN_AS_PIN)
 
-#if defined(CONFIG_SOC_NRF54H20) || defined(CONFIG_SOC_NRF9280)
-static const uint8_t saadc_psels[NRF_SAADC_AIN7 + 1] = {
+#if defined(CONFIG_NRF_PLATFORM_HALTIUM)
+static const uint32_t saadc_psels[NRF_SAADC_AIN13 + 1] = {
 	[NRF_SAADC_AIN0] = NRF_PIN_PORT_TO_PIN_NUMBER(0U, 1),
 	[NRF_SAADC_AIN1] = NRF_PIN_PORT_TO_PIN_NUMBER(1U, 1),
 	[NRF_SAADC_AIN2] = NRF_PIN_PORT_TO_PIN_NUMBER(2U, 1),
@@ -29,9 +33,15 @@ static const uint8_t saadc_psels[NRF_SAADC_AIN7 + 1] = {
 	[NRF_SAADC_AIN5] = NRF_PIN_PORT_TO_PIN_NUMBER(5U, 1),
 	[NRF_SAADC_AIN6] = NRF_PIN_PORT_TO_PIN_NUMBER(6U, 1),
 	[NRF_SAADC_AIN7] = NRF_PIN_PORT_TO_PIN_NUMBER(7U, 1),
+	[NRF_SAADC_AIN8] = NRF_PIN_PORT_TO_PIN_NUMBER(0U, 9),
+	[NRF_SAADC_AIN9] = NRF_PIN_PORT_TO_PIN_NUMBER(1U, 9),
+	[NRF_SAADC_AIN10] = NRF_PIN_PORT_TO_PIN_NUMBER(2U, 9),
+	[NRF_SAADC_AIN11] = NRF_PIN_PORT_TO_PIN_NUMBER(3U, 9),
+	[NRF_SAADC_AIN12] = NRF_PIN_PORT_TO_PIN_NUMBER(4U, 9),
+	[NRF_SAADC_AIN13] = NRF_PIN_PORT_TO_PIN_NUMBER(5U, 9),
 };
-#elif defined(CONFIG_SOC_NRF54L15)
-static const uint8_t saadc_psels[NRF_SAADC_AIN7 + 1] = {
+#elif defined(CONFIG_SOC_NRF54L05) || defined(CONFIG_SOC_NRF54L10) || defined(CONFIG_SOC_NRF54L15)
+static const uint32_t saadc_psels[NRF_SAADC_DVDD + 1] = {
 	[NRF_SAADC_AIN0] = NRF_PIN_PORT_TO_PIN_NUMBER(4U, 1),
 	[NRF_SAADC_AIN1] = NRF_PIN_PORT_TO_PIN_NUMBER(5U, 1),
 	[NRF_SAADC_AIN2] = NRF_PIN_PORT_TO_PIN_NUMBER(6U, 1),
@@ -40,6 +50,25 @@ static const uint8_t saadc_psels[NRF_SAADC_AIN7 + 1] = {
 	[NRF_SAADC_AIN5] = NRF_PIN_PORT_TO_PIN_NUMBER(12U, 1),
 	[NRF_SAADC_AIN6] = NRF_PIN_PORT_TO_PIN_NUMBER(13U, 1),
 	[NRF_SAADC_AIN7] = NRF_PIN_PORT_TO_PIN_NUMBER(14U, 1),
+	[NRF_SAADC_VDD]  = NRF_SAADC_INPUT_VDD,
+	[NRF_SAADC_AVDD] = NRF_SAADC_INPUT_AVDD,
+	[NRF_SAADC_DVDD] = NRF_SAADC_INPUT_DVDD,
+};
+#elif defined(CONFIG_SOC_COMPATIBLE_NRF54LX)
+static const uint32_t saadc_psels[NRF_SAADC_DVDD + 1] = {
+	[NRF_SAADC_AIN0] = NRF_PIN_PORT_TO_PIN_NUMBER(0U, 1),
+	[NRF_SAADC_AIN1] = NRF_PIN_PORT_TO_PIN_NUMBER(31U, 1),
+	[NRF_SAADC_AIN2] = NRF_PIN_PORT_TO_PIN_NUMBER(30U, 1),
+	[NRF_SAADC_AIN3] = NRF_PIN_PORT_TO_PIN_NUMBER(29U, 1),
+	[NRF_SAADC_AIN4] = NRF_PIN_PORT_TO_PIN_NUMBER(6U, 1),
+	[NRF_SAADC_AIN5] = NRF_PIN_PORT_TO_PIN_NUMBER(5U, 1),
+	[NRF_SAADC_AIN6] = NRF_PIN_PORT_TO_PIN_NUMBER(4U, 1),
+	[NRF_SAADC_AIN7] = NRF_PIN_PORT_TO_PIN_NUMBER(3U, 1),
+	[NRF_SAADC_VDD]  = NRF_SAADC_INPUT_VDD,
+#if defined(NRF_SAADC_INPUT_AVDD)
+	[NRF_SAADC_AVDD] = NRF_SAADC_INPUT_AVDD,
+#endif
+	[NRF_SAADC_DVDD] = NRF_SAADC_INPUT_DVDD,
 };
 #endif
 
@@ -62,9 +91,9 @@ BUILD_ASSERT((NRF_SAADC_AIN0 == NRF_SAADC_INPUT_AIN0) &&
 	     "Definitions from nrf-adc.h do not match those from nrf_saadc.h");
 #endif
 
-#if defined(CONFIG_SOC_NRF54H20) || defined(CONFIG_SOC_NRF9280)
+#if defined(CONFIG_NRF_PLATFORM_HALTIUM)
 
-/* nRF54H20 and nRF9280 always use bounce buffers in RAM */
+/* Haltium devices always use bounce buffers in RAM */
 
 #define SAADC_MEMORY_SECTION					                     \
 	COND_CODE_1(DT_NODE_HAS_PROP(DT_NODELABEL(adc), memory_regions), \
@@ -76,7 +105,7 @@ static uint16_t adc_samples_buffer[SAADC_CH_NUM] SAADC_MEMORY_SECTION;
 
 #define ADC_BUFFER_IN_RAM
 
-#endif /* defined(CONFIG_SOC_NRF54H20) || defined(CONFIG_SOC_NRF9280) */
+#endif /* defined(CONFIG_NRF_PLATFORM_HALTIUM) */
 
 struct driver_data {
 	struct adc_context ctx;
@@ -133,6 +162,7 @@ static int adc_convert_acq_time(uint16_t acquisition_time, nrf_saadc_acqtime_t *
 	case ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20):
 		*p_tacq_val = NRF_SAADC_ACQTIME_20US;
 		break;
+	case ADC_ACQ_TIME_MAX:
 	case ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 40):
 		*p_tacq_val = NRF_SAADC_ACQTIME_40US;
 		break;
@@ -163,6 +193,26 @@ static int adc_convert_acq_time(uint16_t acquisition_time, nrf_saadc_acqtime_t *
 	return result;
 }
 
+static int saadc_pm_hook(const struct device *dev, enum pm_device_action action)
+{
+	ARG_UNUSED(dev);
+
+	switch (action) {
+	case PM_DEVICE_ACTION_SUSPEND:
+		nrf_saadc_disable(NRF_SAADC);
+		return 0;
+
+	case PM_DEVICE_ACTION_RESUME:
+		nrf_saadc_enable(NRF_SAADC);
+		return 0;
+
+	default:
+		break;
+	}
+
+	return -ENOTSUP;
+}
+
 /* Implementation of the ADC driver API function: adc_channel_setup. */
 static int adc_nrfx_channel_setup(const struct device *dev,
 				  const struct adc_channel_cfg *channel_cfg)
@@ -172,7 +222,9 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 		.resistor_p     = NRF_SAADC_RESISTOR_DISABLED,
 		.resistor_n     = NRF_SAADC_RESISTOR_DISABLED,
 #endif
+#if NRF_SAADC_HAS_CH_BURST
 		.burst          = NRF_SAADC_BURST_DISABLED,
+#endif
 	};
 	uint8_t channel_id = channel_cfg->channel_id;
 	uint32_t input_negative = channel_cfg->input_negative;
@@ -181,6 +233,7 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 		return -EINVAL;
 	}
 
+#if NRF_SAADC_HAS_CH_GAIN
 	switch (channel_cfg->gain) {
 #if defined(SAADC_CH_CONFIG_GAIN_Gain1_6)
 	case ADC_GAIN_1_6:
@@ -195,6 +248,11 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 #if defined(SAADC_CH_CONFIG_GAIN_Gain1_4) || defined(SAADC_CH_CONFIG_GAIN_Gain2_8)
 	case ADC_GAIN_1_4:
 		config.gain = NRF_SAADC_GAIN1_4;
+		break;
+#endif
+#if defined(SAADC_CH_CONFIG_GAIN_Gain2_7)
+	case ADC_GAIN_2_7:
+		config.gain = NRF_SAADC_GAIN2_7;
 		break;
 #endif
 #if defined(SAADC_CH_CONFIG_GAIN_Gain1_3) || defined(SAADC_CH_CONFIG_GAIN_Gain2_6)
@@ -229,6 +287,9 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 		break;
 #endif
 	default:
+#else
+	if (channel_cfg->gain != ADC_GAIN_1) {
+#endif /* defined(NRF_SAADC_HAS_CH_GAIN) */
 		LOG_ERR("Selected ADC gain is not valid");
 		return -EINVAL;
 	}
@@ -272,20 +333,20 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 		m_data.single_ended_channels |= BIT(channel_cfg->channel_id);
 	}
 
-	/* Keep the channel disabled in hardware (set positive input to
-	 * NRF_SAADC_INPUT_DISABLED) until it is selected to be included
-	 * in a sampling sequence.
-	 */
-
 #if (NRF_SAADC_HAS_AIN_AS_PIN)
-	if ((channel_cfg->input_positive > NRF_SAADC_AIN7) ||
+	if ((channel_cfg->input_positive >= ARRAY_SIZE(saadc_psels)) ||
 	    (channel_cfg->input_positive < NRF_SAADC_AIN0)) {
 		return -EINVAL;
 	}
 
 	if (config.mode == NRF_SAADC_MODE_DIFFERENTIAL) {
+#if defined(CONFIG_NRF_PLATFORM_HALTIUM)
+		if ((input_negative > NRF_SAADC_AIN7) !=
+		    (channel_cfg->input_positive > NRF_SAADC_AIN7)) {
+#else
 		if (input_negative > NRF_SAADC_AIN7 ||
 		    input_negative < NRF_SAADC_AIN0) {
+#endif
 			return -EINVAL;
 		}
 
@@ -293,17 +354,18 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 	} else {
 		input_negative = NRF_SAADC_INPUT_DISABLED;
 	}
-
+#endif
 	/* Store the positive input selection in a dedicated array,
 	 * to get it later when the channel is selected for a sampling
 	 * and to mark the channel as configured (ready to be selected).
 	 */
-	m_data.positive_inputs[channel_id] = saadc_psels[channel_cfg->input_positive];
-#else
 	m_data.positive_inputs[channel_id] = channel_cfg->input_positive;
-#endif
 
 	nrf_saadc_channel_init(NRF_SAADC, channel_id, &config);
+	/* Keep the channel disabled in hardware (set positive input to
+	 * NRF_SAADC_INPUT_DISABLED) until it is selected to be included
+	 * in a sampling sequence.
+	 */
 	nrf_saadc_channel_input_set(NRF_SAADC,
 				    channel_id,
 				    NRF_SAADC_INPUT_DISABLED,
@@ -314,7 +376,11 @@ static int adc_nrfx_channel_setup(const struct device *dev,
 
 static void adc_context_start_sampling(struct adc_context *ctx)
 {
+#if defined(CONFIG_PM_DEVICE_RUNTIME)
+	pm_device_runtime_get(DEVICE_DT_INST_GET(0));
+#else
 	nrf_saadc_enable(NRF_SAADC);
+#endif
 
 	if (ctx->sequence.calibrate) {
 		nrf_saadc_task_trigger(NRF_SAADC,
@@ -472,6 +538,7 @@ static int start_read(const struct device *dev,
 	uint8_t resolution = sequence->resolution;
 	uint8_t active_channels;
 	uint8_t channel_id;
+	nrf_saadc_burst_t burst;
 
 	/* Signal an error if channel selection is invalid (no channels or
 	 * a non-existing one is selected).
@@ -523,20 +590,30 @@ static int start_read(const struct device *dev,
 			 * is not used (hence, the multiple channel sampling is
 			 * possible), the burst mode have to be deactivated.
 			 */
-			nrf_saadc_burst_set(NRF_SAADC, channel_id,
-				(sequence->oversampling != 0U ?
-					NRF_SAADC_BURST_ENABLED :
-					NRF_SAADC_BURST_DISABLED));
+			burst = (sequence->oversampling != 0U ?
+				 NRF_SAADC_BURST_ENABLED : NRF_SAADC_BURST_DISABLED);
+#if NRF_SAADC_HAS_CH_BURST
+			nrf_saadc_channel_burst_set(NRF_SAADC, channel_id, burst);
+#else
+			nrf_saadc_burst_set(NRF_SAADC, burst);
+#endif
 			nrf_saadc_channel_pos_input_set(
 				NRF_SAADC,
 				channel_id,
-				m_data.positive_inputs[channel_id]);
+#if NRF_SAADC_HAS_AIN_AS_PIN
+				saadc_psels[m_data.positive_inputs[channel_id]]
+#else
+				m_data.positive_inputs[channel_id]
+#endif
+				);
 			++active_channels;
 		} else {
-			nrf_saadc_burst_set(
-				NRF_SAADC,
-				channel_id,
-				NRF_SAADC_BURST_DISABLED);
+			burst = NRF_SAADC_BURST_DISABLED;
+#if NRF_SAADC_HAS_CH_BURST
+			nrf_saadc_channel_burst_set(NRF_SAADC, channel_id, burst);
+#else
+			nrf_saadc_burst_set(NRF_SAADC, burst);
+#endif
 			nrf_saadc_channel_pos_input_set(
 				NRF_SAADC,
 				channel_id,
@@ -612,7 +689,12 @@ static void saadc_irq_handler(const struct device *dev)
 		nrf_saadc_event_clear(NRF_SAADC, NRF_SAADC_EVENT_END);
 
 		nrf_saadc_task_trigger(NRF_SAADC, NRF_SAADC_TASK_STOP);
+
+#if defined(CONFIG_PM_DEVICE_RUNTIME)
+		pm_device_runtime_put(DEVICE_DT_INST_GET(0));
+#else
 		nrf_saadc_disable(NRF_SAADC);
+#endif
 
 		if (has_single_ended(&m_data.ctx.sequence)) {
 			correct_single_ended(&m_data.ctx.sequence);
@@ -652,23 +734,44 @@ static int init_saadc(const struct device *dev)
 
 	adc_context_unlock_unconditionally(&m_data.ctx);
 
-	return 0;
+	return pm_device_driver_init(dev, saadc_pm_hook);
 }
 
-static const struct adc_driver_api adc_nrfx_driver_api = {
+static DEVICE_API(adc, adc_nrfx_driver_api) = {
 	.channel_setup = adc_nrfx_channel_setup,
 	.read          = adc_nrfx_read,
 #ifdef CONFIG_ADC_ASYNC
 	.read_async    = adc_nrfx_read_async,
 #endif
-#if defined(CONFIG_SOC_NRF54L15)
+#if defined(CONFIG_SOC_COMPATIBLE_NRF54LX)
 	.ref_internal  = 900,
-#elif defined(CONFIG_SOC_NRF54H20) || defined(CONFIG_SOC_NRF9280)
+#elif defined(CONFIG_NRF_PLATFORM_HALTIUM)
 	.ref_internal  = 1024,
 #else
 	.ref_internal  = 600,
 #endif
 };
+
+#if defined(CONFIG_NRF_PLATFORM_HALTIUM)
+/* AIN8-AIN14 inputs are on 3v3 GPIO port and they cannot be mixed with other
+ * analog inputs (from 1v8 ports) in differential mode.
+ */
+#define CH_IS_3V3(val) (val >= NRF_SAADC_AIN8)
+
+#define MIXED_3V3_1V8_INPUTS(node)					\
+	(DT_NODE_HAS_PROP(node, zephyr_input_negative) &&		\
+	 (CH_IS_3V3(DT_PROP_OR(node, zephyr_input_negative, 0)) !=	\
+	  CH_IS_3V3(DT_PROP_OR(node, zephyr_input_positive, 0))))
+#else
+#define MIXED_3V3_1V8_INPUTS(node) false
+#endif
+
+#define VALIDATE_CHANNEL_CONFIG(node)					\
+	BUILD_ASSERT(MIXED_3V3_1V8_INPUTS(node) == false,		\
+		     "1v8 inputs cannot be mixed with 3v3 inputs");
+
+/* Validate configuration of all channels. */
+#define VALIDATE_CHANNELS_CONFIG(inst) DT_FOREACH_CHILD(DT_DRV_INST(inst), VALIDATE_CHANNEL_CONFIG)
 
 /*
  * There is only one instance on supported SoCs, so inst is guaranteed
@@ -682,9 +785,11 @@ static const struct adc_driver_api adc_nrfx_driver_api = {
 #define SAADC_INIT(inst)						\
 	BUILD_ASSERT((inst) == 0,					\
 		     "multiple instances not supported");		\
+	VALIDATE_CHANNELS_CONFIG(inst)					\
+	PM_DEVICE_DT_INST_DEFINE(0, saadc_pm_hook, 1);			\
 	DEVICE_DT_INST_DEFINE(0,					\
 			    init_saadc,					\
-			    NULL,					\
+			    PM_DEVICE_DT_INST_GET(0),			\
 			    NULL,					\
 			    NULL,					\
 			    POST_KERNEL,				\

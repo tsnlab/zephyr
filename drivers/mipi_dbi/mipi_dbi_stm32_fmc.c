@@ -122,7 +122,7 @@ static int mipi_dbi_stm32_fmc_write_display(const struct device *dev,
 	return 0;
 }
 
-static int mipi_dbi_stm32_fmc_reset(const struct device *dev, uint32_t delay)
+static int mipi_dbi_stm32_fmc_reset(const struct device *dev, k_timeout_t delay)
 {
 	const struct mipi_dbi_stm32_fmc_config *config = dev->config;
 	int ret;
@@ -136,7 +136,7 @@ static int mipi_dbi_stm32_fmc_reset(const struct device *dev, uint32_t delay)
 		return ret;
 	}
 
-	k_msleep(delay);
+	k_sleep(delay);
 
 	return gpio_pin_set_dt(&config->reset, 0);
 }
@@ -172,13 +172,14 @@ static int mipi_dbi_stm32_fmc_init(const struct device *dev)
 	return 0;
 }
 
-static struct mipi_dbi_driver_api mipi_dbi_stm32_fmc_driver_api = {
+static DEVICE_API(mipi_dbi, mipi_dbi_stm32_fmc_driver_api) = {
 	.reset = mipi_dbi_stm32_fmc_reset,
 	.command_write = mipi_dbi_stm32_fmc_command_write,
 	.write_display = mipi_dbi_stm32_fmc_write_display,
 };
 
-#define MIPI_DBI_FMC_GET_ADDRESS(n) _CONCAT(FMC_BANK1_, UTIL_INC(DT_REG_ADDR(DT_INST_PARENT(n))))
+#define MIPI_DBI_FMC_GET_ADDRESS(n) _CONCAT(FMC_BANK1_,                                            \
+					UTIL_INC(DT_REG_ADDR_RAW(DT_INST_PARENT(n))))
 
 #define MIPI_DBI_FMC_GET_DATA_ADDRESS(n)                                                           \
 	MIPI_DBI_FMC_GET_ADDRESS(n) + (1 << (DT_INST_PROP(n, register_select_pin) + 1))

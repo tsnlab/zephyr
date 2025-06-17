@@ -1,7 +1,4 @@
-.. _imx8mp_evk:
-
-NXP i.MX8MP EVK
-###############
+.. zephyr:board:: imx8mp_evk
 
 Overview
 ********
@@ -45,44 +42,7 @@ More information about the board can be found at the
 Supported Features
 ==================
 
-The Zephyr mimx8mp_evk_a53 board configuration supports the following hardware
-features:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| GIC-v3    | on-chip    | interrupt controller                |
-+-----------+------------+-------------------------------------+
-| ARM TIMER | on-chip    | system clock                        |
-+-----------+------------+-------------------------------------+
-| CLOCK     | on-chip    | clock_control                       |
-+-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
-+-----------+------------+-------------------------------------+
-| RDC       | on-chip    | Resource Domain Controller          |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port                         |
-+-----------+------------+-------------------------------------+
-| ENET      | on-chip    | ethernet port                       |
-+-----------+------------+-------------------------------------+
-
-The Zephyr mimx8mp_evk_m7 board configuration supports the following hardware
-features:
-
-+-----------+------------+-------------------------------------+
-| Interface | Controller | Driver/Component                    |
-+===========+============+=====================================+
-| NVIC      | on-chip    | nested vector interrupt controller  |
-+-----------+------------+-------------------------------------+
-| SYSTICK   | on-chip    | systick                             |
-+-----------+------------+-------------------------------------+
-| CLOCK     | on-chip    | clock_control                       |
-+-----------+------------+-------------------------------------+
-| PINMUX    | on-chip    | pinmux                              |
-+-----------+------------+-------------------------------------+
-| UART      | on-chip    | serial port-polling;                |
-|           |            | serial port-interrupt               |
-+-----------+------------+-------------------------------------+
+.. zephyr:board-supported-hw::
 
 Devices
 ========
@@ -102,21 +62,34 @@ CPU's UART4.
 Programming and Debugging (A53)
 *******************************
 
+.. zephyr:board-supported-runners::
+
+U-Boot "cpu" command is used to load and kick Zephyr to Cortex-A secondary Core, Currently
+it is supported in : `Real-Time Edge U-Boot`_ (use the branch "uboot_vxxxx.xx-y.y.y,
+xxxx.xx is uboot version and y.y.y is Real-Time Edge Software version, for example
+"uboot_v2023.04-2.9.0" branch is U-Boot v2023.04 used in Real-Time Edge Software release
+v2.9.0), and pre-build images and user guide can be found at `Real-Time Edge Software`_.
+
+.. _Real-Time Edge U-Boot:
+   https://github.com/nxp-real-time-edge-sw/real-time-edge-uboot
+.. _Real-Time Edge Software:
+   https://www.nxp.com/rtedge
+
 Copy the compiled ``zephyr.bin`` to the first FAT partition of the SD card and
 plug the SD card into the board. Power it up and stop the u-boot execution at
 prompt.
 
-Use U-Boot to load and kick non-smp zephyr.bin:
+Use U-Boot to load and kick zephyr.bin to Cortex-A53 Core0:
 
 .. code-block:: console
 
-    fatload mmc 1:1 0xc0000000 zephyr.bin; dcache flush; icache flush; dcache off; icache off; go 0xc0000000
+    fatload mmc 1:1 0xc0000000 zephyr.bin; dcache flush; icache flush; go 0xc0000000
 
-Or kick SMP zephyr.bin:
+Or kick zephyr.bin to the other Cortex-A53 Core, for example Core2:
 
 .. code-block:: console
 
-    fatload mmc 1:1 0xc0000000 zephyr.bin; dcache flush; icache flush; dcache off; icache off; cpu 2 release 0xc0000000
+    fatload mmc 1:1 0xc0000000 zephyr.bin; dcache flush; icache flush; cpu 2 release 0xc0000000
 
 Use this configuration to run basic Zephyr applications and kernel tests,
 for example, with the :zephyr:code-sample:`synchronization` sample:
@@ -266,7 +239,6 @@ board defconfig.
    @@ -12,3 +12,4 @@ CONFIG_CONSOLE=y
    CONFIG_XIP=y
    CONFIG_CODE_DDR=y
-   CONFIG_PINCTRL=y
    +CONFIG_ROMSTART_RELOCATION_ROM=y
 
 Then use the following steps to boot Zephyr kernel:
@@ -297,7 +269,7 @@ MIMX8MP EVK board can be debugged by connecting an external JLink
 JTAG debugger to the J24 debug connector and to the PC. Then
 the application can be debugged using the usual way.
 
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
@@ -312,8 +284,8 @@ should see the following message in the terminal:
    *** Booting Zephyr OS build v2.7.99-1310-g2801bf644a91  ***
    Hello World! imx8mp_evk
 
-References
-==========
+.. include:: ../../common/board-footer.rst
+   :start-after: nxp-board-footer
 
 .. _NXP website:
    https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/evaluation-kit-for-the-i-mx-8m-plus-applications-processor:8MPLUSLPD4-EVK

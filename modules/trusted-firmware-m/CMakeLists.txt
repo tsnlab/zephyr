@@ -18,6 +18,14 @@ set(TFM_VALID_PARTITIONS
 if (CONFIG_BUILD_WITH_TFM)
   # PSA API awareness for the Non-Secure application
   target_compile_definitions(app PRIVATE "TFM_PSA_API")
+
+  if(CONFIG_TFM_BL1)
+    list(APPEND TFM_CMAKE_ARGS -DBL1:BOOL=ON)
+    if(CONFIG_TFM_BL2_SIGNING_KEY_PATH)
+      list(APPEND TFM_CMAKE_ARGS -DTFM_BL2_SIGNING_KEY_PATH=${CONFIG_TFM_BL2_SIGNING_KEY_PATH})
+    endif()
+  endif()
+
   if (CONFIG_TFM_SFN)
     list(APPEND TFM_CMAKE_ARGS -DCONFIG_TFM_SPM_BACKEND="SFN")
   else() # CONFIG_TFM_IPC
@@ -162,6 +170,10 @@ if (CONFIG_BUILD_WITH_TFM)
     set(BL2_ELF_FILE ${TFM_BINARY_DIR}/bin/bl2.elf)
     set(BL2_BIN_FILE ${TFM_BINARY_DIR}/bin/bl2.bin)
     set(BL2_HEX_FILE ${TFM_BINARY_DIR}/bin/bl2.hex)
+    if(CONFIG_TFM_BL1)
+      set(BL2_SIGNED_BIN_FILE ${TFM_BINARY_DIR}/bin/bl2_signed.bin)
+      set(BL2_SIGNED_HEX_FILE ${TFM_BINARY_DIR}/bin/bl2_signed.hex)
+    endif()
   endif()
   set(TFM_S_ELF_FILE ${TFM_BINARY_DIR}/bin/tfm_s.elf)
   set(TFM_S_BIN_FILE ${TFM_BINARY_DIR}/bin/tfm_s.bin)
@@ -179,6 +191,8 @@ if (CONFIG_BUILD_WITH_TFM)
     ${BL2_ELF_FILE}
     ${BL2_BIN_FILE}
     ${BL2_HEX_FILE}
+    $<$<BOOL:${CONFIG_TFM_BL1}>:${BL2_SIGNED_BIN_FILE}>
+    $<$<BOOL:${CONFIG_TFM_BL1}>:${BL2_SIGNED_HEX_FILE}>
     ${TFM_S_ELF_FILE}
     ${TFM_S_BIN_FILE}
     ${TFM_S_HEX_FILE}
@@ -210,10 +224,6 @@ if (CONFIG_BUILD_WITH_TFM)
     set(TFM_TOOLCHAIN_FILE "toolchain_GNUARM.cmake")
     set(TFM_TOOLCHAIN_PREFIX "arm-none-eabi")
     set(TFM_TOOLCHAIN_PATH ${GNUARMEMB_TOOLCHAIN_PATH}/bin)
-  elseif(${ZEPHYR_TOOLCHAIN_VARIANT} STREQUAL "xtools")
-    set(TFM_TOOLCHAIN_FILE "toolchain_GNUARM.cmake")
-    set(TFM_TOOLCHAIN_PREFIX "arm-zephyr-eabi")
-    set(TFM_TOOLCHAIN_PATH ${XTOOLS_TOOLCHAIN_PATH}/arm-zephyr-eabi/bin)
   else()
     message(FATAL_ERROR "Unsupported ZEPHYR_TOOLCHAIN_VARIANT: ${ZEPHYR_TOOLCHAIN_VARIANT}")
   endif()
@@ -234,6 +244,11 @@ if (CONFIG_BUILD_WITH_TFM)
     # Supply path to NXP HAL sources used for TF-M build
     set(TFM_PLATFORM_NXP_HAL_FILE_PATH ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/platform/ext/target/nxp/)
     list(APPEND TFM_CMAKE_ARGS -DTFM_PLATFORM_NXP_HAL_FILE_PATH=${TFM_PLATFORM_NXP_HAL_FILE_PATH})
+  endif()
+
+  if(CONFIG_BOARD_MAX32657EVKIT_MAX32657_NS)
+    # Supply path to hal_adi for TF-M build
+    list(APPEND TFM_CMAKE_ARGS -DHAL_ADI_PATH=${ZEPHYR_ADI_MODULE_DIR})
   endif()
 
   if(CONFIG_TFM_BL2 AND CONFIG_TFM_MCUBOOT_PATH_LOCAL)
@@ -257,6 +272,10 @@ if (CONFIG_BUILD_WITH_TFM)
 
   list(APPEND TFM_CMAKE_ARGS -DTFM_TESTS_REVISION_CHECKS=OFF)
 
+  if(CONFIG_TFM_ETHOS_DRIVER_PATH_LOCAL)
+    list(APPEND TFM_CMAKE_ARGS -DETHOS_DRIVER_PATH=${CONFIG_TFM_ETHOS_DRIVER_PATH_LOCAL})
+  endif()
+
   file(MAKE_DIRECTORY ${TFM_BINARY_DIR})
   add_custom_target(tfm_cmake
     DEPENDS ${TFM_BINARY_DIR}/CMakeCache.txt
@@ -275,7 +294,7 @@ if (CONFIG_BUILD_WITH_TFM)
       ${TFM_CMAKE_ARGS}
       $<GENEX_EVAL:$<TARGET_PROPERTY:zephyr_property_target,TFM_CMAKE_OPTIONS>>
       -DMBEDCRYPTO_PATH=$<IF:$<BOOL:$<TARGET_PROPERTY:zephyr_property_target,TFM_MBEDCRYPTO_PATH>>,$<TARGET_PROPERTY:zephyr_property_target,TFM_MBEDCRYPTO_PATH>,${ZEPHYR_MBEDTLS_MODULE_DIR}>
-      -DCMSIS_PATH=${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/platform/ext/cmsis
+      -DCMSIS_PATH=${ZEPHYR_CMSIS_6_MODULE_DIR}
       ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}
     WORKING_DIRECTORY ${TFM_BINARY_DIR}
     COMMAND_EXPAND_LISTS
@@ -295,6 +314,9 @@ if (CONFIG_BUILD_WITH_TFM)
 	# Leave PARALLEL_JOBS unset and use the default number of
 	# threads. Which is num_cores+2 on Ninja and MAKEFLAGS with Make.
   endif()
+
+  set(tfm_image_info MAP "name: tfm, source-dir: ${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}")
+  build_info(images VALUE ${tfm_image_info})
 
   ExternalProject_Add(
     tfm
@@ -326,6 +348,10 @@ if (CONFIG_BUILD_WITH_TFM)
       BL2_BIN_FILE ${BL2_BIN_FILE}
       BL2_HEX_FILE ${BL2_HEX_FILE}
       )
+      if(CONFIG_TFM_BL1)
+        set_target_properties(tfm PROPERTIES BL2_SIGNED_BIN_FILE ${BL2_SIGNED_BIN_FILE})
+        set_target_properties(tfm PROPERTIES BL2_SIGNED_HEX_FILE ${BL2_SIGNED_HEX_FILE})
+      endif()
   endif()
 
   # Set TFM S/NS executable file paths as target properties on 'tfm'
@@ -437,7 +463,7 @@ if (CONFIG_BUILD_WITH_TFM)
       ${pad_args}
       ${HEX_ADDR_ARGS_${SUFFIX}}
       ${ADD_${SUFFIX}_IMAGE_MIN_VER}
-      -s auto
+      -s ${CONFIG_TFM_IMAGE_SECURITY_COUNTER}
       --measured-boot-record
       -H ${CONFIG_ROM_START_OFFSET}
       ${INPUT_FILE}
@@ -485,7 +511,8 @@ if (CONFIG_BUILD_WITH_TFM)
 
       COMMAND ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/mergehex.py
         -o ${MERGED_FILE}
-        $<TARGET_PROPERTY:tfm,BL2_HEX_FILE>
+        $<$<BOOL:${CONFIG_TFM_BL1}>:$<TARGET_PROPERTY:tfm,BL2_SIGNED_HEX_FILE>>
+        $<$<NOT:$<BOOL:${CONFIG_TFM_BL1}>>:$<TARGET_PROPERTY:tfm,BL2_HEX_FILE>>
         ${S_NS_SIGNED_FILE}
     )
 
@@ -511,7 +538,8 @@ if (CONFIG_BUILD_WITH_TFM)
 
       COMMAND ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/mergehex.py
         -o ${MERGED_FILE}
-        $<TARGET_PROPERTY:tfm,BL2_HEX_FILE>
+        $<$<BOOL:${CONFIG_TFM_BL1}>:$<TARGET_PROPERTY:tfm,BL2_SIGNED_HEX_FILE>>
+        $<$<NOT:$<BOOL:${CONFIG_TFM_BL1}>>:$<TARGET_PROPERTY:tfm,BL2_HEX_FILE>>
         ${S_SIGNED_FILE}
         ${NS_SIGNED_FILE}
     )

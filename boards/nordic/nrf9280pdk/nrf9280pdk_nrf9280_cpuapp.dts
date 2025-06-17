@@ -27,7 +27,6 @@
 		zephyr,ieee802154 = &cpuapp_ieee802154;
 		zephyr,bt-hci = &bt_hci_ipc0;
 		nordic,802154-spinel-ipc = &ipc0;
-		zephyr,canbus = &can120;
 	};
 
 	aliases {
@@ -99,6 +98,7 @@
 
 	pwmleds {
 		compatible = "pwm-leds";
+
 		/*
 		 * LEDs are connected to GPIO Port 9 - pins 2-5. There is no valid hardware
 		 * configuration to pass PWM signal on pins 0 and 1. First valid config is P9.2.
@@ -114,19 +114,7 @@
 	status = "okay";
 };
 
-&cpuapp_cpurad_ram0x_region {
-	status = "okay";
-};
-
-&cpuapp_cpucell_ipc_shm {
-	status = "okay";
-};
-
-&cpucell_cpuapp_ipc_shm {
-	status = "okay";
-};
-
-&shared_ram3x_region {
+&cpuapp_cpucell_ram0x_region {
 	status = "okay";
 };
 
@@ -197,10 +185,6 @@ ipc0: &cpuapp_cpurad_ipc {
 	status = "okay";
 };
 
-&dma_fast_region {
-	status = "okay";
-};
-
 &cpuapp_rx_partitions {
 	status = "okay";
 };
@@ -252,7 +236,6 @@ ipc0: &cpuapp_cpurad_ipc {
 	pinctrl-0 = <&uart136_default>;
 	pinctrl-1 = <&uart136_sleep>;
 	pinctrl-names = "default", "sleep";
-	hw-flow-control;
 };
 
 &gpio6 {
@@ -260,15 +243,15 @@ ipc0: &cpuapp_cpurad_ipc {
 };
 
 &exmif {
-	cs-gpios = <&gpio6 3 GPIO_ACTIVE_LOW>;
 	pinctrl-0 = <&exmif_default>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&exmif_sleep>;
+	pinctrl-names = "default", "sleep";
 	status = "okay";
+
 	mx25uw63: mx25uw6345g@0 {
-		compatible = "jedec,spi-nor";
+		compatible = "mxicy,mx25u", "jedec,mspi-nor";
 		status = "disabled";
 		reg = <0>;
-		spi-max-frequency = <DT_FREQ_M(48)>;
 		jedec-id = [c2 84 37];
 		sfdp-bfp = [
 			e5 20 8a ff  ff ff ff 03  00 ff 00 ff  00 ff 00 ff
@@ -281,6 +264,17 @@ ipc0: &cpuapp_cpurad_ipc {
 		has-dpd;
 		t-enter-dpd = <10000>;
 		t-exit-dpd = <30000>;
+		reset-gpios = <&gpio6 12 GPIO_ACTIVE_LOW>;
+		t-reset-pulse = <10000>;
+		t-reset-recovery = <35000>;
+
+		mspi-max-frequency = <DT_FREQ_M(50)>;
+		mspi-io-mode = "MSPI_IO_MODE_OCTAL";
+		mspi-data-rate = "MSPI_DATA_RATE_SINGLE";
+		mspi-hardware-ce-num = <1>;
+		mspi-cpp-mode = "MSPI_CPP_MODE_0";
+		mspi-endian = "MSPI_BIG_ENDIAN";
+		mspi-ce-polarity = "MSPI_CE_ACTIVE_LOW";
 	};
 };
 
@@ -290,16 +284,6 @@ ipc0: &cpuapp_cpurad_ipc {
 
 zephyr_udc0: &usbhs {
 	status = "okay";
-};
-
-&canpll {
-	status = "okay";
-};
-
-&can120 {
-	status = "okay";
-	pinctrl-0 = <&can120_default>;
-	pinctrl-names = "default";
 };
 
 &pwm130 {

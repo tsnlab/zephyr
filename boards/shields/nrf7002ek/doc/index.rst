@@ -36,7 +36,7 @@ below to retrieve those files.
 .. code-block:: console
 
    west update
-   west blobs fetch hal_nordic
+   west blobs fetch nrf_wifi
 
 Usage
 *****
@@ -44,27 +44,28 @@ Usage
 The shield can be used in any application by setting ``--shield nrf7002ek`` when invoking ``west build``.
 
 SR Co-existence
-###############
+***************
 
 The nRF7002 EK supports SR co-existence provided the host board supports it. The SR co-existence
-pins are connected to the host board's GPIO pins.
+pins are connected to the host board's GPIO pins. The interface is selected by setting
+``--shield nrf7002ek_coex`` when invoking ``west build``.
 
 Two Kconfig options are available to enable SR co-existence:
 
-- :kconfig:option:`CONFIG_NRF70_SR_COEX`: Enables SR co-existence.
+- :kconfig:option:`CONFIG_NRF70_SR_COEX`: Enables SR co-existence driver.
 - :kconfig:option:`CONFIG_NRF70_SR_COEX_RF_SWITCH`: Control SR side RF switch.
 
 Shield Variants
-###############
+***************
 
-The nRF7002 EK is available in three variants:
+The nRF7002 EK is available in four variants:
 
 - ``nrf7002ek``: The default variant.
 - ``nrf7002ek_nrf7001``: Variant for the nRF7001 SoC or nRF7002 SoC emulating nRF7001
-   that supports only 2.4GHz Wi-Fi.
+  that supports only 2.4GHz Wi-Fi.
 - ``nrf7002ek_nrf7000``: Variant for the nRF7000 SoC or nRF7002 SoC emulating nRF7000
-   that supports only 2.4GHz Wi-Fi.
-
+  that supports only 2.4GHz Wi-Fi.
+- ``nrf7002ek_coex``: Variant for the SR co-existence interface
 
 References
 **********

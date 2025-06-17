@@ -8,10 +8,11 @@ compatible: "renesas,ra-cgc-pclk"
 include: [clock-controller.yaml, base.yaml]
 
 properties:
-  clk_src:
+  clock-frequency:
     type: int
+    description: clock frequency (Hz)
 
-  clk_div:
+  div:
     type: int
     required: true
     description: Prescale divider to calculate the subclock frequency from the

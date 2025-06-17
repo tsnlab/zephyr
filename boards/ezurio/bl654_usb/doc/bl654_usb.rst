@@ -1,7 +1,4 @@
-.. _bl654_usb:
-
-Ezurio BL654 USB (451-00004)
-############################
+.. zephyr:board:: bl654_usb
 
 Overview
 ********
@@ -23,12 +20,6 @@ This USB adapter has the following features:
 * :abbr:`WDT (Watchdog Timer)`
 * :abbr:`RTC (nRF RTC System Clock)`
 
-.. figure:: img/bl654_usb.jpg
-     :align: center
-     :alt: BL654 USB adapter
-
-     BL654 USB Adapter
-
 .. figure:: img/bl654_usb_pcb.jpg
      :align: center
      :alt: 451-00004 Box Contents
@@ -45,35 +36,8 @@ Hardware
 Supported Features
 ==================
 
-The BL654 USB board configuration supports the following
-hardware features:
+.. zephyr:board-supported-hw::
 
-+-----------+------------+----------------------+
-| Interface | Controller | Driver/Component     |
-+===========+============+======================+
-| CLOCK     | on-chip    | clock_control        |
-+-----------+------------+----------------------+
-| FLASH     | on-chip    | flash                |
-+-----------+------------+----------------------+
-| GPIO      | on-chip    | gpio                 |
-+-----------+------------+----------------------+
-| MPU       | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| NVIC      | on-chip    | arch/arm             |
-+-----------+------------+----------------------+
-| PWM       | on-chip    | pwm                  |
-+-----------+------------+----------------------+
-| RADIO     | on-chip    | Bluetooth,           |
-|           |            | ieee802154           |
-+-----------+------------+----------------------+
-| RTC       | on-chip    | system clock         |
-+-----------+------------+----------------------+
-| USB       | on-chip    | usb                  |
-+-----------+------------+----------------------+
-| WDT       | on-chip    | watchdog             |
-+-----------+------------+----------------------+
-
-Other hardware features have not been enabled yet for this board.
 See `BL654 website`_
 for a complete list of BL654 USB adapter hardware features.
 
@@ -101,10 +65,12 @@ Zephyr console output is available as follows:
 Programming and Debugging
 *************************
 
+.. zephyr:board-supported-runners::
+
 Applications for the ``bl654_usb`` board configuration can be
 built in the usual way (see :ref:`build_an_application` for more details). The
 ``bl654_usb`` board cannot be used for debugging. The compatible BL654 DVK
-board can be used for development. Documentation can be found at the :ref:`bl654_dvk`
+board can be used for development. Documentation can be found at the :zephyr:board:`bl654_dvk`
 site and :zephyr_file:`boards/ezurio/bl654_dvk/doc/bl654_dvk.rst`
 
 Flashing
@@ -115,8 +81,10 @@ The board supports programming using the built-in bootloader.
 The board is factory-programmed with a Ezurio variation of Nordic's
 open bootloader from Nordic's nRF5x SDK. With this option, you'll use
 Nordic's `nrfutil`_ program to create firmware packages supported by this
-bootloader and flash them to the device. Make sure ``nrfutil`` is installed
-before proceeding. These instructions were tested with version 6.1.0.
+bootloader and flash them to the device. Before proceeding, make sure:
+
+* ``nrfutil`` is installed.
+* The ``nrf5sdk-tools`` command is installed within ``nrfutil``.
 
 #. With the adapter plugged in, reset the board into the bootloader by pressing
    the RESET button.
@@ -141,16 +109,19 @@ before proceeding. These instructions were tested with version 6.1.0.
 
    .. code-block:: console
 
-      nrfutil pkg generate --hw-version 52 --sd-req=0x00 \
-              --application build/zephyr/zephyr.hex \
-              --application-version 1 blinky.zip
+      nrfutil nrf5sdk-tools pkg generate \
+               --hw-version 52 \
+               --sd-req=0x00 \
+               --application build/zephyr/zephyr.hex \
+               --application-version 1 \
+               blinky.zip
 
 #. Flash it onto the board. Note :file:`/dev/ttyACM0` is for Linux; it will be
    something like ``COMx`` on Windows, and something else on macOS.
 
    .. code-block:: console
 
-      nrfutil dfu usb-serial -pkg blinky.zip -p /dev/ttyACM0
+      nrfutil nrf5sdk-tools dfu usb-serial -pkg blinky.zip -p /dev/ttyACM0
 
    When this command exits, observe the blue LED on the board blinking.
 
@@ -160,9 +131,9 @@ Testing Bluetooth on the BL654 USB
 Many of the Bluetooth examples will work on the BL654 USB.
 Try them out:
 
-* :ref:`ble_peripheral`
-* :ref:`bluetooth-eddystone-sample`
-* :ref:`bluetooth-ibeacon-sample`
+* :zephyr:code-sample:`ble_peripheral`
+* :zephyr:code-sample:`bluetooth_eddystone`
+* :zephyr:code-sample:`bluetooth_ibeacon`
 
 
 Testing the LED on the BL654 USB

@@ -1,7 +1,7 @@
 .. _rk055hdmipi4m:
 
-RK055HDMIPI4M MIPI Display
-##########################
+NXP RK055HDMIPI4M MIPI Display
+##############################
 
 Overview
 ********
@@ -58,6 +58,9 @@ example:
    :board: mixmrt1170_evk_cm7
    :shield: rk055hdmipi4m
    :goals: build
+
+.. include:: ../../../nxp/common/board-footer.rst
+   :start-after: nxp-board-footer
 
 References
 **********

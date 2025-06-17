@@ -14,19 +14,15 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <poll.h>
-#include <errno.h>
-#include <sys/socket.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdio.h>
-#include <limits.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <zephyr/sys/byteorder.h>
 
+#include "nsi_host_trampolines.h"
+#include "nsi_errno.h"
 #include "soc.h"
-#include "cmdline.h" /* native_posix command line options header */
+#include "cmdline.h" /* native_sim command line options header */
+#include "userchan_bottom.h"
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
@@ -41,18 +37,7 @@ LOG_MODULE_REGISTER(bt_driver);
 struct uc_data {
 	int           fd;
 	bt_hci_recv_t recv;
-
 };
-
-#define BTPROTO_HCI      1
-struct sockaddr_hci {
-	sa_family_t     hci_family;
-	unsigned short  hci_dev;
-	unsigned short  hci_channel;
-};
-#define HCI_CHANNEL_USER 1
-
-#define SOL_HCI          0
 
 static K_KERNEL_STACK_DEFINE(rx_thread_stack,
 			     CONFIG_ARCH_POSIX_RECOMMENDED_STACK_SIZE);
@@ -111,6 +96,9 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 
 	switch (type) {
 	case BT_HCI_H4_CMD: {
+		if (buf_len < header_len + BT_HCI_CMD_HDR_SIZE) {
+			return 0;
+		}
 		const struct bt_hci_cmd_hdr *cmd = (const struct bt_hci_cmd_hdr *)hdr;
 
 		/* Parameter Total Length */
@@ -119,6 +107,9 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 		break;
 	}
 	case BT_HCI_H4_ACL: {
+		if (buf_len < header_len + BT_HCI_ACL_HDR_SIZE) {
+			return 0;
+		}
 		const struct bt_hci_acl_hdr *acl = (const struct bt_hci_acl_hdr *)hdr;
 
 		/* Data Total Length */
@@ -127,6 +118,9 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 		break;
 	}
 	case BT_HCI_H4_SCO: {
+		if (buf_len < header_len + BT_HCI_SCO_HDR_SIZE) {
+			return 0;
+		}
 		const struct bt_hci_sco_hdr *sco = (const struct bt_hci_sco_hdr *)hdr;
 
 		/* Data_Total_Length */
@@ -135,6 +129,9 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 		break;
 	}
 	case BT_HCI_H4_EVT: {
+		if (buf_len < header_len + BT_HCI_EVT_HDR_SIZE) {
+			return 0;
+		}
 		const struct bt_hci_evt_hdr *evt = (const struct bt_hci_evt_hdr *)hdr;
 
 		/* Parameter Total Length */
@@ -143,6 +140,9 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 		break;
 	}
 	case BT_HCI_H4_ISO: {
+		if (buf_len < header_len + BT_HCI_ISO_HDR_SIZE) {
+			return 0;
+		}
 		const struct bt_hci_iso_hdr *iso = (const struct bt_hci_iso_hdr *)hdr;
 
 		/* ISO_Data_Load_Length parameter */
@@ -157,18 +157,11 @@ static int32_t hci_packet_complete(const uint8_t *buf, uint16_t buf_len)
 	}
 
 	/* Request more data */
-	if (buf_len < header_len || buf_len - header_len < payload_len) {
+	if (buf_len < header_len + payload_len) {
 		return 0;
 	}
 
 	return (int32_t)header_len + payload_len;
-}
-
-static bool uc_ready(int fd)
-{
-	struct pollfd pollfd = { .fd = fd, .events = POLLIN };
-
-	return (poll(&pollfd, 1, 0) == 1);
 }
 
 static void rx_thread(void *p1, void *p2, void *p3)
@@ -181,32 +174,38 @@ static void rx_thread(void *p1, void *p2, void *p3)
 
 	LOG_DBG("started");
 
-	ssize_t frame_size = 0;
+	long frame_size = 0;
 
 	while (1) {
 		static uint8_t frame[512];
 		struct net_buf *buf;
 		size_t buf_tailroom;
 		size_t buf_add_len;
-		ssize_t len;
+		long len;
 		const uint8_t *frame_start = frame;
 
-		if (!uc_ready(uc->fd)) {
+		if (!user_chan_rx_ready(uc->fd)) {
 			k_sleep(K_MSEC(1));
 			continue;
 		}
 
+		if (frame_size >= sizeof(frame)) {
+			LOG_ERR("HCI Packet is too big for frame (%d "
+				"bytes). Dropping data", sizeof(frame));
+			frame_size = 0; /* Drop buffer */
+		}
+
 		LOG_DBG("calling read()");
 
-		len = read(uc->fd, frame + frame_size, sizeof(frame) - frame_size);
+		len = nsi_host_read(uc->fd, frame + frame_size, sizeof(frame) - frame_size);
 		if (len < 0) {
-			if (errno == EINTR) {
+			if (nsi_host_get_errno() == EINTR) {
 				k_yield();
 				continue;
 			}
 
 			LOG_ERR("Reading socket failed, errno %d", errno);
-			close(uc->fd);
+			(void)nsi_host_close(uc->fd);
 			uc->fd = -1;
 			return;
 		}
@@ -225,14 +224,7 @@ static void rx_thread(void *p1, void *p2, void *p3)
 			}
 
 			if (decoded_len == 0) {
-				if (frame_size == sizeof(frame)) {
-					LOG_ERR("HCI Packet (%d bytes) is too big for frame (%d "
-						"bytes)",
-						decoded_len, sizeof(frame));
-					frame_size = 0; /* Drop buffer */
-					break;
-				}
-				if (frame_start != frame) {
+				if ((frame_start != frame) && (frame_size < sizeof(frame))) {
 					memmove(frame, frame_start, frame_size);
 				}
 				/* Read more */
@@ -275,89 +267,19 @@ static int uc_send(const struct device *dev, struct net_buf *buf)
 {
 	struct uc_data *uc = dev->data;
 
-	LOG_DBG("buf %p type %u len %u", buf, bt_buf_get_type(buf), buf->len);
+	LOG_DBG("buf %p type %u len %u", buf, buf->data[0], buf->len);
 
 	if (uc->fd < 0) {
 		LOG_ERR("User channel not open");
 		return -EIO;
 	}
 
-	switch (bt_buf_get_type(buf)) {
-	case BT_BUF_ACL_OUT:
-		net_buf_push_u8(buf, BT_HCI_H4_ACL);
-		break;
-	case BT_BUF_CMD:
-		net_buf_push_u8(buf, BT_HCI_H4_CMD);
-		break;
-	case BT_BUF_ISO_OUT:
-		if (IS_ENABLED(CONFIG_BT_ISO)) {
-			net_buf_push_u8(buf, BT_HCI_H4_ISO);
-			break;
-		}
-		__fallthrough;
-	default:
-		LOG_ERR("Unknown buffer type");
-		return -EINVAL;
-	}
-
-	if (write(uc->fd, buf->data, buf->len) < 0) {
-		return -errno;
+	if (nsi_host_write(uc->fd, buf->data, buf->len) < 0) {
+		return -nsi_host_get_errno();
 	}
 
 	net_buf_unref(buf);
 	return 0;
-}
-
-static int user_chan_open(void)
-{
-	int fd;
-
-	if (hci_socket) {
-		struct sockaddr_hci addr;
-
-		fd = socket(PF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK,
-			    BTPROTO_HCI);
-		if (fd < 0) {
-			return -errno;
-		}
-
-		(void)memset(&addr, 0, sizeof(addr));
-		addr.hci_family = AF_BLUETOOTH;
-		addr.hci_dev = bt_dev_index;
-		addr.hci_channel = HCI_CHANNEL_USER;
-
-		if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-			int err = -errno;
-
-			close(fd);
-			return err;
-		}
-	} else {
-		struct sockaddr_in addr;
-
-		fd = socket(AF_INET, SOCK_STREAM, 0);
-		if (fd < 0) {
-			return -errno;
-		}
-
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(port);
-		if (inet_pton(AF_INET, ip_addr, &(addr.sin_addr)) <= 0) {
-			int err = -errno;
-
-			close(fd);
-			return err;
-		}
-
-		if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-			int err = -errno;
-
-			close(fd);
-			return err;
-		}
-	}
-
-	return fd;
 }
 
 static int uc_open(const struct device *dev, bt_hci_recv_t recv)
@@ -370,9 +292,13 @@ static int uc_open(const struct device *dev, bt_hci_recv_t recv)
 		LOG_DBG("hci %s:%d", ip_addr, port);
 	}
 
-	uc->fd = user_chan_open();
+	if (hci_socket) {
+		uc->fd = user_chan_socket_open(bt_dev_index);
+	} else {
+		uc->fd = user_chan_net_connect(ip_addr, port);
+	}
 	if (uc->fd < 0) {
-		return uc->fd;
+		return -nsi_errno_from_mid(-uc->fd);
 	}
 
 	uc->recv = recv;
@@ -390,7 +316,7 @@ static int uc_open(const struct device *dev, bt_hci_recv_t recv)
 	return 0;
 }
 
-static const struct bt_hci_driver_api uc_drv_api = {
+static DEVICE_API(bt_hci, uc_drv_api) = {
 	.open = uc_open,
 	.send = uc_send,
 };
@@ -434,9 +360,8 @@ static void cmd_bt_dev_found(char *argv, int offset)
 			posix_print_error_and_exit("Error: IP port for bluetooth "
 						   "hci tcp server is out of range.\n");
 		}
-		struct in_addr addr;
 
-		if (inet_pton(AF_INET, ip_addr, &addr) != 1) {
+		if (user_chan_is_ipaddr_ok(ip_addr) != 1) {
 			posix_print_error_and_exit("Error: IP address for bluetooth "
 						   "hci tcp server is incorrect.\n");
 		}

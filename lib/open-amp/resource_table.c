@@ -29,7 +29,13 @@
 #include <zephyr/kernel.h>
 #include <resource_table.h>
 
-extern char ram_console[];
+#ifdef CONFIG_OPENAMP_COPY_RSC_TABLE
+#define RSC_TABLE_ADDR	DT_REG_ADDR(DT_CHOSEN(zephyr_ipc_rsc_table))
+#define RSC_TABLE_SIZE	DT_REG_SIZE(DT_CHOSEN(zephyr_ipc_rsc_table))
+BUILD_ASSERT(sizeof(struct fw_resource_table) <= RSC_TABLE_SIZE);
+#endif
+
+extern char ram_console_buf[];
 
 #define __resource Z_GENERIC_SECTION(.resource_table)
 
@@ -68,7 +74,7 @@ static struct fw_resource_table __resource resource_table = {
 #if defined(CONFIG_RAM_CONSOLE)
 	.cm_trace = {
 		RSC_TRACE,
-		(uint32_t)ram_console, CONFIG_RAM_CONSOLE_BUFFER_SIZE, 0,
+		(uint32_t)ram_console_buf, CONFIG_RAM_CONSOLE_BUFFER_SIZE, 0,
 		"Zephyr_log",
 	},
 #endif
@@ -76,6 +82,11 @@ static struct fw_resource_table __resource resource_table = {
 
 void rsc_table_get(struct fw_resource_table **table_ptr, int *length)
 {
-	*table_ptr = &resource_table;
 	*length = sizeof(resource_table);
+#ifdef CONFIG_OPENAMP_COPY_RSC_TABLE
+	*table_ptr = (struct fw_resource_table *)RSC_TABLE_ADDR;
+	memcpy(*table_ptr, &resource_table, *length);
+#else
+	*table_ptr = &resource_table;
+#endif
 }

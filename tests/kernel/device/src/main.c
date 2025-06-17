@@ -30,7 +30,7 @@ DEVICE_DEFINE(dummy_noinit, DUMMY_NOINIT, NULL, NULL, NULL, NULL,
 	      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, NULL);
 
 /* To access from userspace, the device needs an API. Use a dummy GPIO one */
-static const struct gpio_driver_api fakedeferdriverapi;
+static DEVICE_API(gpio, fakedeferdriverapi);
 
 /* Fake deferred devices */
 DEVICE_DT_DEFINE(DT_INST(0, fakedeferdriver), NULL, NULL, NULL, NULL,
@@ -270,10 +270,12 @@ SYS_INIT(init_fn, APPLICATION, 0);
 SYS_INIT_NAMED(init1, init_fn, APPLICATION, 1);
 SYS_INIT_NAMED(init2, init_fn, APPLICATION, 2);
 SYS_INIT_NAMED(init3, init_fn, APPLICATION, 2);
+SYS_INIT_NAMED(init4, init_fn, APPLICATION, 99);
+SYS_INIT_NAMED(init5, init_fn, APPLICATION, 999);
 
 ZTEST(device, test_sys_init_multiple)
 {
-	zassert_equal(sys_init_counter, 4, "");
+	zassert_equal(sys_init_counter, 6, "");
 }
 
 /* this is for storing sequence during initialization */
@@ -384,20 +386,20 @@ ZTEST(device, test_abstraction_driver_common)
 	dev = device_get_binding(MY_DRIVER_A);
 	zassert_false((dev == NULL));
 
-	ret = subsystem_do_this(dev, foo, bar);
+	ret = abstract_do_this(dev, foo, bar);
 	zassert_true(ret == (foo + bar), "common API do_this fail");
 
-	subsystem_do_that(dev, &baz);
+	abstract_do_that(dev, &baz);
 	zassert_true(baz == 1, "common API do_that fail");
 
 	/* verify driver B API has called */
 	dev = device_get_binding(MY_DRIVER_B);
 	zassert_false((dev == NULL));
 
-	ret = subsystem_do_this(dev, foo, bar);
+	ret = abstract_do_this(dev, foo, bar);
 	zassert_true(ret == (foo - bar), "common API do_this fail");
 
-	subsystem_do_that(dev, &baz);
+	abstract_do_that(dev, &baz);
 	zassert_true(baz == 2, "common API do_that fail");
 }
 
@@ -411,6 +413,20 @@ ZTEST(device, test_deferred_init)
 	zassert_true(ret == 0);
 
 	zassert_true(device_is_ready(FAKEDEFERDRIVER0));
+}
+
+ZTEST(device, test_device_api)
+{
+	const struct device *dev;
+
+	dev = device_get_binding(MY_DRIVER_A);
+	zexpect_true(DEVICE_API_IS(abstract, dev));
+
+	dev = device_get_binding(MY_DRIVER_B);
+	zexpect_true(DEVICE_API_IS(abstract, dev));
+
+	dev = device_get_binding(DUMMY_NOINIT);
+	zexpect_false(DEVICE_API_IS(abstract, dev));
 }
 
 ZTEST_USER(device, test_deferred_init_user)

@@ -12,9 +12,6 @@
 #include <zephyr/pm/pm.h>
 #include <zephyr/init.h>
 
-/* ambiq-sdk includes */
-#include <am_mcu_apollo.h>
-
 LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 
 void pm_state_set(enum pm_state state, uint8_t substate_id)
@@ -65,7 +62,7 @@ void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 	irq_unlock(0);
 }
 
-static int ambiq_power_init(void)
+void ambiq_power_init(void)
 {
 	/* Enable flash.
 	 * Currently all flash area is powered on, but we should only enable the used flash area and
@@ -100,8 +97,4 @@ static int ambiq_power_init(void)
 	 */
 	am_hal_sysctrl_control(AM_HAL_SYSCTRL_CONTROL_DEEPSLEEP_MINPWR_EN, 0);
 #endif
-
-	return 0;
 }
-
-SYS_INIT(ambiq_power_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

@@ -170,7 +170,22 @@ SECTIONS {
    * .text.
    */
   .imrdata : ALIGN(4096) {
+    __imr_data_start = .;
     *(.imrdata .imrdata.*)
+    __imr_data_end = .;
+  } >imr
+
+  /* Cold code in IMR memory */
+  .cold : ALIGN(4096) {
+    __cold_start = .;
+    *(.cold .cold.* )
+    __cold_end = .;
+  } >imr
+
+  /* Cold data. */
+  .coldrodata : ALIGN(4096) {
+    __coldrodata_start = .;
+    *(.coldrodata .coldrodata.*)
     _imr_end = .;
   } >imr
 
@@ -284,6 +299,12 @@ SECTIONS {
 
     *libarch__xtensa__core.a:userspace.S.obj(.literal.xtensa_do_syscall)
     *libarch__xtensa__core.a:userspace.S.obj(.text.xtensa_do_syscall)
+    *libarch__xtensa__core.a:ptables.c.obj(.literal.xtensa_swap_update_page_tables)
+    *libarch__xtensa__core.a:ptables.c.obj(.text.xtensa_swap_update_page_tables)
+
+#ifdef CONFIG_XTENSA_SYSCALL_USE_HELPER
+    *libarch__xtensa__core.a:syscall_helper.c.obj(.text.xtensa_syscall_helper*)
+#endif /* CONFIG_XTENSA_SYSCALL_USE_HELPER */
 
   } > xtensa_vector_code
 #endif /* CONFIG_XTENSA_MMU */
@@ -486,6 +507,24 @@ SECTIONS {
   .bss SEGSTART_UNCACHED (NOLOAD) :
   {
     _bss_start = .;
+
+#if defined(CONFIG_ZTEST) && defined(CONFIG_SIMULATOR_XTENSA)
+    /* For some weird unknown reasons, the simulator really do not
+     * like these cpuhold_* variables to be tightly packed together.
+     * This results in cpuhold_spawned not being updated, and we
+     * will be stuck in the while loop for it to be set.
+     * Workaround by explicitly aligning these variables.
+     */
+    . = ALIGN(16);
+    *:ztest.c.obj(.bss.cpuhold_sem)
+    . = ALIGN(16);
+    *:ztest.c.obj(.bss.cpuhold_active)
+    . = ALIGN(16);
+    *:ztest.c.obj(.bss.cpuhold_spawned)
+    . = ALIGN(16);
+    *:ztest.c.obj(.bss.cpuhold_pool_items)
+#endif /* CONFIG_ZTEST && CONFIG_SIMULATOR_XTENSA */
+
     *(.dynsbss)
     *(.sbss)
     *(.sbss.*)
@@ -549,6 +588,7 @@ SECTIONS {
 
   /* rimage module manifest headers */
   .module.boot : { KEEP(*(.module.boot)) } >noload
+  .module.cold : { KEEP(*(.module.cold)) } >noload
   .module.main : { KEEP(*(.module.main)) } >noload
 
  .static_uuid_entries : {

@@ -12,6 +12,8 @@
 
 #include <zephyr/dt-bindings/pinctrl/renesas/pinctrl-ra.h>
 
+#define RA_PINCTRL_PORT_NUM ARRAY_SIZE(((R_PFS_Type *)0)->PORT)
+#define RA_PINCTRL_PIN_NUM  ARRAY_SIZE(((R_PFS_PORT_Type *)0)->PIN)
 /**
  * @brief Type to hold a renesas ra pin's pinctrl configuration.
  */

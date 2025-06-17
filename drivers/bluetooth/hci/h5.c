@@ -598,26 +598,8 @@ static uint8_t h5_get_type(struct net_buf *buf)
 static int h5_queue(const struct device *dev, struct net_buf *buf)
 {
 	struct h5_data *h5 = dev->data;
-	uint8_t type;
 
-	LOG_DBG("buf %p type %u len %u", buf, bt_buf_get_type(buf), buf->len);
-
-	switch (bt_buf_get_type(buf)) {
-	case BT_BUF_CMD:
-		type = HCI_COMMAND_PKT;
-		break;
-	case BT_BUF_ACL_OUT:
-		type = HCI_ACLDATA_PKT;
-		break;
-	case BT_BUF_ISO_OUT:
-		type = HCI_ISODATA_PKT;
-		break;
-	default:
-		LOG_ERR("Unknown packet type %u", bt_buf_get_type(buf));
-		return -1;
-	}
-
-	memcpy(net_buf_push(buf, sizeof(type)), &type, sizeof(type));
+	LOG_DBG("buf %p type %u len %u", buf, buf->data[0], buf->len);
 
 	k_fifo_put(&h5->tx_queue, buf);
 
@@ -801,7 +783,7 @@ static int h5_open(const struct device *dev, bt_hci_recv_t recv)
 	return 0;
 }
 
-static const struct bt_hci_driver_api h5_driver_api = {
+static DEVICE_API(bt_hci, h5_driver_api) = {
 	.open = h5_open,
 	.send = h5_queue,
 };

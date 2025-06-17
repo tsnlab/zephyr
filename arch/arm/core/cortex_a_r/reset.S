@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2013-2014 Wind River Systems, Inc.
  * Copyright (c) 2019 Stephanos Ioannidis <root@stephanos.io>
+ * Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,8 +31,8 @@ GDATA(z_arm_sys_stack)
 GDATA(z_arm_fiq_stack)
 GDATA(z_arm_abort_stack)
 GDATA(z_arm_undef_stack)
-#if defined(CONFIG_PLATFORM_SPECIFIC_INIT)
-GTEXT(z_arm_platform_init)
+#if defined(CONFIG_SOC_RESET_HOOK)
+GTEXT(soc_reset_hook)
 #endif
 
 /**
@@ -55,9 +56,12 @@ SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
     cmp r0, #MODE_HYP
     bne EL1_Reset_Handler
 
-    /* Init HSCTLR see Armv8-R AArch32 architecture profile */
-    ldr r0, =(HSCTLR_RES1 | SCTLR_I_BIT | SCTLR_C_BIT)
-    mcr p15, 4, r0, c1, c0, 0
+    /*
+     * The HSCTLR register provides top-level control of system operation in Hyp mode.
+     * Since the OS is not running in Hyp mode, and considering the Armv8-R AArch32
+     * architecture profile, there's no need to modify HSCTLR configuration unless
+     * Fast Interrupts need to be enabled.
+     */
 
     /* Init HACTLR: Enable EL1 access to all IMP DEF registers */
     ldr r0, =HACTLR_INIT
@@ -199,6 +203,12 @@ EL1_Reset_Handler:
 
 #endif /* CONFIG_DCLS */
 
+#if defined(CONFIG_CPU_CORTEX_R52_CACHE_SEGREGATION)
+    ldr r0, =IMP_CSCTLR(CONFIG_CPU_CORTEX_R52_ICACHE_FLASH_WAY,
+                        CONFIG_CPU_CORTEX_R52_DCACHE_FLASH_WAY)
+    mcr p15, 1, r0, c9, c1, 0
+#endif
+
     ldr r0, =arm_cpu_boot_params
 
 #if CONFIG_MP_MAX_NUM_CPUS > 1
@@ -217,12 +227,12 @@ EL1_Reset_Handler:
     /* signal our desire to vote */
     mov r5, #1
     strb r5, [r4, r2]
+    mov r7, #0
     ldr r3, [r0, #BOOT_PARAM_MPID_OFFSET]
     cmn r3, #1
     beq 1f
 
     /* some core already won, release */
-    mov r7, #0
     strb r7, [r4, r2]
     b _secondary_core
 
@@ -305,9 +315,9 @@ _primary_core:
     msr CPSR_c, #(MODE_SYS | I_BIT | F_BIT)
     mov sp, r10
 
-#if defined(CONFIG_PLATFORM_SPECIFIC_INIT)
+#if defined(CONFIG_SOC_RESET_HOOK)
     /* Execute platform-specific initialisation if applicable */
-    bl z_arm_platform_init
+    bl soc_reset_hook
 #endif
 
 #if defined(CONFIG_WDOG_INIT)
@@ -318,5 +328,7 @@ _primary_core:
 #if defined(CONFIG_DISABLE_TCM_ECC)
     bl z_arm_tcm_disable_ecc
 #endif
+
+    bl z_arm_relocate_vector_table
 
     bx r4

@@ -38,7 +38,7 @@
 #include "uart_pl011_ambiq.h"
 #endif
 
-#if defined(CONFIG_SOC_SERIES_APOLLO3X)
+#if defined(CONFIG_SOC_SERIES_APOLLO3X) || defined(CONFIG_SOC_SERIES_APOLLO5X)
 #define PM_INST_GET(n) PM_DEVICE_DT_INST_GET(n)
 #else
 #define PM_INST_GET(n) NULL
@@ -61,6 +61,7 @@ struct pl011_config {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_config_func_t irq_config_func;
 #endif
+	bool fifo_disable;
 	int (*clk_enable_func)(const struct device *dev, uint32_t clk);
 	int (*pwr_on_func)(void);
 };
@@ -74,6 +75,7 @@ struct pl011_data {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	volatile bool sw_call_txdrdy;
 	uart_irq_callback_user_data_t irq_cb;
+	struct k_spinlock irq_cb_lock;
 	void *irq_cb_data;
 #endif
 };
@@ -205,6 +207,7 @@ static int pl011_runtime_configure_internal(const struct device *dev,
 					const struct uart_config *cfg,
 					bool disable)
 {
+	const struct pl011_config *config = dev->config;
 	struct pl011_data *data = dev->data;
 	uint32_t lcrh;
 	int ret = -ENOTSUP;
@@ -286,7 +289,9 @@ static int pl011_runtime_configure_internal(const struct device *dev,
 
 enable:
 	if (disable) {
-		pl011_enable_fifo(dev);
+		if (!config->fifo_disable) {
+			pl011_enable_fifo(dev);
+		}
 		pl011_enable(dev);
 	}
 
@@ -317,7 +322,7 @@ static int pl011_runtime_config_get(const struct device *dev,
 static int pl011_fifo_fill(const struct device *dev,
 				    const uint8_t *tx_data, int len)
 {
-	uint8_t num_tx = 0U;
+	int num_tx = 0U;
 
 	while (!(get_uart(dev)->fr & PL011_FR_TXFF) && (len - num_tx > 0)) {
 		get_uart(dev)->dr = tx_data[num_tx++];
@@ -328,7 +333,7 @@ static int pl011_fifo_fill(const struct device *dev,
 static int pl011_fifo_read(const struct device *dev,
 				    uint8_t *rx_data, const int len)
 {
-	uint8_t num_rx = 0U;
+	int num_rx = 0U;
 
 	while ((len - num_rx > 0) && !(get_uart(dev)->fr & PL011_FR_RXFE)) {
 		rx_data[num_rx++] = get_uart(dev)->dr;
@@ -342,29 +347,45 @@ static void pl011_irq_tx_enable(const struct device *dev)
 	struct pl011_data *data = dev->data;
 
 	get_uart(dev)->imsc |= PL011_IMSC_TXIM;
-	if (data->sw_call_txdrdy) {
-		/* Verify if the callback has been registered */
-		if (data->irq_cb) {
-			/*
-			 * Due to HW limitation, the first TX interrupt should
-			 * be triggered by the software.
-			 *
-			 * PL011 TX interrupt is based on a transition through
-			 * a level, rather than on the level itself[1]. So that,
-			 * enable TX interrupt can not trigger TX interrupt if
-			 * no data was filled to TX FIFO at the beginning.
-			 *
-			 * [1]: PrimeCell UART (PL011) Technical Reference Manual
-			 *      functional-overview/interrupts
-			 */
+	if (!data->sw_call_txdrdy) {
+		return;
+	}
+	data->sw_call_txdrdy = false;
+
+	/*
+	 * Verify if the callback has been registered. Due to HW limitation, the
+	 * first TX interrupt should be triggered by the software.
+	 *
+	 * PL011 TX interrupt is based on a transition through a level, rather
+	 * than on the level itself[1]. So that, enable TX interrupt can not
+	 * trigger TX interrupt if no data was filled to TX FIFO at the
+	 * beginning.
+	 *
+	 * [1]: PrimeCell UART (PL011) Technical Reference Manual
+	 *      functional-overview/interrupts
+	 */
+	if (!data->irq_cb) {
+		return;
+	}
+
+	/*
+	 * Execute callback while TX interrupt remains enabled. If
+	 * uart_fifo_fill() is called with small amounts of data, the 1/8 TX
+	 * FIFO threshold may never be reached, and the hardware TX interrupt
+	 * will never trigger.
+	 */
+	while (get_uart(dev)->imsc & PL011_IMSC_TXIM) {
+		K_SPINLOCK(&data->irq_cb_lock) {
 			data->irq_cb(dev, data->irq_cb_data);
 		}
-		data->sw_call_txdrdy = false;
 	}
 }
 
 static void pl011_irq_tx_disable(const struct device *dev)
 {
+	struct pl011_data *data = dev->data;
+
+	data->sw_call_txdrdy = true;
 	get_uart(dev)->imsc &= ~PL011_IMSC_TXIM;
 }
 
@@ -378,8 +399,9 @@ static int pl011_irq_tx_ready(const struct device *dev)
 {
 	struct pl011_data *data = dev->data;
 
-	if (!data->sbsa && !(get_uart(dev)->cr & PL011_CR_TXE))
+	if (!data->sbsa && !(get_uart(dev)->cr & PL011_CR_TXE)) {
 		return false;
+	}
 
 	return ((get_uart(dev)->imsc & PL011_IMSC_TXIM) &&
 		/* Check for TX interrupt status is set or TX FIFO is empty. */
@@ -400,8 +422,9 @@ static int pl011_irq_rx_ready(const struct device *dev)
 {
 	struct pl011_data *data = dev->data;
 
-	if (!data->sbsa && !(get_uart(dev)->cr & PL011_CR_RXE))
+	if (!data->sbsa && !(get_uart(dev)->cr & PL011_CR_RXE)) {
 		return false;
+	}
 
 	return ((get_uart(dev)->imsc & PL011_IMSC_RXIM) &&
 		(!(get_uart(dev)->fr & PL011_FR_RXFE)));
@@ -439,7 +462,7 @@ static void pl011_irq_callback_set(const struct device *dev,
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
-static const struct uart_driver_api pl011_driver_api = {
+static DEVICE_API(uart, pl011_driver_api) = {
 	.poll_in = pl011_poll_in,
 	.poll_out = pl011_poll_out,
 	.err_check = pl011_err_check,
@@ -525,7 +548,9 @@ static int pl011_init(const struct device *dev)
 			| FIELD_PREP(PL011_IFLS_RXIFLSEL_M, RXIFLSEL_1_2_FULL);
 
 		/* Enabling the FIFOs */
-		pl011_enable_fifo(dev);
+		if (!config->fifo_disable) {
+			pl011_enable_fifo(dev);
+		}
 	}
 	/* initialize all IRQs as masked */
 	get_uart(dev)->imsc = 0U;
@@ -618,7 +643,9 @@ void pl011_isr(const struct device *dev)
 
 	/* Verify if the callback has been registered */
 	if (data->irq_cb) {
-		data->irq_cb(dev, data->irq_cb_data);
+		K_SPINLOCK(&data->irq_cb_lock) {
+			data->irq_cb(dev, data->irq_cb_data);
+		}
 	}
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
@@ -646,6 +673,7 @@ void pl011_isr(const struct device *dev)
 		CLOCK_INIT(n)                                                           \
 		PINCTRL_INIT(n)	                                                        \
 		.irq_config_func = pl011_irq_config_func_##n,				\
+		.fifo_disable = DT_INST_PROP(n, fifo_disable),                          \
 		.clk_enable_func = COMPAT_SPECIFIC_CLK_ENABLE_FUNC(n),		        \
 		.pwr_on_func = COMPAT_SPECIFIC_PWR_ON_FUNC(n),			        \
 	};

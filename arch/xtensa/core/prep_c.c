@@ -5,11 +5,20 @@
  */
 #include <zephyr/kernel.h>
 #include <kernel_internal.h>
+#include <zephyr/platform/hooks.h>
+#include <zephyr/arch/cache.h>
 
 extern FUNC_NORETURN void z_cstart(void);
 
 /* defined by the SoC in case of CONFIG_SOC_HAS_RUNTIME_NUM_CPUS=y */
 extern void soc_num_cpus_init(void);
+
+/* Make sure the platform configuration matches what the toolchain
+ * thinks the hardware is doing.
+ */
+#ifdef CONFIG_DCACHE_LINE_SIZE
+BUILD_ASSERT(CONFIG_DCACHE_LINE_SIZE == XCHAL_DCACHE_LINESIZE);
+#endif
 
 /**
  *
@@ -20,6 +29,9 @@ extern void soc_num_cpus_init(void);
  */
 void z_prep_c(void)
 {
+#if defined(CONFIG_SOC_PREP_HOOK)
+	soc_prep_hook();
+#endif
 #if CONFIG_SOC_HAS_RUNTIME_NUM_CPUS
 	soc_num_cpus_init();
 #endif
@@ -32,10 +44,12 @@ void z_prep_c(void)
 	 */
 	sys_cache_data_flush_and_invd_all();
 
+#if !defined(CONFIG_SCHED_CPU_MASK_PIN_ONLY)
 	/* Our cache top stash location might have junk in it from a
 	 * pre-boot environment.  Must be zero or valid!
 	 */
 	XTENSA_WSR(ZSR_FLUSH_STR, 0);
+#endif
 #endif
 
 	cpu0->nested = 0;
@@ -66,6 +80,9 @@ void z_prep_c(void)
 	    ((uintptr_t)sp >= (uintptr_t)stack_end)) {
 		memset(stack_start, 0xAA, stack_sz);
 	}
+#endif
+#if CONFIG_ARCH_CACHE
+	arch_cache_init();
 #endif
 
 #ifdef CONFIG_XTENSA_MMU

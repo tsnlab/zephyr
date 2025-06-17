@@ -5,26 +5,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/logging/log.h>
-
-#if DT_NODE_HAS_STATUS(DT_INST(0, adi_adin2111_phy), okay)
-#define DT_DRV_COMPAT adi_adin2111_phy
-#else
-#define DT_DRV_COMPAT adi_adin1100_phy
-#endif
-
-LOG_MODULE_REGISTER(DT_DRV_COMPAT, CONFIG_PHY_LOG_LEVEL);
-
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
-#include <zephyr/sys/util.h>
-#include <zephyr/net/phy.h>
-#include <zephyr/net/mii.h>
-#include <zephyr/net/mdio.h>
 #include <zephyr/drivers/mdio.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/net/mdio.h>
+#include <zephyr/net/mii.h>
+#include <zephyr/net/phy.h>
+#include <zephyr/sys/util.h>
+#include "phy_adin2111_priv.h"
+
+LOG_MODULE_REGISTER(phy_adin, CONFIG_PHY_LOG_LEVEL);
 
 /* PHYs out of reset check retry delay */
 #define ADIN2111_PHY_AWAIT_DELAY_POLL_US			15U
@@ -359,7 +353,7 @@ static int phy_adin2111_cfg_link(const struct device *dev,
 {
 	ARG_UNUSED(dev);
 
-	if (!!(adv_speeds & LINK_FULL_10BASE_T)) {
+	if (!!(adv_speeds & LINK_FULL_10BASE)) {
 		return 0;
 	}
 
@@ -455,7 +449,7 @@ static int phy_adin2111_init(const struct device *dev)
 
 	data->dev = dev;
 	data->state.is_up = false;
-	data->state.speed = LINK_FULL_10BASE_T;
+	data->state.speed = LINK_FULL_10BASE;
 
 	/*
 	 * For adin1100 and further mii stuff,
@@ -628,7 +622,7 @@ static int phy_adin2111_link_cb_set(const struct device *dev, phy_callback_t cb,
 	return 0;
 }
 
-static const struct ethphy_driver_api phy_adin2111_api = {
+static DEVICE_API(ethphy, phy_adin2111_api) = {
 	.get_link = phy_adin2111_get_link_state,
 	.cfg_link = phy_adin2111_cfg_link,
 	.link_cb_set = phy_adin2111_link_cb_set,
@@ -636,22 +630,28 @@ static const struct ethphy_driver_api phy_adin2111_api = {
 	.write = phy_adin2111_reg_write,
 };
 
-#define ADIN2111_PHY_INITIALIZE(n)						\
-	static const struct phy_adin2111_config phy_adin2111_config_##n = {	\
-		.mdio = DEVICE_DT_GET(DT_INST_BUS(n)),				\
-		.phy_addr = DT_INST_REG_ADDR(n),				\
-		.led0_en = DT_INST_PROP(n, led0_en),				\
-		.led1_en = DT_INST_PROP(n, led1_en),				\
-		.tx_24v = !(DT_INST_PROP(n, disable_tx_mode_24v)),		\
-		IF_ENABLED(DT_HAS_COMPAT_STATUS_OKAY(adi_adin1100_phy),		\
-		(.mii = 1))						\
-	};									\
-	static struct phy_adin2111_data phy_adin2111_data_##n = {		\
-		.sem = Z_SEM_INITIALIZER(phy_adin2111_data_##n.sem, 1, 1),	\
-	};									\
-	DEVICE_DT_INST_DEFINE(n, &phy_adin2111_init, NULL,			\
-			      &phy_adin2111_data_##n, &phy_adin2111_config_##n, \
-			      POST_KERNEL, CONFIG_PHY_INIT_PRIORITY,		\
+#define ADIN2111_PHY_INITIALIZE(n, model)						\
+	static const struct phy_adin2111_config phy_adin##model##_config_##n = {	\
+		.mdio = DEVICE_DT_GET(DT_INST_BUS(n)),					\
+		.phy_addr = DT_INST_REG_ADDR(n),					\
+		.led0_en = DT_INST_PROP(n, led0_en),					\
+		.led1_en = DT_INST_PROP(n, led1_en),					\
+		.tx_24v = !(DT_INST_PROP(n, disable_tx_mode_24v)),			\
+		IF_ENABLED(DT_HAS_COMPAT_STATUS_OKAY(adi_adin1100_phy),			\
+		(.mii = 1))								\
+	};										\
+	static struct phy_adin2111_data phy_adin##model##_data_##n = {			\
+		.sem = Z_SEM_INITIALIZER(phy_adin##model##_data_##n.sem, 1, 1),		\
+	};										\
+	DEVICE_DT_INST_DEFINE(n, &phy_adin2111_init, NULL,				\
+			      &phy_adin##model##_data_##n,				\
+			      &phy_adin##model##_config_##n,				\
+			      POST_KERNEL, CONFIG_PHY_INIT_PRIORITY,			\
 			      &phy_adin2111_api);
 
-DT_INST_FOREACH_STATUS_OKAY(ADIN2111_PHY_INITIALIZE)
+#define DT_DRV_COMPAT adi_adin2111_phy
+DT_INST_FOREACH_STATUS_OKAY_VARGS(ADIN2111_PHY_INITIALIZE, 2111)
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT adi_adin1100_phy
+DT_INST_FOREACH_STATUS_OKAY_VARGS(ADIN2111_PHY_INITIALIZE, 1100)
+#undef DT_DRV_COMPAT

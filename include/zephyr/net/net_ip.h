@@ -65,6 +65,7 @@ enum net_ip_protocol {
 	IPPROTO_IP = 0,            /**< IP protocol (pseudo-val for setsockopt() */
 	IPPROTO_ICMP = 1,          /**< ICMP protocol   */
 	IPPROTO_IGMP = 2,          /**< IGMP protocol   */
+	IPPROTO_ETH_P_ALL = 3,     /**< Every packet. from linux if_ether.h   */
 	IPPROTO_IPIP = 4,          /**< IPIP tunnels    */
 	IPPROTO_TCP = 6,           /**< TCP protocol    */
 	IPPROTO_UDP = 17,          /**< UDP protocol    */
@@ -78,6 +79,7 @@ enum net_ip_protocol_secure {
 	IPPROTO_TLS_1_0 = 256,     /**< TLS 1.0 protocol */
 	IPPROTO_TLS_1_1 = 257,     /**< TLS 1.1 protocol */
 	IPPROTO_TLS_1_2 = 258,     /**< TLS 1.2 protocol */
+	IPPROTO_TLS_1_3 = 259,     /**< TLS 1.3 protocol */
 	IPPROTO_DTLS_1_0 = 272,    /**< DTLS 1.0 protocol */
 	IPPROTO_DTLS_1_2 = 273,    /**< DTLS 1.2 protocol */
 };
@@ -230,6 +232,12 @@ struct sockaddr_ll_ptr {
 	uint8_t     *sll_addr;    /**< Physical-layer address, big endian */
 };
 
+/** Socket address struct for unix socket where address is a pointer */
+struct sockaddr_un_ptr {
+	sa_family_t sun_family;    /**< Always AF_UNIX */
+	char        *sun_path;     /**< pathname */
+};
+
 struct sockaddr_can_ptr {
 	sa_family_t can_family;
 	int         can_ifindex;
@@ -372,11 +380,24 @@ struct cmsghdr {
 #endif
 #endif
 
+#if defined(CONFIG_NET_NATIVE_OFFLOADED_SOCKETS)
+#define UNIX_PATH_MAX 108
+#undef NET_SOCKADDR_MAX_SIZE
+/* Define NET_SOCKADDR_MAX_SIZE to be struct of sa_family_t + char[UNIX_PATH_MAX] */
+#define NET_SOCKADDR_MAX_SIZE (UNIX_PATH_MAX+sizeof(sa_family_t))
+#if !defined(CONFIG_NET_SOCKETS_PACKET)
+#undef NET_SOCKADDR_PTR_MAX_SIZE
+#define NET_SOCKADDR_PTR_MAX_SIZE (sizeof(struct sockaddr_un_ptr))
+#endif
+#endif
+
 #if !defined(CONFIG_NET_IPV4)
 #if !defined(CONFIG_NET_IPV6)
 #if !defined(CONFIG_NET_SOCKETS_PACKET)
+#if !defined(CONFIG_NET_NATIVE_OFFLOADED_SOCKETS)
 #define NET_SOCKADDR_MAX_SIZE (sizeof(struct sockaddr_in6))
 #define NET_SOCKADDR_PTR_MAX_SIZE (sizeof(struct sockaddr_in6_ptr))
+#endif
 #endif
 #endif
 #endif
@@ -437,6 +458,9 @@ extern const struct in6_addr in6addr_loopback;
 /** IPv4 any address */
 #define INADDR_ANY 0
 
+/** IPv4 broadcast address */
+#define INADDR_BROADCAST 0xffffffff
+
 /** IPv4 address initializer */
 #define INADDR_ANY_INIT { { { INADDR_ANY } } }
 
@@ -472,7 +496,11 @@ enum net_ip_mtu {
 	/** IPv4 MTU length. We must be able to receive this size IPv4 packet
 	 * without fragmentation.
 	 */
+#if defined(CONFIG_NET_NATIVE_IPV4)
+	NET_IPV4_MTU = CONFIG_NET_IPV4_MTU,
+#else
 	NET_IPV4_MTU = 576,
+#endif
 };
 
 /** @brief Network packet priority settings described in IEEE 802.1Q Annex I.1 */
@@ -743,6 +771,38 @@ static inline bool net_ipv6_is_prefix(const uint8_t *addr1,
 	mask = (uint8_t)((0xff << (8 - remain)) ^ 0xff) << remain;
 
 	return (addr1[bytes] & mask) == (addr2[bytes] & mask);
+}
+
+
+/**
+ * @brief Get the IPv6 network address via the unicast address and the prefix mask.
+ *
+ * @param inaddr Unicast IPv6 address.
+ * @param outaddr Prefix masked IPv6 address (network address).
+ * @param prefix_len Prefix length (max length is 128).
+ */
+static inline void net_ipv6_addr_prefix_mask(const uint8_t *inaddr,
+					     uint8_t *outaddr,
+					     uint8_t prefix_len)
+{
+	uint8_t bits = 128 - prefix_len;
+	uint8_t bytes = prefix_len / 8U;
+	uint8_t remain = bits % 8;
+	uint8_t mask;
+
+	memset(outaddr, 0, 16U);
+	memcpy(outaddr, inaddr, bytes);
+
+	if (!remain) {
+		/* No remaining bits, the prefixes are the same as first
+		 * bytes are the same.
+		 */
+		return;
+	}
+
+	/* Create a mask that has remaining most significant bits set */
+	mask = (uint8_t)((0xff << (8 - remain)) ^ 0xff) << remain;
+	outaddr[bytes] = inaddr[bytes] & mask;
 }
 
 /**
@@ -1403,7 +1463,32 @@ static inline bool net_ipv6_addr_is_v4_mapped(const struct in6_addr *addr)
 }
 
 /**
- *  @brief Create IPv6 address interface identifier
+ *  @brief Generate IPv6 address using a prefix and interface identifier.
+ *         Interface identifier is either generated from EUI-64 (MAC) defined
+ *         in RFC 4291 or from randomized value defined in RFC 7217.
+ *
+ *  @param iface Network interface
+ *  @param prefix IPv6 prefix, can be left out in which case fe80::/64 is used
+ *  @param network_id Network identifier (for example SSID in WLAN), this is
+ *         optional can be set to NULL
+ *  @param network_id_len Network identifier length, if set to 0 then the
+ *         network id is ignored.
+ *  @param dad_counter Duplicate Address Detection counter value, can be set to 0
+ *         if it is not known.
+ *  @param addr IPv6 address
+ *  @param lladdr Link local address
+ *
+ *  @return 0 if ok, < 0 if error
+ */
+int net_ipv6_addr_generate_iid(struct net_if *iface,
+			       const struct in6_addr *prefix,
+			       uint8_t *network_id, size_t network_id_len,
+			       uint8_t dad_counter,
+			       struct in6_addr *addr,
+			       struct net_linkaddr *lladdr);
+
+/**
+ *  @brief Create IPv6 address interface identifier.
  *
  *  @param addr IPv6 address
  *  @param lladdr Link local address
@@ -1411,43 +1496,7 @@ static inline bool net_ipv6_addr_is_v4_mapped(const struct in6_addr *addr)
 static inline void net_ipv6_addr_create_iid(struct in6_addr *addr,
 					    struct net_linkaddr *lladdr)
 {
-	UNALIGNED_PUT(htonl(0xfe800000), &addr->s6_addr32[0]);
-	UNALIGNED_PUT(0, &addr->s6_addr32[1]);
-
-	switch (lladdr->len) {
-	case 2:
-		/* The generated IPv6 shall not toggle the
-		 * Universal/Local bit. RFC 6282 ch 3.2.2
-		 */
-		if (lladdr->type == NET_LINK_IEEE802154) {
-			UNALIGNED_PUT(0, &addr->s6_addr32[2]);
-			addr->s6_addr[11] = 0xff;
-			addr->s6_addr[12] = 0xfe;
-			addr->s6_addr[13] = 0U;
-			addr->s6_addr[14] = lladdr->addr[0];
-			addr->s6_addr[15] = lladdr->addr[1];
-		}
-
-		break;
-	case 6:
-		/* We do not toggle the Universal/Local bit
-		 * in Bluetooth. See RFC 7668 ch 3.2.2
-		 */
-		memcpy(&addr->s6_addr[8], lladdr->addr, 3);
-		addr->s6_addr[11] = 0xff;
-		addr->s6_addr[12] = 0xfe;
-		memcpy(&addr->s6_addr[13], lladdr->addr + 3, 3);
-
-		if (lladdr->type == NET_LINK_ETHERNET) {
-			addr->s6_addr[8] ^= 0x02;
-		}
-
-		break;
-	case 8:
-		memcpy(&addr->s6_addr[8], lladdr->addr, lladdr->len);
-		addr->s6_addr[8] ^= 0x02;
-		break;
-	}
+	(void)net_ipv6_addr_generate_iid(NULL, NULL, NULL, 0, 0, addr, lladdr);
 }
 
 /**
@@ -1487,6 +1536,10 @@ static inline bool net_ipv6_addr_based_on_ll(const struct in6_addr *addr,
 
 		break;
 	case 8:
+		if (sizeof(lladdr->addr) < 8) {
+			return false;
+		}
+
 		if (!memcmp(&addr->s6_addr[9], &lladdr->addr[1],
 			    lladdr->len - 1) &&
 		    (addr->s6_addr[8] ^ 0x02) == lladdr->addr[0]) {
@@ -1494,9 +1547,24 @@ static inline bool net_ipv6_addr_based_on_ll(const struct in6_addr *addr,
 		}
 
 		break;
+	default:
+		return false;
 	}
 
 	return false;
+}
+
+/**
+ * @brief Get sockaddr from sockaddr_storage. This is a helper so that
+ * the code calling this function can be made shorter.
+ *
+ * @param addr Socket storage address
+ *
+ * @return Pointer to socket address (struct sockaddr)
+ */
+static inline struct sockaddr *net_sad(const struct sockaddr_storage *addr)
+{
+	return (struct sockaddr *)addr;
 }
 
 /**
@@ -1611,6 +1679,32 @@ __syscall char *net_addr_ntop(sa_family_t family, const void *src,
 			      char *dst, size_t size);
 
 /**
+ * @brief Create netmask from mask length.
+ *
+ * @param family IP address family (AF_INET or AF_INET6)
+ * @param mask_len Netmask length (in IPv4) or prefix length (in IPv6)
+ * @param mask Pointer to struct sockaddr_in if family is AF_INET or
+ * pointer to struct sockaddr_in6 if family is AF_INET6
+ *
+ * @return 0 if ok, < 0 if error
+ */
+int net_mask_len_to_netmask(sa_family_t family, uint8_t mask_len,
+			    struct sockaddr *mask);
+
+/**
+ * @brief Create mask length from netmask.
+ *
+ * @param family IP address family (AF_INET or AF_INET6)
+ * @param mask Pointer to struct sockaddr_in if family is AF_INET or
+ * pointer to struct sockaddr_in6 if family is AF_INET6
+ * @param mask_len Netmask length (in IPv4) or prefix length (in IPv6)
+ *
+ * @return 0 if ok, < 0 if error
+ */
+int net_netmask_to_mask_len(sa_family_t family, struct sockaddr *mask,
+			    uint8_t *mask_len);
+
+/**
  * @brief Parse a string that contains either IPv4 or IPv6 address
  * and optional port, and store the information in user supplied
  * sockaddr struct.
@@ -1633,6 +1727,36 @@ __syscall char *net_addr_ntop(sa_family_t family, const void *src,
  */
 bool net_ipaddr_parse(const char *str, size_t str_len,
 		      struct sockaddr *addr);
+
+/**
+ * @brief Parse a string that contains either IPv4 or IPv6 address
+ * and optional mask len, and store the information in user supplied
+ * sockaddr struct. There can be multiple IP addresses separated by
+ * comma or space. The function returns the pointer to the next IP address
+ * in the string.
+ *
+ * @details Syntax of the IP address string:
+ *   192.0.2.1/24
+ *   192.0.2.42
+ *   2001:db8::1/64
+ *   2001:db8::2
+ *   2001:db::42/128
+ *   2001:db8::1/64,192.0.2.1,2001:db8::2,192.0.2.2/24
+ *   2001:db8::1/64 192.0.2.1 2001:db8::2 192.0.2.2/24
+ * Note that the str_len parameter is used to restrict the amount of
+ * characters that are checked.
+ *
+ * @param str String that contains the IP address.
+ * @param str_len Length of the string to be parsed.
+ * @param addr Pointer to user supplied struct sockaddr.
+ * @param mask_len Pointer to mask_len which is returned to the caller.
+ *
+ * @return NULL if there was an error while parsing.
+ *         "" if we could parse the IP address and there is nothing more to parse.
+ *         All other values point to next character after the "," or " " in the string.
+ */
+const char *net_ipaddr_parse_mask(const char *str, size_t str_len,
+				  struct sockaddr *addr, uint8_t *mask_len);
 
 /**
  * @brief Set the default port in the sockaddr structure.

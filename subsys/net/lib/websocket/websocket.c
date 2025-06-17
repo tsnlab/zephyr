@@ -99,8 +99,6 @@ static int websocket_context_unref(struct websocket_context *ctx)
 
 static inline bool websocket_context_is_used(struct websocket_context *ctx)
 {
-	NET_ASSERT(ctx);
-
 	return !!atomic_get(&ctx->refcount);
 }
 
@@ -151,9 +149,9 @@ static struct websocket_context *websocket_find(int real_sock)
 	return ctx;
 }
 
-static void response_cb(struct http_response *rsp,
-			enum http_final_call final_data,
-			void *user_data)
+static int response_cb(struct http_response *rsp,
+		       enum http_final_call final_data,
+		       void *user_data)
 {
 	struct websocket_context *ctx = user_data;
 
@@ -166,6 +164,8 @@ static void response_cb(struct http_response *rsp,
 			rsp->data_len);
 		ctx->all_received = true;
 	}
+
+	return 0;
 }
 
 static int on_header_field(struct http_parser *parser, const char *at,
@@ -278,6 +278,7 @@ int websocket_connect(int sock, struct websocket_request *wreq,
 	ctx->recv_buf.size = wreq->tmp_buf_len;
 	ctx->sec_accept_key = sec_accept_key;
 	ctx->http_cb = wreq->http_cb;
+	ctx->is_client = 1;
 
 	mbedtls_sha1((const unsigned char *)&rnd_value, sizeof(rnd_value),
 			 sec_accept_key);
@@ -385,10 +386,11 @@ int websocket_connect(int sock, struct websocket_request *wreq,
 
 	NET_DBG("[%p] WS connection to peer established (fd %d)", ctx, fd);
 
-	/* We will re-use the temp buffer in receive function if needed but
-	 * in order that to work the amount of data in buffer must be set to 0
+	/* We will re-use the temp buffer in receive function. If there were
+	 * any leftover data from HTTP headers processing, we need to reflect
+	 * this in the count variable.
 	 */
-	ctx->recv_buf.count = 0;
+	ctx->recv_buf.count = req.data_len;
 
 	/* Init parser FSM */
 	ctx->parser_state = WEBSOCKET_PARSER_STATE_OPCODE;
@@ -422,7 +424,7 @@ static int websocket_interal_disconnect(struct websocket_context *ctx)
 	NET_DBG("[%p] Disconnecting", ctx);
 
 	ret = websocket_send_msg(ctx->sock, NULL, 0, WEBSOCKET_OPCODE_CLOSE,
-				 true, true, SYS_FOREVER_MS);
+				 ctx->is_client, true, SYS_FOREVER_MS);
 	if (ret < 0) {
 		NET_DBG("[%p] Failed to send close message (err %d).", ctx, ret);
 	}
@@ -458,7 +460,7 @@ static int websocket_close_vmeth(void *obj)
 static inline int websocket_poll_offload(struct zsock_pollfd *fds, int nfds,
 					 int timeout)
 {
-	int fd_backup[CONFIG_NET_SOCKETS_POLL_MAX];
+	int fd_backup[CONFIG_ZVFS_POLL_MAX];
 	const struct fd_op_vtable *vtable;
 	void *ctx;
 	int ret = 0;
@@ -1072,9 +1074,8 @@ static int websocket_send(struct websocket_context *ctx, const uint8_t *buf,
 
 	NET_DBG("[%p] Sending %zd bytes", ctx, buf_len);
 
-	ret = websocket_send_msg(ctx->sock, buf, buf_len,
-				 WEBSOCKET_OPCODE_DATA_TEXT,
-				 true, true, timeout);
+	ret = websocket_send_msg(ctx->sock, buf, buf_len, WEBSOCKET_OPCODE_DATA_TEXT,
+				 ctx->is_client, true, timeout);
 	if (ret < 0) {
 		errno = -ret;
 		return -1;
@@ -1186,6 +1187,7 @@ int websocket_register(int sock, uint8_t *recv_buf, size_t recv_buf_len)
 	ctx->real_sock = sock;
 	ctx->recv_buf.buf = recv_buf;
 	ctx->recv_buf.size = recv_buf_len;
+	ctx->is_client = 0;
 
 	fd = zvfs_reserve_fd();
 	if (fd < 0) {

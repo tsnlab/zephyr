@@ -157,13 +157,18 @@ endif    # XTENSA_CPU_HAS_HIFI
 
 endmenu  # Xtensa HiFi Options
 
+config XTENSA_INTERRUPT_NONPREEMPTABLE
+	bool "Xtensa exceptions and interrupts cannot be pre-empted"
+	help
+	  Allow use of medium and high priority interrupts without
+	  pre-empting low priority interrupts and exceptions.
+
 if CPU_HAS_MMU
 
 config XTENSA_MMU
 	bool "Xtensa MMU Support"
 	select MMU
 	select ARCH_MEM_DOMAIN_SYNCHRONOUS_API if USERSPACE
-	select XTENSA_SMALL_VECTOR_TABLE_ENTRY
 	select KERNEL_VM_USE_CUSTOM_MEM_RANGE_CHECK if XTENSA_RPO_CACHE
 	select CURRENT_THREAD_USE_NO_TLS if USERSPACE
 	help
@@ -217,15 +222,16 @@ config XTENSA_MMU_DOUBLE_MAP
 	  This option specifies that the memory is mapped in two
 	  distinct region, cached and uncached.
 
-	config XTENSA_INVALIDATE_MEM_DOMAIN_TLB_ON_SWAP
-		bool
-		help
-		  This invalidates all TLBs referred by the incoming thread's
-		  memory domain when swapping page tables.
-
 config PRIVILEGED_STACK_SIZE
 	# Must be multiple of CONFIG_MMU_PAGE_SIZE
 	default 4096
+
+config XTENSA_MMU_FLUSH_AUTOREFILL_DTLBS_ON_SWAP
+	bool "Flush all auto-refill data TLBs when swapping page tables"
+	depends on USERSPACE
+	help
+	  This flushes (invalidates) all auto-refill data TLBs when page
+	  tables are swapped.
 
 endif # XTENSA_MMU
 
@@ -277,7 +283,7 @@ config XTENSA_SYSCALL_USE_HELPER
 	default y if "$(ZEPHYR_TOOLCHAIN_VARIANT)" = "xt-clang"
 	depends on (XTENSA_MMU || XTENSA_MPU) && USERSPACE
 	help
-	  Use syscall helpers for passing more then 3 arguments.
+	  Use syscall helpers for passing more than 3 arguments.
 	  This is a workaround for toolchains where they have
 	  issue modeling register usage.
 

@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2023 Arm Limited (or its affiliates). All rights reserved.
+ * Copyright (c) 2023, 2024 Arm Limited (or its affiliates).
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/kernel.h>
+#include <ksched.h>
 #include <zephyr/arch/arm/cortex_a_r/lib_helpers.h>
 #include <zephyr/drivers/interrupt_controller/gic.h>
 #include <ipi.h>
@@ -12,6 +13,7 @@
 #include "zephyr/cache.h"
 #include "zephyr/kernel/thread_stack.h"
 #include "zephyr/toolchain/gcc.h"
+#include <zephyr/platform/hooks.h>
 
 #define INV_MPID	UINT32_MAX
 
@@ -139,10 +141,14 @@ void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz, arch_cpustart_
 	arm_cpu_boot_params.arg = arg;
 	arm_cpu_boot_params.cpu_num = cpu_num;
 
+	/* we need the barrier here to make sure the above changes to
+	 * arm_cpu_boot_params are completed before we set the mpid
+	 */
+	barrier_dsync_fence_full();
+
 	/* store mpid last as this is our synchronization point */
 	arm_cpu_boot_params.mpid = cpu_mpid;
 
-	barrier_dsync_fence_full();
 	sys_cache_data_invd_range(
 			(void *)&arm_cpu_boot_params,
 			sizeof(arm_cpu_boot_params));
@@ -193,6 +199,10 @@ void arch_secondary_cpu_init(void)
 	 *  \todo FPU irq
 	 */
 #endif
+
+#ifdef CONFIG_SOC_PER_CORE_INIT_HOOK
+	soc_per_core_init_hook();
+#endif /* CONFIG_SOC_PER_CORE_INIT_HOOK */
 
 	fn = arm_cpu_boot_params.fn;
 	arg = arm_cpu_boot_params.arg;

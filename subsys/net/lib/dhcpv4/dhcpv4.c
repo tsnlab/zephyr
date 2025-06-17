@@ -21,6 +21,7 @@ LOG_MODULE_REGISTER(net_dhcpv4, CONFIG_NET_DHCPV4_LOG_LEVEL);
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_mgmt.h>
+#include <zephyr/net/hostname.h>
 #include "net_private.h"
 
 #include <zephyr/net/udp.h>
@@ -39,7 +40,7 @@ LOG_MODULE_REGISTER(net_dhcpv4, CONFIG_NET_DHCPV4_LOG_LEVEL);
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
 
-#define PKT_WAIT_TIME K_SECONDS(1)
+#define PKT_WAIT_TIME K_MSEC(100)
 
 static K_MUTEX_DEFINE(lock);
 
@@ -285,7 +286,7 @@ static struct net_pkt *dhcpv4_create_message(struct net_if *iface, uint8_t type,
 #endif
 
 	pkt = net_pkt_alloc_with_buffer(iface, size, AF_INET,
-					IPPROTO_UDP, K_FOREVER);
+					IPPROTO_UDP, PKT_WAIT_TIME);
 	if (!pkt) {
 		return NULL;
 	}
@@ -543,8 +544,6 @@ static uint32_t dhcpv4_send_request(struct net_if *iface)
 	bool with_requested_ip = false;
 	struct net_pkt *pkt = NULL;
 	uint32_t timeout = UINT32_MAX;
-
-	iface->config.dhcpv4.xid++;
 
 	switch (iface->config.dhcpv4.state) {
 	case NET_DHCPV4_DISABLED:
@@ -978,6 +977,13 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 			goto end;
 		}
 
+		if (type == DHCPV4_OPTIONS_PAD) {
+			/* Pad option has a fixed 1-byte length and should be
+			 * ignored.
+			 */
+			continue;
+		}
+
 		if (net_pkt_read_u8(pkt, &length)) {
 			NET_ERR("option parsing, bad length");
 			return false;
@@ -1053,15 +1059,74 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 
 			break;
 		}
-#if defined(CONFIG_DNS_RESOLVER)
+
+#if defined(CONFIG_NET_DHCPV4_OPTION_PRINT_IGNORED)
+		case DHCPV4_OPTIONS_BROADCAST: {
+			struct in_addr bcast;
+
+			/* Broadcast address option may present 1 address */
+			if (length != 4) {
+				NET_ERR("options_broadcast, bad length");
+				return false;
+			}
+
+			if (net_pkt_read(pkt, bcast.s4_addr, 4)) {
+				NET_ERR("options_broadcast, short packet");
+				return false;
+			}
+
+			NET_DBG("options_broadcast: %s (ignored)",
+				net_sprint_ipv4_addr(&bcast));
+			break;
+		}
+		case DHCPV4_OPTIONS_HOST_NAME: {
+			char hostname[NET_HOSTNAME_SIZE] = { 0 };
+
+			if (length < 1) {
+				NET_ERR("options_host_name, bad length");
+				return false;
+			}
+
+			if (net_pkt_read(pkt, hostname, MIN(length,
+							    sizeof(hostname) - 1))) {
+				NET_ERR("options_host_name, short packet");
+				return false;
+			}
+
+			NET_DBG("options_host_name: %s (ignored%s)", hostname,
+				(length > sizeof(hostname) - 1) ? " and truncated" : "");
+			break;
+		}
+		case DHCPV4_OPTIONS_DOMAIN_NAME: {
+			char domain_name[NET_HOSTNAME_SIZE] = { 0 };
+
+			if (length < 1) {
+				NET_ERR("options_domain_name, bad length");
+				return false;
+			}
+
+			if (net_pkt_read(pkt, domain_name, MIN(length,
+							       sizeof(domain_name) - 1))) {
+				NET_ERR("options_domain_name, short packet");
+				return false;
+			}
+
+			NET_DBG("options_domain_name: %s (ignored%s)", domain_name,
+				(length > sizeof(domain_name) - 1) ? " and truncated" : "");
+			break;
+		}
+#endif /* CONFIG_NET_DHCPV4_OPTION_PRINT_IGNORED */
+
+#if defined(CONFIG_NET_DHCPV4_OPTION_DNS_ADDRESS)
+#define MAX_DNS_SERVERS CONFIG_DNS_RESOLVER_MAX_SERVERS
 		case DHCPV4_OPTIONS_DNS_SERVER: {
 			struct dns_resolve_context *ctx;
-			struct sockaddr_in dnses[CONFIG_DNS_RESOLVER_MAX_SERVERS] = { 0 };
-			const struct sockaddr *dns_servers[CONFIG_DNS_RESOLVER_MAX_SERVERS];
+			struct sockaddr_in dnses[MAX_DNS_SERVERS] = { 0 };
+			const struct sockaddr *dns_servers[MAX_DNS_SERVERS + 1] = { 0 };
 			const uint8_t addr_size = 4U;
 			int status;
 
-			for (uint8_t i = 0; i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
+			for (uint8_t i = 0; i < MAX_DNS_SERVERS; i++) {
 				dns_servers[i] = (struct sockaddr *)&dnses[i];
 			}
 
@@ -1079,12 +1144,11 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 			const uint8_t provided_servers_cnt = length / addr_size;
 			uint8_t dns_servers_cnt = 0;
 
-			if (provided_servers_cnt > CONFIG_DNS_RESOLVER_MAX_SERVERS) {
+			if (provided_servers_cnt > MAX_DNS_SERVERS) {
 				NET_WARN("DHCP server provided more DNS servers than can be saved");
-				dns_servers_cnt = CONFIG_DNS_RESOLVER_MAX_SERVERS;
+				dns_servers_cnt = MAX_DNS_SERVERS;
 			} else {
-				for (uint8_t i = provided_servers_cnt;
-					 i < CONFIG_DNS_RESOLVER_MAX_SERVERS; i++) {
+				for (uint8_t i = provided_servers_cnt; i < MAX_DNS_SERVERS; i++) {
 					dns_servers[i] = NULL;
 				}
 
@@ -1141,9 +1205,11 @@ static bool dhcpv4_parse_options(struct net_pkt *pkt,
 			log_server.sin_family = AF_INET;
 			log_backend_net_set_ip((struct sockaddr *)&log_server);
 
-#ifdef CONFIG_LOG_BACKEND_NET_AUTOSTART
-			log_backend_net_start();
-#endif
+			if (IS_ENABLED(CONFIG_LOG_BACKEND_NET_AUTOSTART) &&
+			    !IS_ENABLED(CONFIG_NET_CONFIG_SETTINGS) &&
+			    !IS_ENABLED(CONFIG_LOG_BACKEND_NET_USE_CONNECTION_MANAGER)) {
+				log_backend_net_start();
+			}
 
 			NET_DBG("options_log_server: %s", net_sprint_ipv4_addr(&log_server));
 
@@ -1555,6 +1621,11 @@ static void dhcpv4_iface_event_handler(struct net_mgmt_event_callback *cb,
 {
 	sys_snode_t *node = NULL;
 
+	if (mgmt_event != NET_EVENT_IF_UP &&
+	    mgmt_event != NET_EVENT_IF_DOWN) {
+		return;
+	}
+
 	k_mutex_lock(&lock, K_FOREVER);
 
 	SYS_SLIST_FOR_EACH_NODE(&dhcpv4_ifaces, node) {
@@ -1602,6 +1673,16 @@ static void dhcpv4_acd_event_handler(struct net_mgmt_event_callback *cb,
 	sys_snode_t *node = NULL;
 	struct in_addr *addr;
 
+	if (mgmt_event != NET_EVENT_IPV4_ACD_FAILED &&
+	    mgmt_event != NET_EVENT_IPV4_ACD_CONFLICT) {
+		return;
+	}
+
+	if (cb->info_length != sizeof(struct in_addr)) {
+		return;
+	}
+
+	addr = (struct in_addr *)cb->info;
 
 	k_mutex_lock(&lock, K_FOREVER);
 
@@ -1614,17 +1695,6 @@ static void dhcpv4_acd_event_handler(struct net_mgmt_event_callback *cb,
 	if (node == NULL) {
 		goto out;
 	}
-
-	if (mgmt_event != NET_EVENT_IPV4_ACD_FAILED &&
-	    mgmt_event != NET_EVENT_IPV4_ACD_CONFLICT) {
-		goto out;
-	}
-
-	if (cb->info_length != sizeof(struct in_addr)) {
-		goto out;
-	}
-
-	addr = (struct in_addr *)cb->info;
 
 	if (!net_ipv4_addr_cmp(&iface->config.dhcpv4.requested_ip, addr)) {
 		goto out;
@@ -1676,8 +1746,11 @@ const char *net_dhcpv4_msg_type_name(enum net_dhcpv4_msg_type msg_type)
 		"inform"
 	};
 
-	__ASSERT_NO_MSG(msg_type >= 1 && msg_type <= sizeof(name));
-	return name[msg_type - 1];
+	if (msg_type >= 1 && msg_type <= sizeof(name)) {
+		return name[msg_type - 1];
+	}
+
+	return "invalid";
 }
 
 static void dhcpv4_start_internal(struct net_if *iface, bool first_start)
@@ -1813,7 +1886,7 @@ int net_dhcpv4_remove_option_vendor_callback(struct net_dhcpv4_option_callback *
 
 void net_dhcpv4_start(struct net_if *iface)
 {
-	return dhcpv4_start_internal(iface, true);
+	dhcpv4_start_internal(iface, true);
 }
 
 void net_dhcpv4_stop(struct net_if *iface)
@@ -1885,8 +1958,7 @@ int net_dhcpv4_init(void)
 	 * all dhcpv4 related incoming packets.
 	 */
 	ret = net_udp_register(AF_INET, NULL, &local_addr,
-			       DHCPV4_SERVER_PORT,
-			       DHCPV4_CLIENT_PORT,
+			       0, DHCPV4_CLIENT_PORT,
 			       NULL, net_dhcpv4_input, NULL, NULL);
 	if (ret < 0) {
 		NET_DBG("UDP callback registration failed");

@@ -7,13 +7,13 @@ flash: 1536
 toolchain:
   - zephyr
   - gnuarmemb
-  - xtools
 supported:
   - counter
   - gpio
   - uart
   - spi
   - watchdog
+  - clock_control
 testing:
   ignore_tags:
     - net

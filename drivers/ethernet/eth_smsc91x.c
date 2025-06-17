@@ -688,8 +688,8 @@ static enum ethernet_hw_caps eth_smsc_get_caps(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-	return (ETHERNET_LINK_10BASE_T
-		| ETHERNET_LINK_100BASE_T
+	return (ETHERNET_LINK_10BASE
+		| ETHERNET_LINK_100BASE
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 		| ETHERNET_PROMISC_MODE
 #endif
@@ -880,7 +880,7 @@ static int mdio_smsc_write(const struct device *dev, uint8_t prtad, uint8_t deva
 	return 0;
 }
 
-static const struct mdio_driver_api mdio_smsc_api = {
+static DEVICE_API(mdio, mdio_smsc_api) = {
 	.bus_disable = mdio_smsc_bus_disable,
 	.bus_enable = mdio_smsc_bus_enable,
 	.read = mdio_smsc_read,

@@ -1,7 +1,4 @@
-.. _nucleo_h755zi_q_board:
-
-ST Nucleo H755ZI-Q
-###################
+.. zephyr:board:: nucleo_h755zi_q
 
 Overview
 ********
@@ -36,10 +33,6 @@ Key Features
 - On-board ST-LINK/V3 debugger/programmer with USB re-enumeration
 - capability: mass storage, virtual COM port and debug port
 - USB OTG full speed or device only
-
-.. image:: img/nucleo_h755zi_q.webp
-   :align: center
-   :alt: Nucleo H755ZI-Q
 
 More information about the board can be found at the `Nucleo H755ZI-Q website`_.
 
@@ -84,40 +77,9 @@ Nucleo H755ZI-Q provides the following hardware components:
 Supported Features
 ==================
 
-The Zephyr nucleo_h755zi_q board configuration supports the following hardware
-features:
+.. zephyr:board-supported-hw::
 
-+-------------+------------+-------------------------------------+
-| Interface   | Controller | Driver/Component                    |
-+=============+============+=====================================+
-| NVIC        | on-chip    | nested vector interrupt controller  |
-+-------------+------------+-------------------------------------+
-| UART/USART  | on-chip    | serial port                         |
-+-------------+------------+-------------------------------------+
-| PINMUX      | on-chip    | pinmux                              |
-+-------------+------------+-------------------------------------+
-| GPIO        | on-chip    | gpio                                |
-+-------------+------------+-------------------------------------+
-| RTC         | on-chip    | counter                             |
-+-------------+------------+-------------------------------------+
-| I2C         | on-chip    | i2c                                 |
-+-------------+------------+-------------------------------------+
-| PWM         | on-chip    | pwm                                 |
-+-------------+------------+-------------------------------------+
-| ETHERNET    | on-chip    | ethernet                            |
-+-------------+------------+-------------------------------------+
-| RNG         | on-chip    | True Random number generator        |
-+-------------+------------+-------------------------------------+
-| USB OTG FS  | on-chip    | USB device                          |
-+-------------+------------+-------------------------------------+
-
-Other hardware features are not yet supported on this Zephyr port.
-
-The default configuration per core can be found in the defconfig files:
-:zephyr_file:`boards/st/nucleo_h755zi_q/nucleo_h755zi_q_stm32h755xx_m7_defconfig` and
-:zephyr_file:`boards/st/nucleo_h755zi_q/nucleo_h755zi_q_stm32h755xx_m4_defconfig`
-
-For mode details please refer to `STM32 Nucleo-144 board User Manual`_.
+For more details please refer to `STM32 Nucleo-144 board User Manual`_.
 
 Default Zephyr Peripheral Mapping:
 ----------------------------------
@@ -131,6 +93,7 @@ and a ST morpho connector. Board is configured as follows:
 - LD2 : PE1
 - LD3 : PB14
 - I2C : PB8, PB9
+- CAN/CANFD : PD0, PD1
 
 System Clock
 ------------
@@ -144,6 +107,11 @@ Serial Port
 
 Nucleo H755ZI-Q board has 4 UARTs and 4 USARTs. The Zephyr console output is
 assigned to USART3. Default settings are 115200 8N1.
+
+CAN, CANFD
+----------
+
+Requires an external CAN or CANFD transceiver.
 
 Resources sharing
 -----------------
@@ -163,6 +131,10 @@ two cores. This is done in 3 ways:
 Programming and Debugging
 *************************
 
+.. zephyr:board-supported-runners::
+
+Nucleo H755ZI-Q board includes an ST-LINK/V3 embedded debug tool interface.
+
 Applications for the ``nucleo_h755zi_q`` board should be built per core target,
 using either ``nucleo_h755zi_q/stm32h755xx/m7`` or ``nucleo_h755zi_q/stm32h755xx/m4``
 as the target (see :ref:`build_an_application` and :ref:`application_run` for more
@@ -170,16 +142,14 @@ details).
 
 .. note::
 
-   Check if the board's ST-LINK V3 has the newest firmware version. It can be
-   updated with `STM32CubeIDE`_
+   Check if the board's ST-LINK/V3 has the newest firmware version. It can be
+   updated with `STM32CubeProgrammer`_
 
 Flashing
 ========
 
-Nucleo H755ZI-Q board includes an ST-LINK/V3 embedded debug tool interface.
-
 The board is configured to be flashed using west `STM32CubeProgrammer`_ runner
-for both cores, so its installation is required to be able to flash the board.
+for both cores, so its :ref:`installation <stm32cubeprog-flash-host-tools>` is required.
 The target core is detected automatically.
 
 It is advised to use `STM32CubeProgrammer`_ to check and update option bytes
@@ -196,7 +166,7 @@ board is powered (Option bytes BCM7 and BCM4 are checked).
 In that configuration, Kconfig boot option ``STM32H7_BOOT_CM4_CM7`` should be selected.
 Zephyr flash configuration has been set to meet these default settings.
 
-Alternatively, openocd or JLink can also be used to flash the board using
+Alternatively, OpenOCD or JLink can also be used to flash the board using
 the ``--runner`` (or ``-r``) option:
 
 .. code-block:: console
@@ -209,7 +179,7 @@ Flashing an application to STM32H755ZI M7 Core
 First, connect the NUCLEO-H755ZI-Q to your host computer using
 the USB port to prepare it for flashing. Then build and flash your application.
 
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 Run a serial host program to connect with your NUCLEO-H755ZI-Q board.
 
@@ -259,7 +229,7 @@ Debugging
 =========
 
 You can debug an application on the Cortex M7 core in the usual way.
-Here is an example for the :ref:`hello_world` application.
+Here is an example for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world

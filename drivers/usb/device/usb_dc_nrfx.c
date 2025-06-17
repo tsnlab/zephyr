@@ -1892,7 +1892,6 @@ static int usb_init(void)
 	IRQ_CONNECT(USBREGULATOR_IRQn,
 		    DT_IRQ(DT_INST(0, nordic_nrf_clock), priority),
 		    nrfx_isr, nrfx_usbreg_irq_handler, 0);
-	irq_enable(USBREGULATOR_IRQn);
 #endif
 
 	static const nrfx_power_config_t power_config = {
@@ -1900,8 +1899,8 @@ static int usb_init(void)
 			   == NRF5X_REG_MODE_DCDC),
 #if NRFX_POWER_SUPPORTS_DCDCEN_VDDH
 		.dcdcenhv = COND_CODE_1(CONFIG_SOC_SERIES_NRF52X,
-			(DT_NODE_HAS_STATUS(DT_INST(0, nordic_nrf52x_regulator_hv), okay)),
-			(DT_NODE_HAS_STATUS(DT_INST(0, nordic_nrf53x_regulator_hv), okay))),
+			(DT_NODE_HAS_STATUS_OKAY(DT_INST(0, nordic_nrf52x_regulator_hv))),
+			(DT_NODE_HAS_STATUS_OKAY(DT_INST(0, nordic_nrf53x_regulator_hv)))),
 #endif
 	};
 

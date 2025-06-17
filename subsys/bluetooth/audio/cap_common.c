@@ -43,11 +43,10 @@ void bt_cap_common_clear_active_proc(void)
 	(void)memset(&active_proc, 0, sizeof(active_proc));
 }
 
-void bt_cap_common_start_proc(enum bt_cap_common_proc_type proc_type, size_t proc_cnt)
+void bt_cap_common_set_proc(enum bt_cap_common_proc_type proc_type, size_t proc_cnt)
 {
 	LOG_DBG("Setting proc to %d for %zu streams", proc_type, proc_cnt);
 
-	atomic_set_bit(active_proc.proc_state_flags, BT_CAP_COMMON_PROC_STATE_ACTIVE);
 	active_proc.proc_cnt = proc_cnt;
 	active_proc.proc_type = proc_type;
 	active_proc.proc_done_cnt = 0U;
@@ -62,6 +61,11 @@ void bt_cap_common_set_subproc(enum bt_cap_common_subproc_type subproc_type)
 	active_proc.proc_done_cnt = 0U;
 	active_proc.proc_initiated_cnt = 0U;
 	active_proc.subproc_type = subproc_type;
+}
+
+bool bt_cap_common_proc_is_type(enum bt_cap_common_proc_type proc_type)
+{
+	return active_proc.proc_type == proc_type;
 }
 
 bool bt_cap_common_subproc_is_type(enum bt_cap_common_subproc_type subproc_type)
@@ -95,6 +99,12 @@ struct bt_conn *bt_cap_common_get_member_conn(enum bt_cap_set_type type,
 	return member->member;
 }
 
+bool bt_cap_common_test_and_set_proc_active(void)
+{
+	return atomic_test_and_set_bit(active_proc.proc_state_flags,
+				       BT_CAP_COMMON_PROC_STATE_ACTIVE);
+}
+
 bool bt_cap_common_proc_is_active(void)
 {
 	return atomic_test_bit(active_proc.proc_state_flags, BT_CAP_COMMON_PROC_STATE_ACTIVE);
@@ -122,7 +132,12 @@ void bt_cap_common_abort_proc(struct bt_conn *conn, int err)
 		return;
 	}
 
+#if defined(CONFIG_BT_CAP_INITIATOR_UNICAST)
+	LOG_DBG("Aborting proc %d with subproc %d for %p: %d", active_proc.proc_type,
+		active_proc.subproc_type, (void *)conn, err);
+#else  /* !CONFIG_BT_CAP_INITIATOR_UNICAST */
 	LOG_DBG("Aborting proc %d for %p: %d", active_proc.proc_type, (void *)conn, err);
+#endif /* CONFIG_BT_CAP_INITIATOR_UNICAST */
 
 	active_proc.err = err;
 	active_proc.failed_conn = conn;
@@ -153,6 +168,8 @@ static bool active_proc_is_commander(void)
 	case BT_CAP_COMMON_PROC_TYPE_MICROPHONE_GAIN_CHANGE:
 	case BT_CAP_COMMON_PROC_TYPE_MICROPHONE_MUTE_CHANGE:
 	case BT_CAP_COMMON_PROC_TYPE_BROADCAST_RECEPTION_START:
+	case BT_CAP_COMMON_PROC_TYPE_BROADCAST_RECEPTION_STOP:
+	case BT_CAP_COMMON_PROC_TYPE_DISTRIBUTE_BROADCAST_CODE:
 		return true;
 	default:
 		return false;
@@ -180,7 +197,7 @@ bool bt_cap_common_conn_in_active_proc(const struct bt_conn *conn)
 				return true;
 			}
 		}
-#endif /* CONFIG_BT_CAP_INITIATOR_UNICAST */
+#endif /* CONFIG_BT_CAP_COMMANDER */
 	}
 
 	return false;

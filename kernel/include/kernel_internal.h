@@ -105,10 +105,7 @@ void *z_thread_aligned_alloc(size_t align, size_t size);
  * @return A pointer to the allocated memory, or NULL if there is insufficient
  * RAM in the pool or there is no pool to draw memory from
  */
-static inline void *z_thread_malloc(size_t size)
-{
-	return z_thread_aligned_alloc(0, size);
-}
+void *z_thread_malloc(size_t size);
 
 
 #ifdef CONFIG_USE_SWITCH
@@ -152,6 +149,7 @@ extern struct k_thread z_idle_threads[CONFIG_MP_MAX_NUM_CPUS];
 #endif /* CONFIG_MULTITHREADING */
 K_KERNEL_PINNED_STACK_ARRAY_DECLARE(z_interrupt_stacks, CONFIG_MP_MAX_NUM_CPUS,
 				    CONFIG_ISR_STACK_SIZE);
+K_THREAD_STACK_DECLARE(z_main_stack, CONFIG_MAIN_STACK_SIZE);
 
 #ifdef CONFIG_GEN_PRIV_STACKS
 extern uint8_t *z_priv_stack_find(k_thread_stack_t *stack);
@@ -220,7 +218,7 @@ void z_mem_manage_init(void);
 void z_mem_manage_boot_finish(void);
 
 
-void z_handle_obj_poll_events(sys_dlist_t *events, uint32_t state);
+bool z_handle_obj_poll_events(sys_dlist_t *events, uint32_t state);
 
 #ifdef CONFIG_PM
 

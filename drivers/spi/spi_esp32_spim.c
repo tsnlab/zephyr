@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Espressif Systems (Shanghai) Co., Ltd.
+ * Copyright (c) 2020-2025 Espressif Systems (Shanghai) Co., Ltd.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,11 +17,7 @@ LOG_MODULE_REGISTER(esp32_spi, CONFIG_SPI_LOG_LEVEL);
 #include <soc.h>
 #include <esp_memory_utils.h>
 #include <zephyr/drivers/spi.h>
-#if defined(CONFIG_SOC_SERIES_ESP32C3) || defined(CONFIG_SOC_SERIES_ESP32C6)
-#include <zephyr/drivers/interrupt_controller/intc_esp32c3.h>
-#else
 #include <zephyr/drivers/interrupt_controller/intc_esp32.h>
-#endif
 #ifdef SOC_GDMA_SUPPORTED
 #include <hal/gdma_hal.h>
 #include <hal/gdma_ll.h>
@@ -29,12 +25,6 @@ LOG_MODULE_REGISTER(esp32_spi, CONFIG_SPI_LOG_LEVEL);
 #include <zephyr/drivers/clock_control.h>
 #include "spi_context.h"
 #include "spi_esp32_spim.h"
-
-#if defined(CONFIG_SOC_SERIES_ESP32C3) || defined(CONFIG_SOC_SERIES_ESP32C6)
-#define ISR_HANDLER isr_handler_t
-#else
-#define ISR_HANDLER intr_handler_t
-#endif
 
 #define SPI_DMA_MAX_BUFFER_SIZE 4092
 
@@ -247,7 +237,7 @@ static int spi_esp32_init(const struct device *dev)
 	err = esp_intr_alloc(cfg->irq_source,
 			ESP_PRIO_TO_FLAGS(cfg->irq_priority) |
 			ESP_INT_FLAGS_CHECK(cfg->irq_flags) | ESP_INTR_FLAG_IRAM,
-			(ISR_HANDLER)spi_esp32_isr,
+			(intr_handler_t)spi_esp32_isr,
 			(void *)dev,
 			NULL);
 
@@ -302,7 +292,6 @@ static int IRAM_ATTR spi_esp32_configure(const struct device *dev,
 	struct spi_context *ctx = &data->ctx;
 	spi_hal_context_t *hal = &data->hal;
 	spi_hal_dev_config_t *hal_dev = &data->dev_config;
-	spi_dev_t *hw = hal->hw;
 	int freq;
 
 	if (spi_context_configured(ctx, spi_cfg)) {
@@ -328,6 +317,11 @@ static int IRAM_ATTR spi_esp32_configure(const struct device *dev,
 
 	hal_dev->cs_pin_id = ctx->config->slave;
 	int ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+
+	if (ret) {
+		LOG_ERR("Failed to configure SPI pins");
+		return ret;
+	}
 
 	/* input parameters to calculate timing configuration */
 	spi_hal_timing_param_t timing_param = {
@@ -373,6 +367,8 @@ static int IRAM_ATTR spi_esp32_configure(const struct device *dev,
 
 	/* Workaround to handle default state of MISO and MOSI lines */
 #ifndef CONFIG_SOC_SERIES_ESP32
+	spi_dev_t *hw = hal->hw;
+
 	if (cfg->line_idle_low) {
 		hw->ctrl.d_pol = 0;
 		hw->ctrl.q_pol = 0;
@@ -383,11 +379,11 @@ static int IRAM_ATTR spi_esp32_configure(const struct device *dev,
 #endif
 
 	/*
-	 * Workaround for ESP32S3 and ESP32Cx SoC. This dummy transaction is needed to sync CLK and
-	 * software controlled CS when SPI is in mode 3
+	 * Workaround for ESP32S3 and ESP32Cx SoC's. This dummy transaction is needed
+	 * to sync CLK and software controlled CS when SPI is in mode 3
 	 */
-#if defined(CONFIG_SOC_SERIES_ESP32S3) || defined(CONFIG_SOC_SERIES_ESP32C3) ||	\
-	defined(CONFIG_SOC_SERIES_ESP32C6)
+#if defined(CONFIG_SOC_SERIES_ESP32S3) || defined(CONFIG_SOC_SERIES_ESP32C2) ||                    \
+	defined(CONFIG_SOC_SERIES_ESP32C3) || defined(CONFIG_SOC_SERIES_ESP32C6)
 	if (ctx->num_cs_gpios && (hal_dev->mode & (SPI_MODE_CPOL | SPI_MODE_CPHA))) {
 		spi_esp32_transfer(dev);
 	}
@@ -417,11 +413,7 @@ static int transceive(const struct device *dev,
 {
 	const struct spi_esp32_config *cfg = dev->config;
 	struct spi_esp32_data *data = dev->data;
-	int ret;
-
-	if (!tx_bufs && !rx_bufs) {
-		return 0;
-	}
+	int ret = 0;
 
 #ifndef CONFIG_SPI_ESP32_INTERRUPT
 	if (asynchronous) {
@@ -433,12 +425,16 @@ static int transceive(const struct device *dev,
 
 	data->dfs = spi_esp32_get_frame_size(spi_cfg);
 
+	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, data->dfs);
+
+	if (data->ctx.tx_buf == NULL && data->ctx.rx_buf == NULL) {
+		goto done;
+	}
+
 	ret = spi_esp32_configure(dev, spi_cfg);
 	if (ret) {
 		goto done;
 	}
-
-	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, data->dfs);
 
 	spi_context_cs_control(&data->ctx, true);
 
@@ -491,10 +487,13 @@ static int spi_esp32_release(const struct device *dev,
 	return 0;
 }
 
-static const struct spi_driver_api spi_api = {
+static DEVICE_API(spi, spi_api) = {
 	.transceive = spi_esp32_transceive,
 #ifdef CONFIG_SPI_ASYNC
 	.transceive_async = spi_esp32_transceive_async,
+#endif
+#ifdef CONFIG_SPI_RTIO
+	.iodev_submit = spi_rtio_iodev_default_submit,
 #endif
 	.release = spi_esp32_release
 };
@@ -547,7 +546,7 @@ static const struct spi_driver_api spi_api = {
 		.clock_source = SPI_CLK_SRC_DEFAULT,	\
 	};	\
 		\
-	DEVICE_DT_INST_DEFINE(idx, spi_esp32_init,	\
+	SPI_DEVICE_DT_INST_DEFINE(idx, spi_esp32_init,	\
 			      NULL, &spi_data_##idx,	\
 			      &spi_config_##idx, POST_KERNEL,	\
 			      CONFIG_SPI_INIT_PRIORITY, &spi_api);

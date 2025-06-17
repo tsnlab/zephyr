@@ -292,13 +292,16 @@ static int i2c_emul_target_unregister(const struct device *dev, struct i2c_targe
 
 /* Device instantiation */
 
-static const struct i2c_driver_api i2c_emul_api = {
+static DEVICE_API(i2c, i2c_emul_api) = {
 	.configure = i2c_emul_configure,
 	.get_config = i2c_emul_get_config,
 	.transfer = i2c_emul_transfer,
 #ifdef CONFIG_I2C_TARGET
 	.target_register = i2c_emul_target_register,
 	.target_unregister = i2c_emul_target_unregister,
+#endif
+#ifdef CONFIG_I2C_RTIO
+	.iodev_submit = i2c_iodev_submit_fallback,
 #endif
 };
 
@@ -309,7 +312,7 @@ static const struct i2c_driver_api i2c_emul_api = {
 
 #define EMUL_FORWARD_ITEM(node_id, prop, idx)                                                      \
 	{                                                                                          \
-		.bus = DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),                       \
+		.bus = DEVICE_DT_GET_BY_IDX(node_id, prop, idx),                                   \
 		.addr = DT_PHA_BY_IDX(node_id, prop, idx, addr),                                   \
 	},
 

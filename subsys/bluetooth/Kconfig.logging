@@ -387,6 +387,14 @@ module = BT_A2DP
 module-str = "Bluetooth A2DP"
 source "subsys/logging/Kconfig.template.log_config_inherit"
 
+module = BT_AVCTP
+module-str = "Bluetooth AVCTP"
+source "subsys/logging/Kconfig.template.log_config_inherit"
+
+module = BT_AVRCP
+module-str = "Bluetooth AVRCP"
+source "subsys/logging/Kconfig.template.log_config_inherit"
+
 module = BT_SDP
 module-str = "Bluetooth Service Discovery Protocol (SDP)"
 source "subsys/logging/Kconfig.template.log_config_inherit"
@@ -405,6 +413,10 @@ source "subsys/logging/Kconfig.template.log_config_inherit"
 
 module = BT_MESH_NET
 module-str = "Network layer"
+source "subsys/logging/Kconfig.template.log_config_inherit"
+
+module = BT_MESH_BRG
+module-str = "Subnet Bridging layer"
 source "subsys/logging/Kconfig.template.log_config_inherit"
 
 module = BT_MESH_RPL
@@ -491,6 +503,14 @@ module = BT_BAS
 module-str = BAS
 source "subsys/logging/Kconfig.template.log_config"
 endif # BT_BAS
+
+# CTS
+
+if BT_CTS
+module = BT_CTS
+module-str = CTS
+source "subsys/logging/Kconfig.template.log_config"
+endif # BT_CTS
 
 # HRS
 

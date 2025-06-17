@@ -17,7 +17,6 @@
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
-#include <zephyr/drivers/bluetooth/hci_driver.h>
 #include <zephyr/bluetooth/l2cap.h>
 
 #include <zephyr/bluetooth/classic/rfcomm.h>
@@ -37,7 +36,7 @@ LOG_MODULE_REGISTER(bt_rfcomm);
 #define RFCOMM_MIN_MTU		BT_RFCOMM_SIG_MIN_MTU
 #define RFCOMM_DEFAULT_MTU	127
 
-#define RFCOMM_MAX_CREDITS		(CONFIG_BT_BUF_ACL_RX_COUNT - 1)
+#define RFCOMM_MAX_CREDITS		(BT_BUF_ACL_RX_COUNT - 1)
 #define RFCOMM_CREDITS_THRESHOLD	(RFCOMM_MAX_CREDITS / 2)
 #define RFCOMM_DEFAULT_CREDIT		RFCOMM_MAX_CREDITS
 
@@ -200,15 +199,32 @@ rfcomm_sessions_lookup_bt_conn(struct bt_conn *conn)
 
 int bt_rfcomm_server_register(struct bt_rfcomm_server *server)
 {
-	if (server->channel < RFCOMM_CHANNEL_START ||
-	    server->channel > RFCOMM_CHANNEL_END || !server->accept) {
+	if (server->channel > RFCOMM_CHANNEL_END || !server->accept) {
 		return -EINVAL;
 	}
 
-	/* Check if given channel is already in use */
-	if (rfcomm_server_lookup_channel(server->channel)) {
-		LOG_DBG("Channel already registered");
-		return -EADDRINUSE;
+	if (!server->channel) {
+		uint8_t chan = (uint8_t)BT_RFCOMM_CHAN_DYNAMIC_START;
+
+		for (; chan <= RFCOMM_CHANNEL_END; chan++) {
+			/* Check if given channel is already in use */
+			if (!rfcomm_server_lookup_channel(chan)) {
+				server->channel = chan;
+				LOG_DBG("Allocated channel 0x%02x for new server", chan);
+				break;
+			}
+		}
+
+		if (!server->channel) {
+			LOG_WRN("No free dynamic rfcomm channels available");
+			return -EADDRNOTAVAIL;
+		}
+	} else {
+		/* Check if given channel is already in use */
+		if (rfcomm_server_lookup_channel(server->channel)) {
+			LOG_WRN("Channel already registered");
+			return -EADDRINUSE;
+		}
 	}
 
 	LOG_DBG("Channel 0x%02x", server->channel);
@@ -360,7 +376,7 @@ static int rfcomm_send_disc(struct bt_rfcomm_session *session, uint8_t dlci)
 	buf = bt_l2cap_create_pdu(NULL, 0);
 
 	hdr = net_buf_add(buf, sizeof(*hdr));
-	cr = BT_RFCOMM_RESP_CR(session->role);
+	cr = BT_RFCOMM_CMD_CR(session->role);
 	hdr->address = BT_RFCOMM_SET_ADDR(dlci, cr);
 	hdr->control = BT_RFCOMM_SET_CTRL(BT_RFCOMM_DISC, BT_RFCOMM_PF_NON_UIH);
 	hdr->length = BT_RFCOMM_SET_LEN_8(0);
@@ -479,7 +495,7 @@ static struct bt_rfcomm_dlc *rfcomm_dlc_accept(struct bt_rfcomm_session *session
 		return NULL;
 	}
 
-	if (server->accept(session->br_chan.chan.conn, &dlc) < 0) {
+	if (server->accept(session->br_chan.chan.conn, server, &dlc) < 0) {
 		LOG_DBG("Incoming connection rejected");
 		return NULL;
 	}
@@ -714,6 +730,38 @@ static int rfcomm_send_rpn(struct bt_rfcomm_session *session, uint8_t cr,
 	return rfcomm_send(session, buf);
 }
 
+int bt_rfcomm_send_rpn_cmd(struct bt_rfcomm_dlc *dlc, struct bt_rfcomm_rpn *rpn)
+{
+	struct bt_rfcomm_session *session;
+
+	if (!dlc || !rpn) {
+		return -EINVAL;
+	}
+
+	/* Validate baud rate */
+	if (rpn->baud_rate > BT_RFCOMM_RPN_BAUD_RATE_230400) {
+		LOG_ERR("Invalid baud rate: %u", rpn->baud_rate);
+		return -EINVAL;
+	}
+
+	session = dlc->session;
+	if (!session) {
+		return -ENOTCONN;
+	}
+
+	if (dlc->state != BT_RFCOMM_STATE_CONNECTED) {
+		return -ENOTCONN;
+	}
+
+	LOG_DBG("dlc %p", dlc);
+
+	/* Set DLCI in the RPN command */
+	rpn->dlci = BT_RFCOMM_SET_ADDR(dlc->dlci, 1);
+
+	/* Send the RPN command */
+	return rfcomm_send_rpn(session, BT_RFCOMM_MSG_CMD_CR, rpn);
+}
+
 static int rfcomm_send_test(struct bt_rfcomm_session *session, uint8_t cr,
 			    uint8_t *pattern, uint8_t len)
 {
@@ -829,6 +877,13 @@ static enum security_result rfcomm_dlc_security(struct bt_rfcomm_dlc *dlc)
 	}
 
 	if (!bt_conn_set_security(conn, dlc->required_sec_level)) {
+		/*
+		 * General Bonding refers to the process of performing bonding
+		 * during connection setup or channel establishment procedures
+		 * as a precursor to accessing a service.
+		 * For current case, it is dedicated bonding.
+		 */
+		atomic_set_bit(conn->flags, BT_CONN_BR_GENERAL_BONDING);
 		/* If Security elevation is initiated or in progress */
 		return RFCOMM_SECURITY_PENDING;
 	}
@@ -1522,7 +1577,7 @@ static int rfcomm_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 	}
 
 	if (buf->len < (hdr_len + msg_len + sizeof(fcs))) {
-		LOG_ERR("Too small RFCOMM information (%d < %d)", buf->len,
+		LOG_ERR("Too small RFCOMM information (%u < %zu)", buf->len,
 			hdr_len + msg_len + sizeof(fcs));
 		return 0;
 	}

@@ -376,14 +376,14 @@ static int bmp581_sample_fetch(const struct device *dev, enum sensor_channel cha
 		drv->last_sample.temperature.val2 = (data[1] << 8 | data[0]) * 10;
 
 		if (drv->osr_odr_press_config.press_en == BMP5_ENABLE) {
-			uint32_t raw_pressure = (uint32_t)((uint32_t)(data[5] << 16) |
-							   (uint16_t)(data[4] << 8) | data[3]);
 			/* convert raw sensor data to sensor_value. Shift the decimal part by
 			 * 4 decimal places to compensate for the conversion in
 			 * sensor_value_to_double()
 			 */
-			drv->last_sample.pressure.val1 = raw_pressure >> 6;
-			drv->last_sample.pressure.val2 = (raw_pressure & BIT_MASK(6)) * 10000;
+			uint32_t raw_pressure = (uint32_t)((uint32_t)(data[5] << 16) |
+							   (uint16_t)(data[4] << 8) | data[3]) >> 6;
+			drv->last_sample.pressure.val1 = raw_pressure / 1000;
+			drv->last_sample.pressure.val2 = (raw_pressure % 1000) * 1000;
 		} else {
 			drv->last_sample.pressure.val1 = 0;
 			drv->last_sample.pressure.val2 = 0;
@@ -404,11 +404,11 @@ static int bmp581_channel_get(const struct device *dev, enum sensor_channel chan
 
 	switch (chan) {
 	case SENSOR_CHAN_PRESS:
-		/* returns pressure in Pa */
+		/* returns pressure in kPa */
 		*val = drv->last_sample.pressure;
 		return BMP5_OK;
 	case SENSOR_CHAN_AMBIENT_TEMP:
-		/* returns temperature in Celcius */
+		/* returns temperature in Celsius */
 		*val = drv->last_sample.temperature;
 		return BMP5_OK;
 	default:
@@ -540,9 +540,11 @@ static int bmp581_init(const struct device *dev)
 	return ret;
 }
 
-static const struct sensor_driver_api bmp581_driver_api = {.sample_fetch = bmp581_sample_fetch,
-							   .channel_get = bmp581_channel_get,
-							   .attr_set = bmp581_attr_set};
+static DEVICE_API(sensor, bmp581_driver_api) = {
+	.sample_fetch = bmp581_sample_fetch,
+	.channel_get = bmp581_channel_get,
+	.attr_set = bmp581_attr_set,
+};
 
 #define BMP581_CONFIG(i)                                                                           \
 	static const struct bmp581_config bmp581_config_##i = {                                    \

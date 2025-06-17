@@ -5,6 +5,10 @@
 
 if SOC_SERIES_IMXRT6XX
 
+config CMSIS_CORE_HAS_SYSTEM_CORE_CLOCK
+	bool
+	default y
+
 # alias for hal
 config SOC_SERIES_IMX_RT6XX
 	bool
@@ -31,28 +35,19 @@ config ROM_START_OFFSET
 config NUM_IRQS
 	default 60
 
-config ZTEST_NO_YIELD
-	default y if (ZTEST && PM)
-
-#
-# MBEDTLS is larger but much faster than TinyCrypt so choose wisely
-#
-config MBEDTLS
-#config TINYCRYPT
-	default y if CSPRNG_ENABLED
-	depends on ENTROPY_GENERATOR
-
 if MBEDTLS
 #
 # MBEDTLS CTR_DRBG code path needs extra stack space for initialization than
 # what the ztest_thread_stack defaults to.
 #
 config TEST_EXTRA_STACK_SIZE
-	int
 	default 1024
 endif # MBEDTLS
 
 config I2S_MCUX_FLEXCOMM
+	select INIT_AUDIO_PLL
+
+config AUDIO_DMIC_MCUX
 	select INIT_AUDIO_PLL
 
 if MCUX_OS_TIMER
@@ -70,3 +65,13 @@ config SYS_CLOCK_HW_CYCLES_PER_SEC
 endif # CORTEX_M_SYSTICK
 
 endif # SOC_MIMXRT685S_CM33
+
+if SOC_MIMXRT685S_HIFI4
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 198000000
+
+config MCUX_CORE_SUFFIX
+	default "_dsp"
+
+endif # SOC_MIMXRT685S_HIFI4

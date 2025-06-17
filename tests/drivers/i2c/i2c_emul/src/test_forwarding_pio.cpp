@@ -12,18 +12,14 @@
 namespace
 {
 
-#define GET_TARGET_DEVICE(node_id, prop, n) DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, n)),
-
 /* Get the devicetree constants */
 constexpr const struct device *controller = DEVICE_DT_GET(CONTROLLER_LABEL);
-constexpr const struct device *targets[FORWARD_COUNT] = {
-	DT_FOREACH_PROP_ELEM(CONTROLLER_LABEL, forwards, GET_TARGET_DEVICE)};
 
 ZTEST(i2c_emul_forwarding, test_write_is_forwarded)
 {
 	// Try writing some values
 	for (uint8_t data = 0; data < 10; ++data) {
-		const int expected_call_count = 1 + data;
+		const unsigned int expected_call_count = 1 + data;
 
 		zassert_ok(i2c_write(controller, &data, sizeof(data),
 				     emulated_target_config[0].address));

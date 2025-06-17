@@ -65,6 +65,7 @@ struct hid_device_config {
 	struct usbd_class_data *c_data;
 	struct net_buf_pool *pool_out;
 	struct net_buf_pool *pool_in;
+	struct usbd_desc_node *const if_desc_data;
 	const struct usb_desc_header **fs_desc;
 	const struct usb_desc_header **hs_desc;
 };
@@ -122,7 +123,7 @@ static int usbd_hid_request(struct usbd_class_data *const c_data,
 
 	if (bi->ep == hid_get_in_ep(c_data)) {
 		if (ops->input_report_done != NULL) {
-			ops->input_report_done(dev);
+			ops->input_report_done(dev, buf->__buf);
 		} else {
 			k_sem_give(&ddata->in_sem);
 		}
@@ -235,7 +236,7 @@ static int handle_get_report(const struct device *dev,
 	const uint8_t id = HID_GET_REPORT_ID(setup->wValue);
 	struct hid_device_data *const ddata = dev->data;
 	const struct hid_device_ops *ops = ddata->ops;
-	const size_t size = net_buf_tailroom(buf);
+	const size_t size = setup->wLength;
 	int ret = 0;
 
 	switch (type) {
@@ -257,8 +258,9 @@ static int handle_get_report(const struct device *dev,
 	}
 
 	if (ret > 0) {
-		__ASSERT(ret <= size, "Buffer overflow in the HID driver");
-		net_buf_add(buf, MIN(size, ret));
+		__ASSERT(ret <= net_buf_tailroom(buf),
+			 "Buffer overflow in the HID driver");
+		net_buf_add(buf, MIN(net_buf_tailroom(buf), ret));
 	} else {
 		errno = ret ? ret : -ENOTSUP;
 	}
@@ -478,7 +480,7 @@ static void *usbd_hid_get_desc(struct usbd_class_data *const c_data,
 	const struct device *dev = usbd_class_get_private(c_data);
 	const struct hid_device_config *dcfg = dev->config;
 
-	if (speed == USBD_SPEED_HS) {
+	if (USBD_SUPPORTS_HIGH_SPEED && speed == USBD_SPEED_HS) {
 		return dcfg->hs_desc;
 	}
 
@@ -487,7 +489,20 @@ static void *usbd_hid_get_desc(struct usbd_class_data *const c_data,
 
 static int usbd_hid_init(struct usbd_class_data *const c_data)
 {
+	struct usbd_context *uds_ctx = usbd_class_get_ctx(c_data);
+	const struct device *dev = usbd_class_get_private(c_data);
+	const struct hid_device_config *dcfg = dev->config;
+	struct usbd_hid_descriptor *const desc = dcfg->desc;
+
 	LOG_DBG("HID class %s init", c_data->name);
+
+	if (dcfg->if_desc_data != NULL && desc->if0.iInterface == 0) {
+		if (usbd_add_descriptor(uds_ctx, dcfg->if_desc_data)) {
+			LOG_ERR("Failed to add interface string descriptor");
+		} else {
+			desc->if0.iInterface = usbd_str_desc_get_idx(dcfg->if_desc_data);
+		}
+	}
 
 	return 0;
 }
@@ -512,7 +527,6 @@ static struct net_buf *hid_buf_alloc_ext(const struct hid_device_config *const d
 	}
 
 	bi = udc_get_buf_info(buf);
-	memset(bi, 0, sizeof(struct udc_buf_info));
 	bi->ep = ep;
 
 	return buf;
@@ -530,7 +544,6 @@ static struct net_buf *hid_buf_alloc(const struct hid_device_config *const dcfg,
 	}
 
 	bi = udc_get_buf_info(buf);
-	memset(bi, 0, sizeof(struct udc_buf_info));
 	bi->ep = ep;
 
 	return buf;
@@ -751,6 +764,12 @@ static const struct hid_device_driver_api hid_device_api = {
 	HID_OUT_POOL_DEFINE(n);							\
 	USBD_HID_INTERFACE_DEFINE(n);						\
 										\
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(n, label), (				\
+	USBD_DESC_STRING_DEFINE(hid_if_desc_data_##n,				\
+				DT_INST_PROP(n, label),				\
+				USBD_DUT_STRING_INTERFACE);			\
+	))									\
+										\
 	USBD_DEFINE_CLASS(hid_##n,						\
 			  &usbd_hid_api,					\
 			  (void *)DEVICE_DT_GET(DT_DRV_INST(n)), NULL);		\
@@ -762,6 +781,9 @@ static const struct hid_device_driver_api hid_device_api = {
 		.pool_out = HID_OUT_POOL_ADDR(n),				\
 		.fs_desc = hid_fs_desc_##n,					\
 		.hs_desc = hid_hs_desc_##n,					\
+		IF_ENABLED(DT_INST_NODE_HAS_PROP(n, label), (			\
+		.if_desc_data = &hid_if_desc_data_##n,				\
+		))								\
 	};									\
 										\
 	static struct hid_device_data hid_data_##n;				\

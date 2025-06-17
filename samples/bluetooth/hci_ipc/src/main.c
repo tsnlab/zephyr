@@ -16,7 +16,7 @@
 
 #include <zephyr/ipc/ipc_service.h>
 
-#include <zephyr/net/buf.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/l2cap.h>
 #include <zephyr/bluetooth/hci.h>
@@ -28,6 +28,9 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(hci_ipc, CONFIG_BT_LOG_LEVEL);
+
+BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_CONN) || IS_ENABLED(CONFIG_BT_HCI_ACL_FLOW_CONTROL),
+	     "HCI IPC driver can drop ACL data without Controller-to-Host ACL flow control");
 
 static struct ipc_ept hci_ept;
 
@@ -222,30 +225,10 @@ static void tx_thread(void *p1, void *p2, void *p3)
 
 static void hci_ipc_send(struct net_buf *buf, bool is_fatal_err)
 {
-	uint8_t pkt_indicator;
 	uint8_t retries = 0;
 	int ret;
 
-	LOG_DBG("buf %p type %u len %u", buf, bt_buf_get_type(buf), buf->len);
-
-	LOG_HEXDUMP_DBG(buf->data, buf->len, "Controller buffer:");
-
-	switch (bt_buf_get_type(buf)) {
-	case BT_BUF_ACL_IN:
-		pkt_indicator = HCI_IPC_ACL;
-		break;
-	case BT_BUF_EVT:
-		pkt_indicator = HCI_IPC_EVT;
-		break;
-	case BT_BUF_ISO_IN:
-		pkt_indicator = HCI_IPC_ISO;
-		break;
-	default:
-		LOG_ERR("Unknown type %u", bt_buf_get_type(buf));
-		net_buf_unref(buf);
-		return;
-	}
-	net_buf_push_u8(buf, pkt_indicator);
+	LOG_DBG("buf %p type %u len %u", buf, buf->data[0], buf->len);
 
 	LOG_HEXDUMP_DBG(buf->data, buf->len, "Final HCI buffer:");
 
@@ -271,6 +254,14 @@ static void hci_ipc_send(struct net_buf *buf, bool is_fatal_err)
 			if (is_fatal_err) {
 				LOG_ERR("IPC service send error: %d", ret);
 			} else {
+				/* In the POSIX ARCH, code takes zero simulated time to execute,
+				 * so busy wait loops become infinite loops, unless we
+				 * force the loop to take a bit of time.
+				 *
+				 * This delay allows the IPC consumer to execute, thus making
+				 * it possible to send more data over IPC afterwards.
+				 */
+				Z_SPIN_DELAY(500);
 				k_yield();
 			}
 		}

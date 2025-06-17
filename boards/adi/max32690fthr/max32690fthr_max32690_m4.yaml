@@ -6,7 +6,6 @@ arch: arm
 toolchain:
   - zephyr
   - gnuarmemb
-  - xtools
 supported:
   - gpio
   - serial
@@ -15,5 +14,6 @@ supported:
   - feather_serial
   - feather_i2c
   - feather_spi
+  - flash
 ram: 1024
 flash: 3072

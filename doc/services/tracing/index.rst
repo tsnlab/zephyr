@@ -32,6 +32,18 @@ interface between payload/format (Top Layer) and the transport mechanics
 (bottom Layer) is generic and efficient enough to model these. See the
 *I/O taxonomy* section below.
 
+Named Trace Events
+******************
+
+Although the user can extend any of the supported serialization formats
+to enable additional tracing functions (or provide their own backend), zephyr
+also provides one generic named tracing function for convenience purposes,
+as well as to demonstrate how tracing frameworks could be extended.
+
+Users can generate a custom trace event by calling
+:c:func:`sys_trace_named_event`, which takes an event name as well as two
+arbitrary 4 byte arguments. Tracing backends may truncate the provided event
+name if it is too long for the serialization format they support.
 
 Serialization Formats
 **********************
@@ -349,6 +361,38 @@ Learn more about how to get started in the `Tracealyzer Getting Started Guides`_
 .. _Tracealyzer Getting Started Guides: https://percepio.com/tracealyzer/gettingstarted/
 
 
+Percepio View for Zephyr
+========================
+Percepio View is a free-of-charge tracing tool based on `Percepio Tracealyzer`_, intended for
+debugging and verification of Zephyr applications.
+
+.. figure:: percepio_view.webp
+    :align: center
+    :alt: Percepio View
+    :figclass: align-center
+    :width: 80%
+
+Percepio View can be used side-by-side with a traditional debugger and complements your debugger
+by visualising the real-time execution of threads, ISRs, syscalls and your own “User Events”.
+
+.. figure:: percepio_view_user_event.webp
+    :align: center
+    :alt: Percepio View User Events
+    :figclass: align-center
+    :width: 80%
+
+
+To learn more about Percepio View, how to get started and upgrade options, check out
+`Percepio's product page
+<https://traceviewer.io/get-view/?target=zephyr>`_.
+
+Percepio View provides snapshot tracing, meaning the data is stored to a ring-buffer in target RAM
+and is saved to host using the regular debugger connection.
+For trace streaming support, Percepio offers (paid-for) upgrades to Percepio Profile or
+Percepio Tracealyzer. No modifications of the Zephyr source code are needed, only enabling the
+TraceRecorder library in Kconfig. Percepio View runs on Windows and Linux hosts.
+
+
 SEGGER SystemView Support
 =========================
 
@@ -360,24 +404,20 @@ relies on RTT as a transport. Newer versions of SystemView support other
 transports, for example UART or using snapshot mode (both still not
 supported in Zephyr).
 
-To enable tracing support with `SEGGER SystemView`_ add the configuration option
-:kconfig:option:`CONFIG_SEGGER_SYSTEMVIEW` to your project configuration file and set
-it to *y*. For example, this can be added to the
-:zephyr:code-sample:`synchronization` sample to visualize fast switching between threads.
+To enable tracing support with `SEGGER SystemView`_ add the
+:ref:`snippet-rtt-tracing` to your build command:
+
+    .. zephyr-app-commands::
+        :zephyr-app: samples/synchronization
+        :board: <board>
+        :snippets: rtt-tracing
+        :goals: build
+        :compact:
+
 SystemView can also be used for post-mortem tracing, which can be enabled with
-`CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE`. In this mode, a debugger can
+:kconfig:option:`CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE`. In this mode, a debugger can
 be attached after the system has crashed using ``west attach`` after which the
-latest data from the internal RAM buffer can be loaded into SystemView::
-
-    CONFIG_STDOUT_CONSOLE=y
-    # enable to use thread names
-    CONFIG_THREAD_NAME=y
-    CONFIG_SEGGER_SYSTEMVIEW=y
-    CONFIG_USE_SEGGER_RTT=y
-    CONFIG_TRACING=y
-    # enable for post-mortem tracing
-    CONFIG_SEGGER_SYSVIEW_POST_MORTEM_MODE=n
-
+latest data from the internal RAM buffer can be loaded into SystemView.
 
 .. figure:: segger_systemview.png
     :align: center
@@ -464,7 +504,7 @@ port, build the sample as follows:
 
 .. zephyr-app-commands::
    :tool: all
-   :app: samples/subsys/tracing
+   :zephyr-app: samples/subsys/tracing
    :board: native_sim
    :gen-args: -DCONF_FILE=prj_native_ctf.conf
    :goals: build

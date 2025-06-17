@@ -52,6 +52,26 @@ struct espi_npcx_data {
 #endif
 };
 
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), vw_index_extend_set)
+struct espi_npcx_vw_ex {
+	uint8_t direction;
+	uint8_t group_num;
+	uint8_t index;
+};
+
+/* n = node, p = property, i = index */
+#define ESPI_NPCX_VW_EX_INFO(n, p, i)                                                              \
+	{                                                                                          \
+		.index = ESPI_NPCX_VW_EX_INDEX(DT_PROP_BY_IDX(n, p, i)),                           \
+		.group_num = ESPI_NPCX_VW_EX_GROUP_NUM(DT_PROP_BY_IDX(n, p, i)),                   \
+		.direction = ESPI_NPCX_VW_EX_DIR(DT_PROP_BY_IDX(n, p, i)),                         \
+	},
+
+static const struct espi_npcx_vw_ex espi_npcx_vw_ex_0[] = {
+	DT_FOREACH_PROP_ELEM(DT_DRV_INST(0), vw_index_extend_set, ESPI_NPCX_VW_EX_INFO)
+};
+#endif
+
 /* Driver convenience defines */
 #define HAL_INSTANCE(dev)                                                                          \
 	((struct espi_reg *)((const struct espi_npcx_config *)(dev)->config)->base)
@@ -70,6 +90,9 @@ struct espi_npcx_data {
 #define NPCX_ESPI_MAXFREQ_33         2
 #define NPCX_ESPI_MAXFREQ_50         3
 #define NPCX_ESPI_MAXFREQ_66         4
+
+/* SLP_S3/SLP_S4/SLP_S5 Virtual Wire belong to Virtual Wire Index 2 */
+#define ESPI_VW_SLP_SX_INDEX         0x02
 
 /* Minimum delay before acknowledging a virtual wire */
 #define NPCX_ESPI_VWIRE_ACK_DELAY    10ul /* 10 us */
@@ -146,6 +169,10 @@ static const struct npcx_vw_in_config vw_in_tbl[] = {
 	/* index 42h (In)  */
 	NPCX_DT_VW_IN_CONF(ESPI_VWIRE_SIGNAL_SLP_LAN, vw_slp_lan),
 	NPCX_DT_VW_IN_CONF(ESPI_VWIRE_SIGNAL_SLP_WLAN, vw_slp_wlan),
+#if DT_NODE_EXISTS(DT_CHILD(DT_PATH(npcx_espi_vws_map), vw_dnx_warn))
+	/* index 4Ah (In) */
+	NPCX_DT_VW_IN_CONF(ESPI_VWIRE_SIGNAL_DNX_WARN, vw_dnx_warn),
+#endif
 };
 
 static const struct npcx_vw_out_config vw_out_tbl[] = {
@@ -165,6 +192,9 @@ static const struct npcx_vw_out_config vw_out_tbl[] = {
 	NPCX_DT_VW_OUT_CONF(ESPI_VWIRE_SIGNAL_HOST_RST_ACK, vw_host_rst_ack),
 	/* index 40h (Out) */
 	NPCX_DT_VW_OUT_CONF(ESPI_VWIRE_SIGNAL_SUS_ACK, vw_sus_ack),
+#if DT_NODE_EXISTS(DT_CHILD(DT_PATH(npcx_espi_vws_map), vw_dnx_ack))
+	NPCX_DT_VW_OUT_CONF(ESPI_VWIRE_SIGNAL_DNX_ACK, vw_dnx_ack),
+#endif
 };
 
 /*  Virtual wire GPIOs for platform level usage (High at Reset state) */
@@ -356,11 +386,13 @@ static uint32_t espi_taf_parse(const struct device *dev)
 {
 	struct espi_reg *const inst = HAL_INSTANCE(dev);
 	struct npcx_taf_head taf_head;
-	uint32_t taf_addr;
+	uint32_t taf_addr, head_data;
 	uint8_t i, roundsize;
 
 	/* Get type, length and tag from RX buffer */
-	memcpy(&taf_head, (void *)&inst->FLASHRXBUF[0], sizeof(taf_head));
+	head_data = inst->FLASHRXBUF[0];
+	taf_head = *(struct npcx_taf_head *)&head_data;
+
 	taf_pckt.type = taf_head.type;
 	taf_pckt.len = (((uint16_t)taf_head.tag_hlen & 0xF) << 8) | taf_head.llen;
 	taf_pckt.tag = taf_head.tag_hlen >> 4;
@@ -373,8 +405,10 @@ static uint32_t espi_taf_parse(const struct device *dev)
 	taf_addr = inst->FLASHRXBUF[1];
 	taf_pckt.addr = sys_cpu_to_be32(taf_addr);
 
-	/* Get written data if eSPI TAF write */
-	if (taf_pckt.type == NPCX_ESPI_TAF_REQ_WRITE) {
+	/* Get written data if eSPI TAF write or RPMC OP1 */
+	if ((taf_pckt.type == NPCX_ESPI_TAF_REQ_WRITE) ||
+	    (IS_ENABLED(CONFIG_ESPI_TAF_NPCX_RPMC_SUPPORT) &&
+	     (taf_pckt.type == NPCX_ESPI_TAF_REQ_RPMC_OP1))) {
 		roundsize = DIV_ROUND_UP(taf_pckt.len, sizeof(uint32_t));
 		for (i = 0; i < roundsize; i++) {
 			taf_pckt.src[i] = inst->FLASHRXBUF[2 + i];
@@ -466,6 +500,14 @@ static void espi_vw_config_input(const struct device *dev,
 {
 	struct espi_reg *const inst = HAL_INSTANCE(dev);
 	int idx = config_in->reg_idx;
+
+	if (IS_ENABLED(CONFIG_ESPI_NPCX_RESET_SLP_SX_VW_ON_ESPI_RST)) {
+		uint8_t vwire_index = GET_FIELD(inst->VWEVMS[idx], NPCX_VWEVMS_INDEX);
+
+		if (vwire_index == ESPI_VW_SLP_SX_INDEX) {
+			inst->VWEVMS[idx] |= BIT(NPCX_VWEVMS_ENESPIRST);
+		}
+	}
 
 	/* IE & WE bits are already set? */
 	if (IS_BIT_SET(inst->VWEVMS[idx], NPCX_VWEVMS_IE) &&
@@ -563,6 +605,11 @@ static void espi_vw_notify_host_warning(const struct device *dev,
 		espi_npcx_send_vwire(dev, ESPI_VWIRE_SIGNAL_OOB_RST_ACK,
 				wire);
 		break;
+#if DT_NODE_EXISTS(DT_CHILD(DT_PATH(npcx_espi_vws_map), vw_dnx_warn))
+	case ESPI_VWIRE_SIGNAL_DNX_WARN:
+		espi_npcx_send_vwire(dev, ESPI_VWIRE_SIGNAL_DNX_ACK, wire);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -634,9 +681,16 @@ static void espi_vw_generic_isr(const struct device *dev, struct npcx_wui *wui)
 		|| signal == ESPI_VWIRE_SIGNAL_SLP_S5
 		|| signal == ESPI_VWIRE_SIGNAL_SLP_A) {
 		espi_vw_notify_system_state(dev, signal);
+#if DT_NODE_EXISTS(DT_CHILD(DT_PATH(npcx_espi_vws_map), vw_dnx_warn))
+	} else if (signal == ESPI_VWIRE_SIGNAL_HOST_RST_WARN
+		|| signal == ESPI_VWIRE_SIGNAL_SUS_WARN
+		|| signal == ESPI_VWIRE_SIGNAL_OOB_RST_WARN
+		|| signal == ESPI_VWIRE_SIGNAL_DNX_WARN) {
+#else
 	} else if (signal == ESPI_VWIRE_SIGNAL_HOST_RST_WARN
 		|| signal == ESPI_VWIRE_SIGNAL_SUS_WARN
 		|| signal == ESPI_VWIRE_SIGNAL_OOB_RST_WARN) {
+#endif
 		espi_vw_notify_host_warning(dev, signal);
 	} else if (signal == ESPI_VWIRE_SIGNAL_PLTRST) {
 		espi_vw_notify_plt_rst(dev);
@@ -805,9 +859,25 @@ static int espi_npcx_send_vwire(const struct device *dev,
 	if (signal >= ESPI_VWIRE_SIGNAL_TARGET_GPIO_0) {
 		SET_FIELD(inst->VWGPSM[reg_idx], NPCX_VWEVSM_WIRE, val);
 		reg_val = inst->VWGPSM[reg_idx];
+
+		if (IS_ENABLED(CONFIG_ESPI_NPCX_VWIRE_ENABLE_SEND_CHECK)) {
+			if (!WAIT_FOR(!IS_BIT_SET(inst->VWGPSM[reg_idx], NPCX_VWEVSM_DIRTY),
+				      CONFIG_ESPI_NPCX_WIRE_SEND_TIMEOUT_US, NULL)) {
+				LOG_ERR("%s signal %d timeout", __func__, signal);
+				return -ETIMEDOUT;
+			}
+		}
 	} else {
 		SET_FIELD(inst->VWEVSM[reg_idx], NPCX_VWEVSM_WIRE, val);
 		reg_val = inst->VWEVSM[reg_idx];
+
+		if (IS_ENABLED(CONFIG_ESPI_NPCX_VWIRE_ENABLE_SEND_CHECK)) {
+			if (!WAIT_FOR(!IS_BIT_SET(inst->VWEVSM[reg_idx], NPCX_VWEVSM_DIRTY),
+				      CONFIG_ESPI_NPCX_WIRE_SEND_TIMEOUT_US, NULL)) {
+				LOG_ERR("%s signal %d timeout", __func__, signal);
+				return -ETIMEDOUT;
+			}
+		}
 	}
 
 	LOG_DBG("Send VW: %s%d 0x%08X", reg_name, reg_idx, reg_val);
@@ -829,8 +899,11 @@ static int espi_npcx_receive_vwire(const struct device *dev,
 
 			val = GET_FIELD(inst->VWEVMS[reg_idx],
 							NPCX_VWEVMS_WIRE);
-			val &= GET_FIELD(inst->VWEVMS[reg_idx],
+
+			if (IS_ENABLED(CONFIG_ESPI_VWIRE_VALID_BIT_CHECK)) {
+				val &= GET_FIELD(inst->VWEVMS[reg_idx],
 							NPCX_VWEVMS_VALID);
+			}
 
 			*level = !!(val & bitmask);
 			return 0;
@@ -845,8 +918,12 @@ static int espi_npcx_receive_vwire(const struct device *dev,
 
 			val = GET_FIELD(inst->VWEVSM[reg_idx],
 							NPCX_VWEVSM_WIRE);
-			val &= GET_FIELD(inst->VWEVSM[reg_idx],
+
+			if (IS_ENABLED(CONFIG_ESPI_VWIRE_VALID_BIT_CHECK)) {
+				val &= GET_FIELD(inst->VWEVSM[reg_idx],
 							NPCX_VWEVSM_VALID);
+			}
+
 			*level = !!(val & bitmask);
 			return 0;
 		}
@@ -920,11 +997,12 @@ static int espi_npcx_send_oob(const struct device *dev,
 
 	/* Write GET_OOB data into 32-bits tx buffer in little endian */
 	for (idx_tx_buf = 0; idx_tx_buf < sz_oob_tx/4; idx_tx_buf++,
-								oob_buf += 4)
+								oob_buf += 4) {
 		inst->OOBTXBUF[idx_tx_buf + 1] = oob_buf[0]
 					  | (oob_buf[1] << 8)
 					  | (oob_buf[2] << 16)
 					  | (oob_buf[3] << 24);
+	}
 
 	/* Write remaining bytes of package */
 	if (sz_oob_tx % 4) {
@@ -1297,7 +1375,7 @@ void npcx_espi_disable_interrupts(const struct device *dev)
 /* eSPI driver registration */
 static int espi_npcx_init(const struct device *dev);
 
-static const struct espi_driver_api espi_npcx_driver_api = {
+static DEVICE_API(espi, espi_npcx_driver_api) = {
 	.config = espi_npcx_configure,
 	.get_channel_status = espi_npcx_channel_ready,
 	.send_vwire = espi_npcx_send_vwire,
@@ -1401,6 +1479,38 @@ static int espi_npcx_init(const struct device *dev)
 	/* Configure wake-up input and callback for ESPI_RST signal */
 	espi_init_wui_callback(dev, &espi_rst_callback,
 				&config->espi_rst_wui, espi_vw_espi_rst_isr);
+
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), vw_index_extend_set)
+	uint8_t vw_ex_len = ARRAY_SIZE(espi_npcx_vw_ex_0);
+	uint8_t dir, num, index;
+
+	for (i = 0; i < vw_ex_len; i++) {
+		dir = espi_npcx_vw_ex_0[i].direction;
+		num = espi_npcx_vw_ex_0[i].group_num;
+		index = espi_npcx_vw_ex_0[i].index;
+
+		if (dir == ESPI_CONTROLLER_TO_TARGET) {
+			if (num >= NPCX_VWEVMS_MAX) {
+				LOG_ERR("Error Setting for VW extend MS group (%x)", num);
+				return -EINVAL;
+			}
+			SET_FIELD(inst->VWEVMS[num], NPCX_VWEVMS_INDEX, index);
+			SET_FIELD(inst->VWEVMS[num], NPCX_VWEVMS_VALID, 0x0);
+			inst->VWEVMS[num] |= BIT(NPCX_VWEVMS_INDEX_EN);
+		} else if (dir == ESPI_TARGET_TO_CONTROLLER) {
+			if (num >= NPCX_VWEVSM_MAX) {
+				LOG_ERR("Error Setting for VW extend SM group (%x)", num);
+				return -EINVAL;
+			}
+			SET_FIELD(inst->VWEVSM[num], NPCX_VWEVSM_INDEX, index);
+			SET_FIELD(inst->VWEVSM[num], NPCX_VWEVSM_VALID, 0x0);
+			inst->VWEVSM[num] |= BIT(NPCX_VWEVSM_INDEX_EN);
+		} else {
+			LOG_ERR("Error Setting for VW extend direction (%x)", dir);
+			return -EINVAL;
+		}
+	}
+#endif
 
 	/* Configure pin-mux for eSPI bus device */
 	ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);

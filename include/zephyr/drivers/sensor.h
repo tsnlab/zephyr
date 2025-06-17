@@ -156,13 +156,16 @@ enum sensor_channel {
 	/** Revolutions per minute, in RPM. */
 	SENSOR_CHAN_RPM,
 
+	/** Frequency, in Hz. */
+	SENSOR_CHAN_FREQUENCY,
+
 	/** Voltage, in volts **/
 	SENSOR_CHAN_GAUGE_VOLTAGE,
-	/** Average current, in amps **/
+	/** Average current, in amps (negative=discharging) **/
 	SENSOR_CHAN_GAUGE_AVG_CURRENT,
-	/** Standby current, in amps **/
+	/** Standby current, in amps (negative=discharging) **/
 	SENSOR_CHAN_GAUGE_STDBY_CURRENT,
-	/** Max load current, in amps **/
+	/** Max load current, in amps (negative=discharging) **/
 	SENSOR_CHAN_GAUGE_MAX_LOAD_CURRENT,
 	/** Gauge temperature  **/
 	SENSOR_CHAN_GAUGE_TEMP,
@@ -192,6 +195,12 @@ enum sensor_channel {
 	SENSOR_CHAN_GAUGE_DESIRED_VOLTAGE,
 	/** Desired charging current in mA */
 	SENSOR_CHAN_GAUGE_DESIRED_CHARGING_CURRENT,
+	/** Game Rotation Vector (unit quaternion components X/Y/Z/W) */
+	SENSOR_CHAN_GAME_ROTATION_VECTOR,
+	/** Gravity Vector (X/Y/Z components in m/s^2) */
+	SENSOR_CHAN_GRAVITY_VECTOR,
+	/** Gyroscope bias (X/Y/Z components in radians/s) */
+	SENSOR_CHAN_GBIAS_XYZ,
 
 	/** All channels. */
 	SENSOR_CHAN_ALL,
@@ -263,6 +272,10 @@ enum sensor_trigger_type {
 
 	/** Trigger fires when the FIFO becomes full. */
 	SENSOR_TRIG_FIFO_FULL,
+
+	/** Trigger fires when a tilt is detected. */
+	SENSOR_TRIG_TILT,
+
 	/**
 	 * Number of all common sensor triggers.
 	 */
@@ -942,6 +955,30 @@ struct __attribute__((__packed__)) sensor_data_generic_header {
 	 (chan) == SENSOR_CHAN_MAGN_XYZ || (chan) == SENSOR_CHAN_POS_DXYZ)
 
 /**
+ * @brief checks if a given channel is an Accelerometer
+ *
+ * @param[in] chan The channel to check
+ * @retval true if @p chan is any of @ref SENSOR_CHAN_ACCEL_XYZ, @ref SENSOR_CHAN_ACCEL_X, or
+ *         @ref SENSOR_CHAN_ACCEL_Y, or @ref SENSOR_CHAN_ACCEL_Z
+ * @retval false otherwise
+ */
+#define SENSOR_CHANNEL_IS_ACCEL(chan)                                          \
+	((chan) == SENSOR_CHAN_ACCEL_XYZ || (chan) == SENSOR_CHAN_ACCEL_X ||   \
+	 (chan) == SENSOR_CHAN_ACCEL_Y || (chan) == SENSOR_CHAN_ACCEL_Z)
+
+/**
+ * @brief checks if a given channel is a Gyroscope
+ *
+ * @param[in] chan The channel to check
+ * @retval true if @p chan is any of @ref SENSOR_CHAN_GYRO_XYZ, @ref SENSOR_CHAN_GYRO_X, or
+ *         @ref SENSOR_CHAN_GYRO_Y, or @ref SENSOR_CHAN_GYRO_Z
+ * @retval false otherwise
+ */
+#define SENSOR_CHANNEL_IS_GYRO(chan)                                           \
+	((chan) == SENSOR_CHAN_GYRO_XYZ || (chan) == SENSOR_CHAN_GYRO_X ||     \
+	 (chan) == SENSOR_CHAN_GYRO_Y || (chan) == SENSOR_CHAN_GYRO_Z)
+
+/**
  * @brief Get the sensor's decoder API
  *
  * @param[in] dev The sensor device
@@ -1064,7 +1101,7 @@ static inline int sensor_read(struct rtio_iodev *iodev, struct rtio *ctx, uint8_
 	struct rtio_cqe *cqe = rtio_cqe_consume_block(ctx);
 	int res = cqe->result;
 
-	__ASSERT(cqe->userdata != buf,
+	__ASSERT(cqe->userdata == buf,
 		 "consumed non-matching completion for sensor read into buffer %p\n", buf);
 
 	rtio_cqe_release(ctx, cqe);
@@ -1173,6 +1210,25 @@ static inline void sensor_g_to_ms2(int32_t g, struct sensor_value *ms2)
 {
 	ms2->val1 = ((int64_t)g * SENSOR_G) / 1000000LL;
 	ms2->val2 = ((int64_t)g * SENSOR_G) % 1000000LL;
+}
+
+/**
+ * @brief Helper function to convert acceleration from m/s^2 to milli Gs
+ *
+ * @param ms2 A pointer to a sensor_value struct holding the acceleration,
+ *            in m/s^2.
+ *
+ * @return The converted value, in milli Gs.
+ */
+static inline int32_t sensor_ms2_to_mg(const struct sensor_value *ms2)
+{
+	int64_t nano_ms2 = (ms2->val1 * 1000000LL + ms2->val2) * 1000LL;
+
+	if (nano_ms2 > 0) {
+		return (nano_ms2 + SENSOR_G / 2) / SENSOR_G;
+	} else {
+		return (nano_ms2 - SENSOR_G / 2) / SENSOR_G;
+	}
 }
 
 /**
@@ -1415,6 +1471,28 @@ struct sensor_info {
  */
 #define SENSOR_DEVICE_DT_INST_DEFINE(inst, ...)				\
 	SENSOR_DEVICE_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
+
+/**
+ * @brief Helper function for converting struct sensor_value to integer deci units.
+ *
+ * @param val A pointer to a sensor_value struct.
+ * @return The converted value.
+ */
+static inline int64_t sensor_value_to_deci(const struct sensor_value *val)
+{
+	return ((int64_t)val->val1 * 10) + val->val2 / 100000;
+}
+
+/**
+ * @brief Helper function for converting struct sensor_value to integer centi units.
+ *
+ * @param val A pointer to a sensor_value struct.
+ * @return The converted value.
+ */
+static inline int64_t sensor_value_to_centi(const struct sensor_value *val)
+{
+	return ((int64_t)val->val1 * 100) + val->val2 / 10000;
+}
 
 /**
  * @brief Helper function for converting struct sensor_value to integer milli units.

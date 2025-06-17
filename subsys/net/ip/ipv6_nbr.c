@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(net_ipv6_nd, CONFIG_NET_IPV6_ND_LOG_LEVEL);
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/dns_resolve.h>
 #include <zephyr/net/icmp.h>
+#include <zephyr/net/ethernet.h>
 #include "net_private.h"
 #include "connection.h"
 #include "icmpv6.h"
@@ -35,6 +36,7 @@ LOG_MODULE_REGISTER(net_ipv6_nd, CONFIG_NET_IPV6_ND_LOG_LEVEL);
 #include "6lo.h"
 #include "route.h"
 #include "net_stats.h"
+#include "pmtu.h"
 
 /* Timeout value to be used when allocating net buffer during various
  * neighbor discovery procedures.
@@ -131,21 +133,6 @@ const char *net_ipv6_nbr_state2str(enum net_ipv6_nbr_state state)
 static inline struct net_nbr *get_nbr(int idx)
 {
 	return &net_neighbor_pool[idx].nbr;
-}
-
-static inline struct net_nbr *get_nbr_from_data(struct net_ipv6_nbr_data *data)
-{
-	int i;
-
-	for (i = 0; i < CONFIG_NET_IPV6_MAX_NEIGHBORS; i++) {
-		struct net_nbr *nbr = get_nbr(i);
-
-		if (nbr->data == (uint8_t *)data) {
-			return nbr;
-		}
-	}
-
-	return NULL;
 }
 
 static void ipv6_nbr_set_state(struct net_nbr *nbr,
@@ -456,7 +443,7 @@ static struct net_nbr *nbr_new(struct net_if *iface,
 }
 
 static void dbg_update_neighbor_lladdr(const struct net_linkaddr *new_lladdr,
-				       const struct net_linkaddr_storage *old_lladdr,
+				       const struct net_linkaddr *old_lladdr,
 				       const struct in6_addr *addr)
 {
 	char out[sizeof("xx:xx:xx:xx:xx:xx:xx:xx")];
@@ -471,13 +458,14 @@ static void dbg_update_neighbor_lladdr(const struct net_linkaddr *new_lladdr,
 }
 
 static void dbg_update_neighbor_lladdr_raw(uint8_t *new_lladdr,
-				       struct net_linkaddr_storage *old_lladdr,
-				       struct in6_addr *addr)
+					   struct net_linkaddr *old_lladdr,
+					   struct in6_addr *addr)
 {
 	struct net_linkaddr lladdr = {
 		.len = old_lladdr->len,
-		.addr = new_lladdr,
 	};
+
+	memcpy(lladdr.addr, new_lladdr, lladdr.len);
 
 	dbg_update_neighbor_lladdr(&lladdr, old_lladdr, addr);
 }
@@ -616,14 +604,14 @@ struct net_nbr *net_ipv6_nbr_add(struct net_if *iface,
 	if (lladdr && net_nbr_link(nbr, iface, lladdr) == -EALREADY &&
 	    net_ipv6_nbr_data(nbr)->state != NET_IPV6_NBR_STATE_STATIC) {
 		/* Update the lladdr if the node was already known */
-		struct net_linkaddr_storage *cached_lladdr;
+		struct net_linkaddr *cached_lladdr;
 
 		cached_lladdr = net_nbr_get_lladdr(nbr->idx);
 
 		if (memcmp(cached_lladdr->addr, lladdr->addr, lladdr->len)) {
 			dbg_update_neighbor_lladdr(lladdr, cached_lladdr, addr);
 
-			net_linkaddr_set(cached_lladdr, lladdr->addr,
+			net_linkaddr_set(cached_lladdr, (uint8_t *)lladdr->addr,
 					 lladdr->len);
 
 			ipv6_nbr_set_state(nbr, NET_IPV6_NBR_STATE_STALE);
@@ -809,24 +797,34 @@ enum net_verdict net_ipv6_prepare_for_send(struct net_pkt *pkt)
 	 * contain a proper value and we can skip other checks.
 	 */
 	if (net_pkt_ipv6_fragment_id(pkt) == 0U) {
-		uint16_t mtu = net_if_get_mtu(net_pkt_iface(pkt));
 		size_t pkt_len = net_pkt_get_len(pkt);
+		uint16_t mtu;
 
-		mtu = MAX(NET_IPV6_MTU, mtu);
+		if (IS_ENABLED(CONFIG_NET_IPV6_PMTU)) {
+			struct sockaddr_in6 dst = {
+				.sin6_family = AF_INET6,
+			};
+
+			net_ipv6_addr_copy_raw((uint8_t *)&dst.sin6_addr, ip_hdr->dst);
+
+			ret = net_pmtu_get_mtu((struct sockaddr *)&dst);
+			if (ret <= 0) {
+				goto use_interface_mtu;
+			}
+
+			mtu = ret;
+		} else {
+use_interface_mtu:
+			mtu = net_if_get_mtu(net_pkt_iface(pkt));
+			mtu = MAX(NET_IPV6_MTU, mtu);
+		}
+
 		if (mtu < pkt_len) {
 			ret = net_ipv6_send_fragmented_pkt(net_pkt_iface(pkt),
-							   pkt, pkt_len);
+							   pkt, pkt_len, mtu);
 			if (ret < 0) {
 				NET_DBG("Cannot fragment IPv6 pkt (%d)", ret);
-
-				if (ret == -ENOMEM) {
-					/* Try to send the packet if we could
-					 * not allocate enough network packets
-					 * and hope the original large packet
-					 * can be sent ok.
-					 */
-					goto ignore_frag_error;
-				}
+				return NET_DROP;
 			}
 
 			/* We need to unref here because we simulate the packet
@@ -841,7 +839,6 @@ enum net_verdict net_ipv6_prepare_for_send(struct net_pkt *pkt)
 			return NET_CONTINUE;
 		}
 	}
-ignore_frag_error:
 #endif /* CONFIG_NET_IPV6_FRAGMENT */
 
 	/* If the IPv6 destination address is not link local, then try to get
@@ -850,9 +847,11 @@ ignore_frag_error:
 	 * contain public IPv6 address information so in that case we should
 	 * not enter this branch.
 	 */
-	if ((net_pkt_lladdr_dst(pkt)->addr &&
+	if ((net_pkt_lladdr_dst(pkt)->len > 0 &&
 	     ((IS_ENABLED(CONFIG_NET_ROUTING) &&
-	      net_ipv6_is_ll_addr((struct in6_addr *)ip_hdr->dst)) ||
+	      (net_ipv6_is_ll_addr((struct in6_addr *)ip_hdr->dst) ||
+	       net_if_ipv6_addr_onlink(NULL, (struct in6_addr *)ip_hdr->dst) ||
+	       net_pkt_forwarding(pkt))) ||
 	      !IS_ENABLED(CONFIG_NET_ROUTING))) ||
 	    net_ipv6_is_addr_mcast((struct in6_addr *)ip_hdr->dst) ||
 	    /* Workaround Linux bug, see:
@@ -910,6 +909,26 @@ ignore_frag_error:
 	}
 
 try_send:
+	if (IS_ENABLED(CONFIG_NET_IPV6_PMTU)) {
+		struct net_pmtu_entry *entry;
+		struct sockaddr_in6 dst = {
+			.sin6_family = AF_INET6,
+		};
+
+		net_ipaddr_copy(&dst.sin6_addr, (struct in6_addr *)ip_hdr->dst);
+
+		entry = net_pmtu_get_entry((struct sockaddr *)&dst);
+		if (entry == NULL) {
+			ret = net_pmtu_update_mtu((struct sockaddr *)&dst,
+						  net_if_get_mtu(iface));
+			if (ret < 0) {
+				NET_DBG("Cannot update PMTU for %s (%d)",
+					net_sprint_ipv6_addr(&dst.sin6_addr),
+					ret);
+			}
+		}
+	}
+
 	net_ipv6_nbr_lock();
 
 	nbr = nbr_lookup(&net_neighbor.table, iface, nexthop);
@@ -922,12 +941,12 @@ try_send:
 		"-");
 
 	if (nbr && nbr->idx != NET_NBR_LLADDR_UNKNOWN) {
-		struct net_linkaddr_storage *lladdr;
+		struct net_linkaddr *lladdr;
 
 		lladdr = net_nbr_get_lladdr(nbr->idx);
 
-		net_pkt_lladdr_dst(pkt)->addr = lladdr->addr;
-		net_pkt_lladdr_dst(pkt)->len = lladdr->len;
+		(void)net_linkaddr_set(net_pkt_lladdr_dst(pkt), lladdr->addr,
+				       lladdr->len);
 
 		NET_DBG("Neighbor %p addr %s", nbr,
 			net_sprint_ll_addr(lladdr->addr, lladdr->len));
@@ -1052,20 +1071,21 @@ static inline bool set_llao(struct net_pkt *pkt,
 
 static bool read_llao(struct net_pkt *pkt,
 		      uint8_t len,
-		      struct net_linkaddr_storage *llstorage)
+		      struct net_linkaddr *lladdr)
 {
 	uint8_t padding;
 
-	llstorage->len = NET_LINK_ADDR_MAX_LENGTH;
-	if (net_pkt_lladdr_src(pkt)->len < llstorage->len) {
-		llstorage->len = net_pkt_lladdr_src(pkt)->len;
+	lladdr->len = NET_LINK_ADDR_MAX_LENGTH;
+
+	if (net_pkt_lladdr_src(pkt)->len < lladdr->len) {
+		lladdr->len = net_pkt_lladdr_src(pkt)->len;
 	}
 
-	if (net_pkt_read(pkt, llstorage->addr, llstorage->len)) {
+	if (net_pkt_read(pkt, lladdr->addr, lladdr->len)) {
 		return false;
 	}
 
-	padding = len * 8U - 2 - llstorage->len;
+	padding = len * 8U - 2 - lladdr->len;
 	if (padding) {
 		if (net_pkt_skip(pkt, padding)) {
 			return false;
@@ -1192,7 +1212,6 @@ static int handle_ns_input(struct net_icmp_ctx *ctx,
 	const struct in6_addr *na_src;
 	const struct in6_addr *na_dst;
 	struct in6_addr *tgt;
-	struct net_linkaddr_storage src_lladdr_s;
 	struct net_linkaddr src_lladdr;
 
 	src_lladdr.len = 0;
@@ -1242,13 +1261,10 @@ static int handle_ns_input(struct net_icmp_ctx *ctx,
 				goto drop;
 			}
 
-			if (!read_llao(pkt, nd_opt_hdr->len, &src_lladdr_s)) {
+			if (!read_llao(pkt, nd_opt_hdr->len, &src_lladdr)) {
 				NET_ERR("DROP: failed to read LLAO");
 				goto drop;
 			}
-
-			src_lladdr.len = src_lladdr_s.len;
-			src_lladdr.addr = src_lladdr_s.addr;
 
 			break;
 		default:
@@ -1310,7 +1326,7 @@ static int handle_ns_input(struct net_icmp_ctx *ctx,
 						net_pkt_iface(pkt),
 						net_if_get_by_iface(
 							net_pkt_iface(pkt)));
-					goto drop;
+					goto silent_drop;
 				}
 
 				routing = true;
@@ -1320,7 +1336,7 @@ static int handle_ns_input(struct net_icmp_ctx *ctx,
 
 		NET_DBG("DROP: No such interface address %s",
 			net_sprint_ipv6_addr(&ns_hdr->tgt));
-		goto drop;
+		goto silent_drop;
 	} else {
 		tgt = &ifaddr->address.in6_addr;
 		na_src = (struct in6_addr *)ip_hdr->dst;
@@ -1341,7 +1357,7 @@ nexthop_found:
 		if (!net_ipv6_is_addr_solicited_node((struct in6_addr *)ip_hdr->dst)) {
 			NET_DBG("DROP: Not solicited node addr %s",
 				net_sprint_ipv6_addr(&ip_hdr->dst));
-			goto drop;
+			goto silent_drop;
 		}
 
 		if (ifaddr->addr_state == NET_ADDR_TENTATIVE) {
@@ -1352,7 +1368,7 @@ nexthop_found:
 
 			dad_failed(net_pkt_iface(pkt),
 				   &ifaddr->address.in6_addr);
-			goto drop;
+			goto silent_drop;
 		}
 
 		/* We reuse the received packet for the NA addresses*/
@@ -1373,7 +1389,7 @@ nexthop_found:
 	if (net_ipv6_is_my_addr((struct in6_addr *)ip_hdr->src)) {
 		NET_DBG("DROP: Duplicate IPv6 %s address",
 			net_sprint_ipv6_addr(&ip_hdr->src));
-		goto drop;
+		goto silent_drop;
 	}
 
 	/* Address resolution */
@@ -1409,11 +1425,11 @@ nexthop_found:
 		goto send_na;
 	} else {
 		NET_DBG("DROP: NUD failed");
-		goto drop;
+		goto silent_drop;
 	}
 
 send_na:
-	if (src_lladdr.len) {
+	if (src_lladdr.len > 0) {
 		if (!net_ipv6_nbr_add(net_pkt_iface(pkt),
 				      (struct in6_addr *)ip_hdr->src,
 				      &src_lladdr, false,
@@ -1435,6 +1451,14 @@ drop:
 	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 
 	return -EIO;
+
+silent_drop:
+	/* If the event is not really an error then just ignore it and
+	 * return 0 so that icmpv6 module will not complain about it.
+	 */
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
+
+	return 0;
 }
 #endif /* CONFIG_NET_IPV6_NBR_CACHE */
 
@@ -1551,7 +1575,7 @@ static void ipv6_nd_reachable_timeout(struct k_work *work)
 					data->ns_count);
 
 				ret = net_ipv6_send_ns(nbr->iface, NULL, NULL,
-						       NULL, &data->addr,
+						       &data->addr, &data->addr,
 						       false);
 				if (ret < 0) {
 					NET_DBG("Cannot send NS (%d)", ret);
@@ -1613,9 +1637,9 @@ static inline bool handle_na_neighbor(struct net_pkt *pkt,
 				      struct net_icmpv6_na_hdr *na_hdr,
 				      uint16_t tllao_offset)
 {
-	struct net_linkaddr_storage lladdr = { 0 };
+	struct net_linkaddr lladdr = { 0 };
 	bool lladdr_changed = false;
-	struct net_linkaddr_storage *cached_lladdr;
+	struct net_linkaddr *cached_lladdr;
 	struct net_pkt *pending;
 	struct net_nbr *nbr;
 
@@ -1654,8 +1678,7 @@ static inline bool handle_na_neighbor(struct net_pkt *pkt,
 			goto err;
 		}
 
-		nbr_lladdr.len = lladdr.len;
-		nbr_lladdr.addr = lladdr.addr;
+		(void)net_linkaddr_set(&nbr_lladdr, lladdr.addr, lladdr.len);
 
 		if (net_nbr_link(nbr, net_pkt_iface(pkt), &nbr_lladdr)) {
 			nbr_free(nbr);
@@ -1729,7 +1752,7 @@ static inline bool handle_na_neighbor(struct net_pkt *pkt,
 
 	if (na_hdr->flags & NET_ICMPV6_NA_FLAG_OVERRIDE ||
 	    (!(na_hdr->flags & NET_ICMPV6_NA_FLAG_OVERRIDE) &&
-	     tllao_offset && !lladdr_changed)) {
+	     !lladdr_changed)) {
 
 		if (lladdr_changed) {
 			dbg_update_neighbor_lladdr_raw(
@@ -2135,14 +2158,10 @@ int net_ipv6_start_rs(struct net_if *iface)
 static inline struct net_nbr *handle_ra_neighbor(struct net_pkt *pkt, uint8_t len)
 {
 	struct net_linkaddr lladdr;
-	struct net_linkaddr_storage llstorage;
 
-	if (!read_llao(pkt, len, &llstorage)) {
+	if (!read_llao(pkt, len, &lladdr)) {
 		return NULL;
 	}
-
-	lladdr.len = llstorage.len;
-	lladdr.addr = llstorage.addr;
 
 	return net_ipv6_nbr_add(net_pkt_iface(pkt),
 				(struct in6_addr *)NET_IPV6_HDR(pkt)->src,
@@ -2236,13 +2255,24 @@ static inline void handle_prefix_autonomous(struct net_pkt *pkt,
 	struct net_if *iface = net_pkt_iface(pkt);
 	struct in6_addr addr = { };
 	struct net_if_addr *ifaddr;
+	int ret;
 
-	/* Create IPv6 address using the given prefix and iid. We first
-	 * setup link local address, and then copy prefix over first 8
-	 * bytes of that address.
+	/* Create IPv6 address using the given prefix and iid.
 	 */
-	net_ipv6_addr_create_iid(&addr, net_if_get_link_addr(iface));
-	memcpy(&addr, prefix_info->prefix, sizeof(struct in6_addr) / 2);
+	ret = net_ipv6_addr_generate_iid(iface,
+			 (struct in6_addr *)prefix_info->prefix,
+			 COND_CODE_1(CONFIG_NET_IPV6_IID_STABLE,
+				     ((uint8_t *)&iface->config.ip.ipv6->network_counter),
+				     (NULL)),
+			 COND_CODE_1(CONFIG_NET_IPV6_IID_STABLE,
+				     (sizeof(iface->config.ip.ipv6->network_counter)),
+				     (0U)),
+			 0U,
+			 &addr,
+			 net_if_get_link_addr(iface));
+	if (ret < 0) {
+		NET_WARN("IPv6 IID generation issue (%d)", ret);
+	}
 
 	ifaddr = net_if_ipv6_addr_lookup(&addr, NULL);
 	if (ifaddr && ifaddr->addr_type == NET_ADDR_AUTOCONF) {
@@ -2561,12 +2591,6 @@ static int handle_ra_input(struct net_icmp_ctx *ctx,
 	nd_opt_hdr = (struct net_icmpv6_nd_opt_hdr *)
 				net_pkt_get_data(pkt, &nd_access);
 
-	/* Add neighbor cache entry using link local address, regardless of link layer address
-	 * presence in Router Advertisement.
-	 */
-	nbr = net_ipv6_nbr_add(net_pkt_iface(pkt), (struct in6_addr *)NET_IPV6_HDR(pkt)->src, NULL,
-				true, NET_IPV6_NBR_STATE_INCOMPLETE);
-
 	while (nd_opt_hdr) {
 		net_pkt_acknowledge_data(pkt, &nd_access);
 
@@ -2667,6 +2691,15 @@ static int handle_ra_input(struct net_icmp_ctx *ctx,
 					net_pkt_get_data(pkt, &nd_access);
 	}
 
+	if (nbr == NULL) {
+		/* Add neighbor cache entry using link local address, regardless
+		 * of link layer address presence in Router Advertisement.
+		 */
+		nbr = net_ipv6_nbr_add(net_pkt_iface(pkt),
+				       (struct in6_addr *)NET_IPV6_HDR(pkt)->src,
+				       NULL, true, NET_IPV6_NBR_STATE_INCOMPLETE);
+	}
+
 	router = net_if_ipv6_router_lookup(net_pkt_iface(pkt),
 					   (struct in6_addr *)ip_hdr->src);
 	if (router) {
@@ -2715,6 +2748,98 @@ drop:
 }
 #endif /* CONFIG_NET_IPV6_ND */
 
+#if defined(CONFIG_NET_IPV6_PMTU)
+/* Packet format described in RFC 4443 ch 3.2. Packet Too Big Message */
+static int handle_ptb_input(struct net_icmp_ctx *ctx,
+			    struct net_pkt *pkt,
+			    struct net_icmp_ip_hdr *hdr,
+			    struct net_icmp_hdr *icmp_hdr,
+			    void *user_data)
+{
+	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ptb_access, struct net_icmpv6_ptb);
+	struct net_ipv6_hdr *ip_hdr = hdr->ipv6;
+	uint16_t length = net_pkt_get_len(pkt);
+	struct net_icmpv6_ptb *ptb_hdr;
+	struct sockaddr_in6 sockaddr_src = {
+		.sin6_family = AF_INET6,
+	};
+	struct net_pmtu_entry *entry;
+	uint32_t mtu;
+	int ret;
+
+	ARG_UNUSED(user_data);
+
+	ptb_hdr = (struct net_icmpv6_ptb *)net_pkt_get_data(pkt, &ptb_access);
+	if (!ptb_hdr) {
+		NET_DBG("DROP: NULL PTB header");
+		goto drop;
+	}
+
+	dbg_addr_recv("Packet Too Big", &ip_hdr->src, &ip_hdr->dst, pkt);
+
+	net_stats_update_ipv6_pmtu_recv(net_pkt_iface(pkt));
+
+	if (length < (sizeof(struct net_ipv6_hdr) +
+		      sizeof(struct net_icmp_hdr) +
+		      sizeof(struct net_icmpv6_ptb))) {
+		NET_DBG("DROP: length %d too big %zd",
+			length, sizeof(struct net_ipv6_hdr) +
+			sizeof(struct net_icmp_hdr) +
+			sizeof(struct net_icmpv6_ptb));
+		goto drop;
+	}
+
+	net_pkt_acknowledge_data(pkt, &ptb_access);
+
+	mtu = ntohl(ptb_hdr->mtu);
+
+	if (mtu < MIN_IPV6_MTU || mtu > MAX_IPV6_MTU) {
+		NET_DBG("DROP: Unsupported MTU %u, min is %u, max is %u",
+			mtu, MIN_IPV6_MTU, MAX_IPV6_MTU);
+		goto drop;
+	}
+
+	net_ipaddr_copy(&sockaddr_src.sin6_addr, (struct in6_addr *)&ip_hdr->src);
+
+	entry = net_pmtu_get_entry((struct sockaddr *)&sockaddr_src);
+	if (entry == NULL) {
+		NET_DBG("DROP: Cannot find PMTU entry for %s",
+			net_sprint_ipv6_addr(&ip_hdr->src));
+		goto silent_drop;
+	}
+
+	/* We must not accept larger PMTU value than what we already know.
+	 * RFC 8201 chapter 4 page 8.
+	 */
+	if (entry->mtu > 0 && entry->mtu < mtu) {
+		NET_DBG("DROP: PMTU for %s %u larger than %u",
+			net_sprint_ipv6_addr(&ip_hdr->src), mtu,
+			entry->mtu);
+		goto silent_drop;
+	}
+
+	ret = net_pmtu_update_entry(entry, mtu);
+	if (ret > 0) {
+		NET_DBG("PMTU for %s changed from %u to %u",
+			net_sprint_ipv6_addr(&ip_hdr->src), ret, mtu);
+	}
+
+	return 0;
+drop:
+	net_stats_update_ipv6_pmtu_drop(net_pkt_iface(pkt));
+
+	return -EIO;
+
+silent_drop:
+	/* If the event is not really an error then just ignore it and
+	 * return 0 so that icmpv6 module will not complain about it.
+	 */
+	net_stats_update_ipv6_pmtu_drop(net_pkt_iface(pkt));
+
+	return 0;
+}
+#endif /* CONFIG_NET_IPV6_PMTU */
+
 #if defined(CONFIG_NET_IPV6_NBR_CACHE)
 static struct net_icmp_ctx ns_ctx;
 static struct net_icmp_ctx na_ctx;
@@ -2723,6 +2848,10 @@ static struct net_icmp_ctx na_ctx;
 #if defined(CONFIG_NET_IPV6_ND)
 static struct net_icmp_ctx ra_ctx;
 #endif /* CONFIG_NET_IPV6_ND */
+
+#if defined(CONFIG_NET_IPV6_PMTU)
+static struct net_icmp_ctx ptb_ctx;
+#endif /* CONFIG_NET_IPV6_PMTU */
 
 void net_ipv6_nbr_init(void)
 {
@@ -2752,6 +2881,14 @@ void net_ipv6_nbr_init(void)
 
 	k_work_init_delayable(&ipv6_nd_reachable_timer,
 			      ipv6_nd_reachable_timeout);
+#endif
+
+#if defined(CONFIG_NET_IPV6_PMTU)
+	ret = net_icmp_init_ctx(&ptb_ctx, NET_ICMPV6_PACKET_TOO_BIG, 0, handle_ptb_input);
+	if (ret < 0) {
+		NET_ERR("Cannot register %s handler (%d)", STRINGIFY(NET_ICMPV6_PACKET_TOO_BIG),
+			ret);
+	}
 #endif
 
 	ARG_UNUSED(ret);

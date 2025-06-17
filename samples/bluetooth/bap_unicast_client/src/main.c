@@ -4,17 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stddef.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
+#include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/bap_lc3_preset.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/gap.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/hci_types.h>
+#include <zephyr/bluetooth/iso.h>
+#include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
+#include <zephyr/net_buf.h>
+#include <zephyr/sys/__assert.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/types.h>
 
@@ -147,8 +162,7 @@ static bool check_audio_support_and_connect(struct bt_data *data,
 	printk("Audio server found with type %u, contexts 0x%08x and meta_len %u; connecting\n",
 	       announcement_type, audio_contexts, meta_len);
 
-	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
-				BT_LE_CONN_PARAM_DEFAULT,
+	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN, BT_BAP_CONN_PARAM_RELAXED,
 				&default_conn);
 	if (err != 0) {
 		printk("Create conn to failed (%u)\n", err);
@@ -200,8 +214,7 @@ static void start_scan(void)
 	printk("Scanning successfully started\n");
 }
 
-static void stream_configured(struct bt_bap_stream *stream,
-			      const struct bt_audio_codec_qos_pref *pref)
+static void stream_configured(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg_pref *pref)
 {
 	printk("Audio Stream %p configured\n", stream);
 
@@ -222,7 +235,7 @@ static void stream_enabled(struct bt_bap_stream *stream)
 	k_sem_give(&sem_stream_enabled);
 }
 
-static bool stream_is_tx(const struct bt_bap_stream *stream)
+static bool stream_tx_can_send(const struct bt_bap_stream *stream)
 {
 	struct bt_bap_ep_info info;
 	int err;
@@ -258,7 +271,7 @@ static void stream_started(struct bt_bap_stream *stream)
 {
 	printk("Audio Stream %p started\n", stream);
 	/* Register the stream for TX if it can send */
-	if (IS_ENABLED(CONFIG_BT_AUDIO_TX) && stream_is_tx(stream)) {
+	if (IS_ENABLED(CONFIG_BT_AUDIO_TX) && stream_tx_can_send(stream)) {
 		const int err = stream_tx_register(stream);
 
 		if (err != 0) {
@@ -284,7 +297,7 @@ static void stream_stopped(struct bt_bap_stream *stream, uint8_t reason)
 	printk("Audio Stream %p stopped with reason 0x%02X\n", stream, reason);
 
 	/* Unregister the stream for TX if it can send */
-	if (IS_ENABLED(CONFIG_BT_AUDIO_TX) && stream_is_tx(stream)) {
+	if (IS_ENABLED(CONFIG_BT_AUDIO_TX) && stream_tx_can_send(stream)) {
 		const int err = stream_tx_unregister(stream);
 
 		if (err != 0) {

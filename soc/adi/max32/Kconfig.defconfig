@@ -5,9 +5,6 @@
 
 if SOC_FAMILY_MAX32
 
-rsource "Kconfig.defconfig.max32*"
-
-config SRAM_VECTOR_TABLE
-	default y
+rsource "Kconfig.defconfig.max*"
 
 endif # SOC_FAMILY_MAX32

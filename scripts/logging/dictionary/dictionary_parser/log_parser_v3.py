@@ -17,12 +17,12 @@ version 3 databases.
 
 import logging
 import struct
+
 import colorama
 from colorama import Fore
 
-from .log_parser import (LogParser, get_log_level_str_color, formalize_fmt_string)
 from .data_types import DataTypes
-
+from .log_parser import LogParser, formalize_fmt_string, get_log_level_str_color
 
 HEX_BYTES_IN_LINE = 16
 
@@ -101,10 +101,7 @@ class LogParserV3(LogParser):
             str_idx = arg_offset + self.data_types.get_sizeof(DataTypes.PTR) * 2
             str_idx /= self.data_types.get_sizeof(DataTypes.INT)
 
-            if int(str_idx) not in string_tbl:
-                ret = f'<string@0x{arg:x}>'
-            else:
-                ret = string_tbl[int(str_idx)]
+            ret = string_tbl.get(int(str_idx), f"<string@0x{arg:x}>")
 
         return ret
 
@@ -146,14 +143,16 @@ class LogParserV3(LogParser):
                 # intmax_t, size_t or ptrdiff_t
                 arg_data_type = DataTypes.LONG
 
-            elif fmt in ('c', 'd', 'i', 'o', 'u') or str.lower(fmt) == 'x':
+            elif fmt in ('c', 'd', 'i', 'o', 'u', 'x', 'X'):
+                unsigned = fmt in ('c', 'o', 'u', 'x', 'X')
+
                 if fmt_str[idx - 1] == 'l':
                     if fmt_str[idx - 2] == 'l':
-                        arg_data_type = DataTypes.LONG_LONG
+                        arg_data_type = DataTypes.ULONG_LONG if unsigned else DataTypes.LONG_LONG
                     else:
-                        arg_data_type = DataTypes.LONG
+                        arg_data_type = DataTypes.ULONG if unsigned else DataTypes.LONG
                 else:
-                    arg_data_type = DataTypes.INT
+                    arg_data_type = DataTypes.UINT if unsigned else DataTypes.INT
 
                 is_parsing = False
                 do_extract = True

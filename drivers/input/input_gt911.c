@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 NXP
+ * Copyright (c) 2020, 2025 NXP
  * Copyright (c) 2020 Mark Olsson <mark@markolsson.se>
  * Copyright (c) 2020 Teslabs Engineering S.L.
  *
@@ -12,6 +12,7 @@
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/input/input.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/pm/pm.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(gt911, CONFIG_INPUT_LOG_LEVEL);
@@ -63,6 +64,9 @@ struct gt911_data {
 #else
 	/** Timer (polling mode). */
 	struct k_timer timer;
+#endif
+#ifdef CONFIG_PM
+	struct pm_notifier pm_notifier_handle;
 #endif
 };
 
@@ -127,6 +131,11 @@ static int gt911_process(const struct device *dev)
 		return 0;
 	}
 
+	/*
+	 * Note- since we program the max number of touch inputs during init,
+	 * the controller won't report more than the maximum number of touch
+	 * points we are configured to support
+	 */
 	points = status & TOUCH_POINTS_MSK;
 
 	/* need to clear the status */
@@ -138,7 +147,7 @@ static int gt911_process(const struct device *dev)
 	}
 
 	/* current points array */
-	for (i = 0; i <= points; i++) {
+	for (i = 0; i < points; i++) {
 		reg_addr = REG_POINT_ADDR(i);
 		r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr), &point_reg[i],
 					 sizeof(point_reg[i]));
@@ -232,6 +241,37 @@ static bool gt911_verify_firmware(const uint8_t *firmware)
 		(gt911_get_firmware_checksum(firmware) == firmware[REG_CONFIG_SIZE - 2U]));
 }
 
+#if CONFIG_PM
+static void gt911_pm_state_exit(const struct device *dev, enum pm_state state)
+{
+	switch (state) {
+	case PM_STATE_STANDBY:
+		/* Reconfigure the GPIO interrupt pin on exit from
+		 * certain low power states as we might lose the GPIO state.
+		 */
+		const struct gt911_config *config = dev->config;
+		int r;
+
+		r = gpio_pin_configure_dt(&config->int_gpio, GPIO_INPUT);
+		if (r < 0) {
+			LOG_ERR("Could not configure interrupt GPIO pin");
+			return;
+		}
+
+#ifdef CONFIG_INPUT_GT911_INTERRUPT
+		r = gpio_pin_interrupt_configure_dt(&config->int_gpio, GPIO_INT_EDGE_TO_ACTIVE);
+		if (r < 0) {
+			LOG_ERR("Could not configure interrupt GPIO interrupt.");
+			return;
+		}
+#endif /* CONFIG_INPUT_GT911_INTERRUPT */
+		break;
+	default:
+		break;
+	}
+}
+#endif /* CONFIG_PM */
+
 static int gt911_init(const struct device *dev)
 {
 	const struct gt911_config *config = dev->config;
@@ -267,19 +307,19 @@ static int gt911_init(const struct device *dev)
 		}
 	}
 
-	if (config->alt_addr == 0x0) {
-		/*
-		 * We need to configure the int-pin to 0, in order to enter the
-		 * AddressMode0. Keeping the INT pin low during the reset sequence
-		 * should result in the device selecting an I2C address of 0x5D.
-		 * Note we skip this step if an alternate I2C address is set,
-		 * and fall through to probing for the actual address.
-		 */
-		r = gpio_pin_configure_dt(&config->int_gpio, GPIO_OUTPUT_INACTIVE);
-		if (r < 0) {
-			LOG_ERR("Could not configure int GPIO pin");
-			return r;
-		}
+	/*
+	 * We need to configure the int-pin to 0, in order to enter the
+	 * AddressMode0. Keeping the INT pin low during the reset sequence
+	 * should result in the device selecting an I2C address of 0x5D.
+	 * Note that if an alternate I2C address is set, we will probe
+	 * for the alternate address if 0x5D does not work. This is useful
+	 * for boards that do not route the INT pin, or only permit it
+	 * to be used as an input
+	 */
+	r = gpio_pin_configure_dt(&config->int_gpio, GPIO_OUTPUT_INACTIVE);
+	if (r < 0) {
+		LOG_ERR("Could not configure int GPIO pin");
+		return r;
 	}
 	/* Delay at least 10 ms after power on before we configure gt911 */
 	k_sleep(K_MSEC(20));
@@ -385,8 +425,30 @@ static int gt911_init(const struct device *dev)
 		      K_MSEC(CONFIG_INPUT_GT911_PERIOD_MS));
 #endif
 
+#if CONFIG_PM
+	/* We need to reconfigure the interrupt GPIO when waking up from
+	 * certain low power modes.
+	 */
+	pm_notifier_register(&data->pm_notifier_handle);
+#endif
 	return 0;
 }
+
+#if CONFIG_PM
+#define GT911_PM_NOTIFIER_FUNCS(n)                                                                 \
+static void gt911_##n##_pm_state_exit(enum pm_state state)                                         \
+{                                                                                                  \
+	gt911_pm_state_exit(DEVICE_DT_INST_GET(n), state);                                         \
+}
+
+#define GT911_PM_NOTIFIER(n)                                                                       \
+	.pm_notifier_handle = {                                                                    \
+		.state_exit = gt911_##n##_pm_state_exit,                                           \
+	},
+#else
+#define GT911_PM_NOTIFIER_FUNCS(n)
+#define GT911_PM_NOTIFIER(n)
+#endif /* CONFIG_PM */
 
 #define GT911_INIT(index)                                                                          \
 	static const struct gt911_config gt911_config_##index = {                                  \
@@ -395,7 +457,10 @@ static int gt911_init(const struct device *dev)
 		.int_gpio = GPIO_DT_SPEC_INST_GET(index, irq_gpios),                               \
 		.alt_addr = DT_INST_PROP_OR(index, alt_addr, 0),                                   \
 	};                                                                                         \
-	static struct gt911_data gt911_data_##index;                                               \
+	GT911_PM_NOTIFIER_FUNCS(index)                                                             \
+	static struct gt911_data gt911_data_##index = {                                            \
+		GT911_PM_NOTIFIER(index)                                                           \
+	};                                                                                         \
 	DEVICE_DT_INST_DEFINE(index, gt911_init, NULL, &gt911_data_##index, &gt911_config_##index, \
 			      POST_KERNEL, CONFIG_INPUT_INIT_PRIORITY, NULL);
 

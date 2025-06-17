@@ -28,9 +28,10 @@
 #include <zephyr/types.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 /** @brief Number of bits that make up a type */
-#define NUM_BITS(t) (sizeof(t) * 8)
+#define NUM_BITS(t) (sizeof(t) * BITS_PER_BYTE)
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,6 +58,15 @@ extern "C" {
 #	error Missing required predefined macros for BITS_PER_LONG calculation
 #endif
 
+/** Number of bits in a byte. */
+#define BITS_PER_BYTE (__CHAR_BIT__)
+
+/** Number of bits in a nibble. */
+#define BITS_PER_NIBBLE (__CHAR_BIT__ / 2)
+
+/** Number of nibbles in a byte. */
+#define NIBBLES_PER_BYTE (BITS_PER_BYTE / BITS_PER_NIBBLE)
+
 /** Number of bits in a long int. */
 #define BITS_PER_LONG	(__CHAR_BIT__ * __SIZEOF_LONG__)
 
@@ -76,22 +86,6 @@ extern "C" {
  */
 #define GENMASK64(h, l) \
 	(((~0ULL) - (1ULL << (l)) + 1) & (~0ULL >> (BITS_PER_LONG_LONG - 1 - (h))))
-
-/** @brief Extract the Least Significant Bit from @p value. */
-#define LSB_GET(value) ((value) & -(value))
-
-/**
- * @brief Extract a bitfield element from @p value corresponding to
- *	  the field mask @p mask.
- */
-#define FIELD_GET(mask, value)  (((value) & (mask)) / LSB_GET(mask))
-
-/**
- * @brief Prepare a bitfield element using @p value with @p mask representing
- *	  its field position and width. The result should be combined
- *	  with other fields using a logical OR.
- */
-#define FIELD_PREP(mask, value) (((value) * LSB_GET(mask)) & (mask))
 
 /** @brief 0 if @p cond is true-ish; causes a compile error otherwise. */
 #define ZERO_OR_COMPILE_ERROR(cond) ((int) sizeof(char[1 - 2 * !(cond)]) - 1)
@@ -373,9 +367,10 @@ extern "C" {
  *
  * @return The result of @p n / @p d, rounded to the nearest integer.
  */
-#define DIV_ROUND_CLOSEST(n, d)	\
-	((((n) < 0) ^ ((d) < 0)) ? ((n) - ((d) / 2)) / (d) : \
-	((n) + ((d) / 2)) / (d))
+#define DIV_ROUND_CLOSEST(n, d)                                                                    \
+	(((((__typeof__(n))-1) < 0) && (((__typeof__(d))-1) < 0) && ((n) < 0) ^ ((d) < 0))         \
+		 ? ((n) - ((d) / 2)) / (d)                                                         \
+		 : ((n) + ((d) / 2)) / (d))
 
 #ifndef MAX
 /**
@@ -718,7 +713,7 @@ char *utf8_lcpy(char *dst, const char *src, size_t n);
  *
  * @return ceil(log2(x)) when 1 <= x <= max(type(x)), 0 when x < 1
  */
-#define LOG2CEIL(x) ((x) < 1 ?  0 : __z_log2((x)-1) + 1)
+#define LOG2CEIL(x) ((x) <= 1 ?  0 : __z_log2((x)-1) + 1)
 
 /**
  * @brief Compute next highest power of two
@@ -787,6 +782,40 @@ static inline void mem_xor_32(uint8_t dst[4], const uint8_t src1[4], const uint8
 static inline void mem_xor_128(uint8_t dst[16], const uint8_t src1[16], const uint8_t src2[16])
 {
 	mem_xor_n(dst, src1, src2, 16);
+}
+
+/**
+ * @brief Compare memory areas. The same way as `memcmp` it assume areas to be
+ * the same length
+ *
+ * @param m1 First memory area to compare, cannot be NULL even if length is 0
+ * @param m2 Second memory area to compare, cannot be NULL even if length is 0
+ * @param n First n bytes of @p m1 and @p m2 to compares
+ *
+ * @returns true if the @p n first bytes of @p m1 and @p m2 are the same, else
+ * false
+ */
+static inline bool util_memeq(const void *m1, const void *m2, size_t n)
+{
+	return memcmp(m1, m2, n) == 0;
+}
+
+/**
+ * @brief Compare memory areas and their length
+ *
+ * If the length are 0, return true.
+ *
+ * @param m1 First memory area to compare, cannot be NULL even if length is 0
+ * @param len1 Length of the first memory area to compare
+ * @param m2 Second memory area to compare, cannot be NULL even if length is 0
+ * @param len2 Length of the second memory area to compare
+ *
+ * @returns true if both the length of the memory areas and their content are
+ * equal else false
+ */
+static inline bool util_eq(const void *m1, size_t len1, const void *m2, size_t len2)
+{
+	return len1 == len2 && (m1 == m2 || util_memeq(m1, m2, len1));
 }
 
 #ifdef __cplusplus

@@ -14,9 +14,6 @@
 	compatible = "st,steval_stwinbx1";
 
 	chosen {
-		zephyr,console = &cdc_acm_uart0;
-		zephyr,shell-uart = &cdc_acm_uart0;
-
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
@@ -26,10 +23,12 @@
 
 	leds {
 		compatible = "gpio-leds";
+
 		green_led: led_1 {
 			gpios = <&gpioh 12 GPIO_ACTIVE_HIGH>;
 			label = "LED_1";
 		};
+
 		orange_led: led_2 {
 			gpios = <&gpioh 10 GPIO_ACTIVE_HIGH>;
 			label = "LED_2";
@@ -47,6 +46,7 @@
 
 	gpio_keys {
 		compatible = "gpio-keys";
+
 		user_button: button {
 			label = "User";
 			gpios = <&gpioe 0 GPIO_ACTIVE_HIGH>;
@@ -157,19 +157,20 @@ stm32_lp_tick_source: &lptim1 {
 	cs-gpios = <&gpioh 6 GPIO_ACTIVE_LOW>,
 		   <&gpioh 15 GPIO_ACTIVE_LOW>,
 		   <&gpioi 7 GPIO_ACTIVE_LOW>;
+
 	iis2dlpc: iis2dlpc@0 {
 		compatible = "st,iis2dlpc";
 		spi-max-frequency = <DT_FREQ_M(10)>;
 		reg = <0>;
 		drdy-gpios = <&gpiof 1 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
-		drdy-int =  <1>;
+		drdy-int = <1>;
 	};
 
 	ism330dhcx: ism330dhcx@1 {
 		compatible = "st,ism330dhcx";
 		spi-max-frequency = <DT_FREQ_M(10)>;
 		reg = <1>;
-		drdy-gpios =  <&gpiob 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+		drdy-gpios = <&gpiob 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 		int-pin = <1>;
 	};
 
@@ -178,7 +179,7 @@ stm32_lp_tick_source: &lptim1 {
 		spi-max-frequency = <DT_FREQ_M(10)>;
 		reg = <2>;
 		drdy-gpios = <&gpiof 11 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
-		int-pin =  <2>;
+		int-pin = <2>;
 	};
 };
 
@@ -187,6 +188,7 @@ stm32_lp_tick_source: &lptim1 {
 	pinctrl-names = "default";
 	status = "okay";
 	cs-gpios = <&gpioe 1 GPIO_ACTIVE_LOW>;
+
 	hci_spi: bluenrg-2@0 {
 		compatible = "st,hci-spi-v2";
 		reg = <0>;
@@ -218,6 +220,12 @@ stm32_lp_tick_source: &lptim1 {
 		drdy-gpios = <&gpiof 9 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	ilps22qs@5c {
+		compatible = "st,ilps22qs";
+		reg = <0x5c>;
+		status = "okay";
+	};
 };
 
 &timers5 {
@@ -244,16 +252,14 @@ zephyr_udc0: &usbotg_fs {
 	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
 	pinctrl-names = "default";
 	status = "okay";
-
-	cdc_acm_uart0: cdc_acm_uart0 {
-		compatible = "zephyr,cdc-acm-uart";
-	};
 };
+
+#include <../boards/common/usb/cdc_acm_serial.dtsi>
 
 &adc1 {
 	pinctrl-0 = <&adc1_in1_pc0>;
 	pinctrl-names = "default";
-	st,adc-clock-source = <ASYNC>;
+	st,adc-clock-source = "ASYNC";
 	st,adc-prescaler = <4>;
 	vref-mv = <2750>;
 	status = "okay";
@@ -262,7 +268,7 @@ zephyr_udc0: &usbotg_fs {
 &adc4 {
 	pinctrl-0 = <&adc4_in3_pc2>;
 	pinctrl-names = "default";
-	st,adc-clock-source = <ASYNC>;
+	st,adc-clock-source = "ASYNC";
 	st,adc-prescaler = <4>;
 	vref-mv = <2750>;
 	status = "okay";
@@ -293,6 +299,7 @@ zephyr_udc0: &usbotg_fs {
 	cd-gpios = <&gpiog 1 GPIO_ACTIVE_LOW>;
 	bus-width = <4>;
 	clk-div = <4>;
+	disk-name = "SD";
 };
 
 &flash0 {
@@ -310,23 +317,26 @@ zephyr_udc0: &usbotg_fs {
 			label = "mcuboot";
 			reg = <0x00000000 DT_SIZE_K(64)>;
 		};
+
 		slot0_partition: partition@10000 {
 			label = "image-0";
 			reg = <0x00010000 DT_SIZE_K(416)>;
 		};
+
 		slot1_partition: partition@78000 {
 			label = "image-1";
 			reg = <0x00078000 DT_SIZE_K(416)>;
 		};
+
 		scratch_partition: partition@e0000 {
 			label = "image-scratch";
 			reg = <0x000e0000 DT_SIZE_K(64)>;
 		};
+
 		storage_partition: partition@f0000 {
 			label = "storage";
 			reg = <0x000f0000 DT_SIZE_K(64)>;
 		};
-
 	};
 };
 

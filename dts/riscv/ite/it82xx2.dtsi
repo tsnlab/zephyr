@@ -561,10 +561,10 @@
 					 NO_FUNC  NO_FUNC  0xf03e11 NO_FUNC>;
 			func3-en-mask = <0x04     0x08     0x02     0x02
 					 0        0        0x10     0      >;
-			func4-gcr =     <NO_FUNC NO_FUNC   NO_FUNC  NO_FUNC
-					 NO_FUNC NO_FUNC   NO_FUNC  NO_FUNC>;
-			func4-en-mask = <0       0         0        0
-					 0       0         0        0      >;
+			func4-gcr =     <0xf03e17 NO_FUNC  NO_FUNC  NO_FUNC
+					 NO_FUNC  NO_FUNC  NO_FUNC  NO_FUNC>;
+			func4-en-mask = <BIT(5)   0        0        0
+					 0        0        0        0      >;
 			volt-sel =      <0xf0164d 0xf0164d 0xf0164d 0xf0164d
 					 0xf0164d 0xf0164d 0xf0164d 0xf0164d>;
 			volt-sel-mask = <BIT(0)   BIT(1)   BIT(2)   BIT(3)
@@ -1015,6 +1015,16 @@
 		sha0: crypto@f03c00 {
 			compatible = "ite,it8xxx2-sha-v2";
 			reg = <0x00f03c00 0x5>;
+			status = "disabled";
+		};
+
+		spi0: spi@f02600  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "ite,it8xxx2-spi";
+			reg = <0x00f02600 0x34>;
+			interrupt-parent = <&intc>;
+			interrupts = <37 IRQ_TYPE_EDGE_RISING>;
 			status = "disabled";
 		};
 	};

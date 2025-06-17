@@ -1,18 +1,29 @@
 /*
- * Copyright (c) 2024 Nordic Semiconductor
+ * Copyright (c) 2024-2025 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "common.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
+#include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/gap.h>
+#include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/bluetooth/iso.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/logging/log_core.h>
+#include <zephyr/net_buf.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys_clock.h>
 
 #include "babblekit/flags.h"
 #include "babblekit/sync.h"
 #include "babblekit/testcase.h"
+#include "bstests.h"
 
 LOG_MODULE_REGISTER(bis_broadcaster, LOG_LEVEL_INF);
 
@@ -27,7 +38,7 @@ NET_BUF_POOL_FIXED_DEFINE(tx_pool, CONFIG_BT_ISO_TX_BUF_COUNT,
 			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
 			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 
-static DEFINE_FLAG(flag_iso_connected);
+DEFINE_FLAG_STATIC(flag_iso_connected);
 
 static void send_data_cb(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(iso_send_work, send_data_cb);
@@ -89,13 +100,58 @@ static void send_data_cb(struct k_work *work)
 
 static void iso_connected_cb(struct bt_iso_chan *chan)
 {
+	const struct bt_iso_chan_path hci_path = {
+		.pid = BT_ISO_DATA_PATH_HCI,
+		.format = BT_HCI_CODING_FORMAT_TRANSPARENT,
+	};
+	struct bt_iso_info info;
+	int err;
+
 	LOG_INF("ISO Channel %p connected", chan);
+
+	err = bt_iso_chan_get_info(chan, &info);
+	TEST_ASSERT(err == 0, "Failed to get BIS info: %d", err);
+
+	TEST_ASSERT(!info.can_recv);
+	TEST_ASSERT(info.can_send);
+	TEST_ASSERT(info.type == BT_ISO_CHAN_TYPE_BROADCASTER);
+	TEST_ASSERT((BT_GAP_ISO_INTERVAL_TO_US(info.iso_interval) % SDU_INTERVAL_US) == 0U,
+		    "ISO interval %u (%u) shall be a multiple of the SDU interval %u",
+		    BT_GAP_ISO_INTERVAL_TO_US(info.iso_interval), info.iso_interval,
+		    SDU_INTERVAL_US);
+	TEST_ASSERT(IN_RANGE(info.iso_interval, BT_ISO_ISO_INTERVAL_MIN, BT_ISO_ISO_INTERVAL_MAX),
+		    "Invalid ISO interval 0x%04x", info.iso_interval);
+	TEST_ASSERT(IN_RANGE(info.max_subevent, BT_ISO_NSE_MIN, BT_ISO_NSE_MAX),
+		    "Invalid subevent number 0x%02x", info.max_subevent);
+	TEST_ASSERT(IN_RANGE(info.broadcaster.sync_delay, BT_HCI_LE_BIG_SYNC_DELAY_MIN,
+			     BT_HCI_LE_BIG_SYNC_DELAY_MAX),
+		    "Invalid sync delay 0x%06x", info.broadcaster.sync_delay);
+	TEST_ASSERT(IN_RANGE(info.broadcaster.latency, BT_HCI_LE_TRANSPORT_LATENCY_BIG_MIN,
+			     BT_HCI_LE_TRANSPORT_LATENCY_BIG_MAX),
+		    "Invalid transport latency 0x%06x", info.broadcaster.latency);
+	TEST_ASSERT((info.broadcaster.pto % info.iso_interval) == 0U,
+		    "PTO in ms %u shall be a multiple of the ISO interval %u", info.broadcaster.pto,
+		    info.iso_interval);
+	TEST_ASSERT(IN_RANGE((info.broadcaster.pto / info.iso_interval), BT_ISO_PTO_MIN,
+			     BT_ISO_PTO_MAX),
+		    "Invalid PTO 0x%x", (info.broadcaster.pto / info.iso_interval));
+	TEST_ASSERT(info.broadcaster.phy == BT_GAP_LE_PHY_1M ||
+			    info.broadcaster.phy == BT_GAP_LE_PHY_2M ||
+			    info.broadcaster.phy == BT_GAP_LE_PHY_CODED,
+		    "Invalid PHY 0x%02x", info.broadcaster.phy);
+	TEST_ASSERT(IN_RANGE(info.broadcaster.bn, BT_ISO_BN_MIN, BT_ISO_BN_MAX),
+		    "Invalid BN 0x%02x", info.broadcaster.bn);
+	TEST_ASSERT(IN_RANGE(info.broadcaster.irc, BT_ISO_IRC_MIN, BT_ISO_IRC_MAX),
+		    "Invalid IRC 0x%02x", info.broadcaster.irc);
 
 	if (chan == default_chan) {
 		seq_num = 0U;
 
 		SET_FLAG(flag_iso_connected);
 	}
+
+	err = bt_iso_setup_data_path(chan, BT_HCI_DATAPATH_DIR_HOST_TO_CTLR, &hci_path);
+	TEST_ASSERT(err == 0, "Failed to set ISO data path: %d", err);
 }
 
 static void iso_disconnected_cb(struct bt_iso_chan *chan, uint8_t reason)
@@ -130,7 +186,6 @@ static void init(void)
 		.sdu = CONFIG_BT_ISO_TX_MTU,
 		.phy = BT_GAP_LE_PHY_2M,
 		.rtn = 1,
-		.path = NULL,
 	};
 	static struct bt_iso_chan_qos iso_qos = {
 		.tx = &iso_tx,
@@ -308,15 +363,11 @@ static const struct bst_test_instance test_def[] = {
 	{
 		.test_id = "broadcaster",
 		.test_descr = "Minimal BIS broadcaster that broadcast ISO data",
-		.test_pre_init_f = test_init,
-		.test_tick_f = test_tick,
 		.test_main_f = test_main,
 	},
 	{
 		.test_id = "broadcaster_disable",
 		.test_descr = "BIS broadcaster that tests bt_disable for ISO",
-		.test_pre_init_f = test_init,
-		.test_tick_f = test_tick,
 		.test_main_f = test_main_disable,
 	},
 	BSTEST_END_MARKER,

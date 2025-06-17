@@ -67,21 +67,24 @@ static int dht_sample_fetch(const struct device *dev,
 	uint8_t buf[5];
 	unsigned int i, j;
 
-#if defined(CONFIG_DHT_LOCK_IRQS)
-	int lock;
-#endif
-
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
+
+#if defined(CONFIG_DHT_LOCK_IRQS)
+	/* Get the lock before any pin interaction since irq_lock has a */
+	/* potential of causing delays itself.                          */
+	int lock = irq_lock();
+#endif
 
 	/* assert to send start signal */
 	gpio_pin_set_dt(&cfg->dio_gpio, true);
 
-#if defined(CONFIG_DHT_LOCK_IRQS)
-	lock = irq_lock();
-#endif
-
 	k_busy_wait(DHT_START_SIGNAL_DURATION);
 
+	/* set the state back to logic LOW (voltage HIGH) so that the   */
+	/* subsequent call to dht_measure_signal duration waits for the */
+	/* DHT sensor to set it back to HIGH (voltage LOW).             */
+	/* Failure to do this would cause that subsequent call to       */
+	/* return immediately.                                          */
 	gpio_pin_set_dt(&cfg->dio_gpio, false);
 
 	/* switch to DIR_IN to read sensor signals */
@@ -230,7 +233,7 @@ static int dht_channel_get(const struct device *dev,
 	return 0;
 }
 
-static const struct sensor_driver_api dht_api = {
+static DEVICE_API(sensor, dht_api) = {
 	.sample_fetch = &dht_sample_fetch,
 	.channel_get = &dht_channel_get,
 };

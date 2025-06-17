@@ -1,14 +1,17 @@
 /*
- * Copyright (c) 2024 Nordic Semiconductor
+ * Copyright (c) 2024-2025 Nordic Semiconductor
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "common.h"
+#include <stdint.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/gap.h>
+#include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/bluetooth/iso.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
 #include "babblekit/flags.h"
 #include "babblekit/sync.h"
@@ -20,11 +23,11 @@ LOG_MODULE_REGISTER(bis_receiver, LOG_LEVEL_INF);
 
 extern enum bst_result_t bst_result;
 
-static DEFINE_FLAG(flag_broadcaster_found);
-static DEFINE_FLAG(flag_iso_connected);
-static DEFINE_FLAG(flag_data_received);
-static DEFINE_FLAG(flag_pa_synced);
-static DEFINE_FLAG(flag_biginfo);
+DEFINE_FLAG_STATIC(flag_broadcaster_found);
+DEFINE_FLAG_STATIC(flag_iso_connected);
+DEFINE_FLAG_STATIC(flag_data_received);
+DEFINE_FLAG_STATIC(flag_pa_synced);
+DEFINE_FLAG_STATIC(flag_biginfo);
 
 static struct bt_iso_chan iso_chans[CONFIG_BT_ISO_MAX_CHAN];
 static struct bt_le_scan_recv_info broadcaster_info;
@@ -80,9 +83,43 @@ static void iso_recv(struct bt_iso_chan *chan, const struct bt_iso_recv_info *in
 
 static void iso_connected(struct bt_iso_chan *chan)
 {
+	const struct bt_iso_chan_path hci_path = {
+		.pid = BT_ISO_DATA_PATH_HCI,
+		.format = BT_HCI_CODING_FORMAT_TRANSPARENT,
+	};
+	struct bt_iso_info info;
+	int err;
+
 	LOG_INF("ISO Channel %p connected", chan);
 
+	err = bt_iso_chan_get_info(chan, &info);
+	TEST_ASSERT(err == 0, "Failed to get BIS info: %d", err);
+
+	TEST_ASSERT(info.can_recv);
+	TEST_ASSERT(!info.can_send);
+	TEST_ASSERT(info.type == BT_ISO_CHAN_TYPE_SYNC_RECEIVER);
+	TEST_ASSERT(IN_RANGE(info.iso_interval, BT_ISO_ISO_INTERVAL_MIN, BT_ISO_ISO_INTERVAL_MAX),
+		    "Invalid ISO interval 0x%04x", info.iso_interval);
+	TEST_ASSERT(IN_RANGE(info.max_subevent, BT_ISO_NSE_MIN, BT_ISO_NSE_MAX),
+		    "Invalid subevent number 0x%02x", info.max_subevent);
+	TEST_ASSERT(IN_RANGE(info.sync_receiver.latency, BT_HCI_LE_TRANSPORT_LATENCY_BIG_MIN,
+			     BT_HCI_LE_TRANSPORT_LATENCY_BIG_MAX),
+		    "Invalid transport latency 0x%06x", info.sync_receiver.latency);
+	TEST_ASSERT((info.sync_receiver.pto % info.iso_interval) == 0U,
+		    "PTO in ms %u shall be a multiple of the ISO interval %u",
+		    info.sync_receiver.pto, info.iso_interval);
+	TEST_ASSERT(IN_RANGE((info.sync_receiver.pto / info.iso_interval), BT_ISO_PTO_MIN,
+			     BT_ISO_PTO_MAX),
+		    "Invalid PTO 0x%x", (info.sync_receiver.pto / info.iso_interval));
+	TEST_ASSERT(IN_RANGE(info.sync_receiver.bn, BT_ISO_BN_MIN, BT_ISO_BN_MAX),
+		    "Invalid BN 0x%02x", info.sync_receiver.bn);
+	TEST_ASSERT(IN_RANGE(info.sync_receiver.irc, BT_ISO_IRC_MIN, BT_ISO_IRC_MAX),
+		    "Invalid IRC 0x%02x", info.sync_receiver.irc);
+
 	SET_FLAG(flag_iso_connected);
+
+	err = bt_iso_setup_data_path(chan, BT_HCI_DATAPATH_DIR_CTLR_TO_HOST, &hci_path);
+	TEST_ASSERT(err == 0, "Failed to setup ISO RX data path: %d\n", err);
 }
 
 static void iso_disconnected(struct bt_iso_chan *chan, uint8_t reason)
@@ -176,18 +213,18 @@ static void init(void)
 
 static uint16_t interval_to_sync_timeout(uint16_t pa_interval)
 {
-	uint32_t interval_ms;
-	uint16_t pa_timeout;
+	uint32_t interval_us;
 	uint32_t timeout;
 
 	/* Add retries and convert to unit in 10's of ms */
-	interval_ms = BT_GAP_PER_ADV_INTERVAL_TO_MS(pa_interval);
-	timeout = (interval_ms * PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO) / 10U;
+	interval_us = BT_GAP_PER_ADV_INTERVAL_TO_US(pa_interval);
+	timeout =
+		BT_GAP_US_TO_PER_ADV_SYNC_TIMEOUT(interval_us) * PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO;
 
 	/* Enforce restraints */
-	pa_timeout = CLAMP(timeout, BT_GAP_PER_ADV_MIN_TIMEOUT, BT_GAP_PER_ADV_MAX_TIMEOUT);
+	timeout = CLAMP(timeout, BT_GAP_PER_ADV_MIN_TIMEOUT, BT_GAP_PER_ADV_MAX_TIMEOUT);
 
-	return pa_timeout;
+	return timeout;
 }
 
 static void scan_and_sync_pa(struct bt_le_per_adv_sync **out_sync)
@@ -267,8 +304,6 @@ static const struct bst_test_instance test_def[] = {
 	{
 		.test_id = "receiver",
 		.test_descr = "receiver",
-		.test_pre_init_f = test_init,
-		.test_tick_f = test_tick,
 		.test_main_f = test_main,
 	},
 	BSTEST_END_MARKER,

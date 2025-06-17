@@ -8,13 +8,15 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/__assert.h>
 
-#include <zephyr/net/buf.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/bluetooth/buf.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/hci_raw.h>
+#include <zephyr/bluetooth/hci_types.h>
 
+#include "common/hci_common_internal.h"
 #include "common/bt_str.h"
 
 #include "host/conn_internal.h"
@@ -44,7 +46,7 @@ DEFINE_FLAG(is_connected);
 static K_FIFO_DEFINE(rx_queue);
 
 #define CMD_BUF_SIZE MAX(BT_BUF_EVT_RX_SIZE, BT_BUF_CMD_TX_SIZE)
-NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, CONFIG_BT_BUF_CMD_TX_COUNT,
+NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, BT_BUF_CMD_TX_COUNT,
 			  CMD_BUF_SIZE, 8, NULL);
 
 #define MAX_CMD_COUNT 1
@@ -67,9 +69,7 @@ struct net_buf *bt_hci_cmd_create(uint16_t opcode, uint8_t param_len)
 
 	LOG_DBG("buf %p", buf);
 
-	net_buf_reserve(buf, BT_BUF_RESERVE);
-
-	bt_buf_set_type(buf, BT_BUF_CMD);
+	net_buf_add_u8(buf, BT_HCI_H4_CMD);
 
 	hdr = net_buf_add(buf, sizeof(*hdr));
 	hdr->opcode = sys_cpu_to_le16(opcode);
@@ -234,9 +234,10 @@ static void recv(struct net_buf *buf)
 {
 	LOG_HEXDUMP_DBG(buf->data, buf->len, "HCI RX");
 
+	uint8_t type = net_buf_pull_u8(buf);
 	uint8_t code = buf->data[0];
 
-	if (bt_buf_get_type(buf) == BT_BUF_EVT) {
+	if (type == BT_HCI_H4_EVT) {
 		switch (code) {
 		case BT_HCI_EVT_CMD_COMPLETE:
 		case BT_HCI_EVT_CMD_STATUS:
@@ -263,7 +264,7 @@ static void recv(struct net_buf *buf)
 		return;
 	}
 
-	if (bt_buf_get_type(buf) == BT_BUF_ACL_IN) {
+	if (type == BT_HCI_H4_ACL) {
 		handle_acl(buf);
 		net_buf_unref(buf);
 		return;
@@ -282,7 +283,7 @@ static void send_cmd(uint16_t opcode, struct net_buf *cmd, struct net_buf **rsp)
 	}
 
 	k_sem_take(&cmd_sem, K_FOREVER);
-	TEST_ASSERT(active_opcode == 0xFFFF, "");
+	TEST_ASSERT_NO_MSG(active_opcode == 0xFFFF);
 
 	__ASSERT_NO_MSG(opcode);
 	active_opcode = opcode;
@@ -352,7 +353,7 @@ static void set_event_mask(uint16_t opcode)
 
 	/* The two commands have the same length/params */
 	buf = bt_hci_cmd_create(opcode, sizeof(*cp_mask));
-	TEST_ASSERT(buf, "");
+	TEST_ASSERT_NO_MSG(buf);
 
 	/* Forward all events */
 	cp_mask = net_buf_add(buf, sizeof(*cp_mask));
@@ -370,7 +371,7 @@ static void set_random_address(void)
 	LOG_DBG("%s", bt_addr_str(&addr.a));
 
 	buf = bt_hci_cmd_create(BT_HCI_OP_LE_SET_RANDOM_ADDRESS, sizeof(addr.a));
-	TEST_ASSERT(buf, "");
+	TEST_ASSERT_NO_MSG(buf);
 
 	net_buf_add_mem(buf, &addr.a, sizeof(addr.a));
 	send_cmd(BT_HCI_OP_LE_SET_RANDOM_ADDRESS, buf, NULL);
@@ -402,7 +403,7 @@ static void start_adv(uint16_t interval, const char *name, size_t name_len)
 	set_param.channel_map = 0x07;
 	set_param.filter_policy = BT_LE_ADV_FP_NO_FILTER;
 	set_param.type = BT_HCI_ADV_IND;
-	set_param.own_addr_type = 0x01; /* random */
+	set_param.own_addr_type = BT_HCI_OWN_ADDR_RANDOM;
 
 	buf = bt_hci_cmd_create(BT_HCI_OP_LE_SET_ADV_PARAM, sizeof(set_param));
 	__ASSERT_NO_MSG(buf);
@@ -465,7 +466,7 @@ static int send_acl(struct net_buf *buf, uint8_t flags)
 	hdr->handle = sys_cpu_to_le16(bt_acl_handle_pack(conn_handle, flags));
 	hdr->len = sys_cpu_to_le16(buf->len - sizeof(*hdr));
 
-	bt_buf_set_type(buf, BT_BUF_ACL_OUT);
+	net_buf_push_u8(buf, BT_HCI_H4_ACL);
 
 	k_sem_take(&acl_pkts, K_FOREVER);
 

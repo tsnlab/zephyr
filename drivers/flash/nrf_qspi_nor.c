@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021, Nordic Semiconductor ASA
+ * Copyright (c) 2019-2024, Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -41,7 +41,7 @@ struct qspi_nor_data {
 	 */
 	volatile bool ready;
 #endif /* CONFIG_MULTITHREADING */
-	bool xip_enabled;
+	uint32_t xip_users;
 };
 
 struct qspi_nor_config {
@@ -313,7 +313,7 @@ static void qspi_acquire(const struct device *dev)
 
 	qspi_lock(dev);
 
-	if (!dev_data->xip_enabled) {
+	if (dev_data->xip_users == 0) {
 		qspi_clock_div_change();
 
 		pm_device_busy_set(dev);
@@ -331,7 +331,7 @@ static void qspi_release(const struct device *dev)
 	deactivate = atomic_dec(&dev_data->usage_count) == 1;
 #endif
 
-	if (!dev_data->xip_enabled) {
+	if (dev_data->xip_users == 0) {
 		qspi_clock_div_restore();
 
 		if (deactivate) {
@@ -482,11 +482,16 @@ static int qspi_rdsr(const struct device *dev, uint8_t sr_num)
 }
 
 /* Wait until RDSR confirms write is not in progress. */
-static int qspi_wait_while_writing(const struct device *dev)
+static int qspi_wait_while_writing(const struct device *dev, k_timeout_t poll_period)
 {
 	int rc;
 
 	do {
+#ifdef CONFIG_MULTITHREADING
+		if (!K_TIMEOUT_EQ(poll_period, K_NO_WAIT)) {
+			k_sleep(poll_period);
+		}
+#endif
 		rc = qspi_rdsr(dev, 1);
 	} while ((rc >= 0)
 		 && ((rc & SPI_NOR_WIP_BIT) != 0U));
@@ -557,7 +562,7 @@ static int qspi_wrsr(const struct device *dev, uint8_t sr_val, uint8_t sr_num)
 	 * corrupted.  Wait.
 	 */
 	if (rc == 0) {
-		rc = qspi_wait_while_writing(dev);
+		rc = qspi_wait_while_writing(dev, K_NO_WAIT);
 	}
 
 	return rc;
@@ -602,6 +607,16 @@ static int qspi_erase(const struct device *dev, uint32_t addr, uint32_t size)
 		if (res == NRFX_SUCCESS) {
 			addr += adj;
 			size -= adj;
+
+			/* Erasing flash pages takes a significant period of time and the
+			 * flash memory is unavailable to perform additional operations
+			 * until done.
+			 */
+			rc = qspi_wait_while_writing(dev, K_MSEC(10));
+			if (rc < 0) {
+				LOG_ERR("wait error at 0x%lx size %zu", (long)addr, size);
+				break;
+			}
 		} else {
 			LOG_ERR("erase error at 0x%lx size %zu", (long)addr, size);
 			rc = qspi_get_zephyr_ret_code(res);
@@ -1161,11 +1176,21 @@ qspi_flash_get_parameters(const struct device *dev)
 	return &qspi_flash_parameters;
 }
 
-static const struct flash_driver_api qspi_nor_api = {
+int qspi_nor_get_size(const struct device *dev, uint64_t *size)
+{
+	ARG_UNUSED(dev);
+
+	*size = (uint64_t)(INST_0_BYTES);
+
+	return 0;
+}
+
+static DEVICE_API(flash, qspi_nor_api) = {
 	.read = qspi_nor_read,
 	.write = qspi_nor_write,
 	.erase = qspi_nor_erase,
 	.get_parameters = qspi_flash_get_parameters,
+	.get_size = qspi_nor_get_size,
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = qspi_nor_pages_layout,
 #endif
@@ -1319,23 +1344,54 @@ static int qspi_nor_pm_action(const struct device *dev,
 }
 #endif /* CONFIG_PM_DEVICE */
 
+static void on_xip_enable(const struct device *dev)
+{
+#if NRF_QSPI_HAS_XIPEN
+	nrf_qspi_xip_set(NRF_QSPI, true);
+#endif
+	(void)nrfx_qspi_activate(false);
+}
+
+static void on_xip_disable(const struct device *dev)
+{
+	/* It turns out that when the QSPI peripheral is deactivated
+	 * after a XIP transaction, it cannot be later successfully
+	 * reactivated and an attempt to perform another XIP transaction
+	 * results in the CPU being hung; even a debug session cannot be
+	 * started then and the SoC has to be recovered.
+	 * As a workaround, at least until the cause of such behavior
+	 * is fully clarified, perform a simple non-XIP transaction
+	 * (a read of the status register) before deactivating the QSPI.
+	 * This prevents the issue from occurring.
+	 */
+	(void)qspi_rdsr(dev, 1);
+
+#if NRF_QSPI_HAS_XIPEN
+	nrf_qspi_xip_set(NRF_QSPI, false);
+#endif
+}
+
 void z_impl_nrf_qspi_nor_xip_enable(const struct device *dev, bool enable)
 {
 	struct qspi_nor_data *dev_data = dev->data;
 
-	if (dev_data->xip_enabled == enable) {
-		return;
-	}
-
 	qspi_acquire(dev);
 
-#if NRF_QSPI_HAS_XIPEN
-	nrf_qspi_xip_set(NRF_QSPI, enable);
-#endif
 	if (enable) {
-		(void)nrfx_qspi_activate(false);
+		if (dev_data->xip_users == 0) {
+			on_xip_enable(dev);
+		}
+
+		++dev_data->xip_users;
+	} else if (dev_data->xip_users == 0) {
+		LOG_ERR("Unbalanced XIP disabling");
+	} else {
+		--dev_data->xip_users;
+
+		if (dev_data->xip_users == 0) {
+			on_xip_disable(dev);
+		}
 	}
-	dev_data->xip_enabled = enable;
 
 	qspi_release(dev);
 }

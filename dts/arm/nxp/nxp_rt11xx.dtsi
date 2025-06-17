@@ -1,5 +1,5 @@
 /*
- * Copyright 2021,2023-2024 NXP
+ * Copyright 2021,2023-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -88,6 +88,15 @@
 	};
 
 	soc {
+		dac: dac@40064000 {
+			compatible = "nxp,dac12";
+			reg = <0x40064000 0x4000>;
+			interrupts = <63 0>;
+			voltage-reference = <2>;
+			status = "disabled";
+			#io-channel-cells = <1>;
+		};
+
 		flexspi: spi@400cc000 {
 			compatible = "nxp,imx-flexspi";
 			reg = <0x400cc000 0x4000>;
@@ -303,7 +312,7 @@
 		};
 
 		lpi2c1: i2c@40104000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -314,7 +323,7 @@
 		};
 
 		lpi2c2: i2c@40108000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -325,7 +334,7 @@
 		};
 
 		lpi2c3: i2c@4010c000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -336,7 +345,7 @@
 		};
 
 		lpi2c4: i2c@40110000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -347,7 +356,7 @@
 		};
 
 		lpi2c5: i2c@40c34000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -358,7 +367,7 @@
 		};
 
 		lpi2c6: i2c@40c38000 {
-			compatible = "nxp,imx-lpi2c";
+			compatible = "nxp,lpi2c";
 			clock-frequency = <I2C_BITRATE_STANDARD>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -411,67 +420,79 @@
 		};
 
 		lpspi1: spi@40114000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x40114000 0x4000>;
 			interrupts = <38 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI1_CLK 0x6c 0>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpspi2: spi@40118000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x40118000 0x4000>;
 			interrupts = <39 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI2_CLK 0x6c 2>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpspi3: spi@4011c000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x4011c000 0x4000>;
 			interrupts = <40 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI3_CLK 0x6c 4>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpspi4: spi@40120000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x40120000 0x4000>;
 			interrupts = <41 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI4_CLK 0x6c 6>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpspi5: spi@40c2c000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x40c2c000 0x4000>;
 			interrupts = <42 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI5_CLK 0x6c 6>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpspi6: spi@40c30000 {
-			compatible = "nxp,imx-lpspi";
+			compatible = "nxp,lpspi";
 			reg = <0x40c30000 0x4000>;
 			interrupts = <43 3>;
 			status = "disabled";
 			clocks = <&ccm IMX_CCM_LPSPI6_CLK 0x6c 6>;
+			rx-fifo-size = <16>;
+			tx-fifo-size = <16>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
 
 		lpuart1: uart@4007c000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x4007c000 0x4000>;
 			interrupts = <20 0>;
 			clocks = <&ccm IMX_CCM_LPUART1_CLK 0x7c 24>;
@@ -479,7 +500,7 @@
 		};
 
 		lpuart2: uart@40080000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40080000 0x4000>;
 			interrupts = <21 0>;
 			clocks = <&ccm IMX_CCM_LPUART2_CLK 0x68 28>;
@@ -487,7 +508,7 @@
 		};
 
 		lpuart3: uart@40084000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40084000 0x4000>;
 			interrupts = <22 0>;
 			clocks = <&ccm IMX_CCM_LPUART3_CLK 0x68 12>;
@@ -495,7 +516,7 @@
 		};
 
 		lpuart4: uart@40088000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40088000 0x4000>;
 			interrupts = <23 0>;
 			clocks = <&ccm IMX_CCM_LPUART4_CLK 0x6c 24>;
@@ -503,7 +524,7 @@
 		};
 
 		lpuart5: uart@4008c000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x4008c000 0x4000>;
 			interrupts = <24 0>;
 			clocks = <&ccm IMX_CCM_LPUART5_CLK 0x74 2>;
@@ -511,7 +532,7 @@
 		};
 
 		lpuart6: uart@40090000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40090000 0x4000>;
 			interrupts = <25 0>;
 			clocks = <&ccm IMX_CCM_LPUART6_CLK 0x74 6>;
@@ -519,7 +540,7 @@
 		};
 
 		lpuart7: uart@40094000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40094000 0x4000>;
 			interrupts = <26 0>;
 			clocks = <&ccm IMX_CCM_LPUART7_CLK 0x7c 26>;
@@ -527,7 +548,7 @@
 		};
 
 		lpuart8: uart@40098000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40098000 0x4000>;
 			interrupts = <27 0>;
 			clocks = <&ccm IMX_CCM_LPUART8_CLK 0x80 14>;
@@ -535,7 +556,7 @@
 		};
 
 		lpuart9: uart@4009c000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x4009c000 0x4000>;
 			interrupts = <28 0>;
 			clocks = <&ccm IMX_CCM_LPUART9_CLK 0x80 14>;
@@ -543,7 +564,7 @@
 		};
 
 		lpuart10: uart@400a0000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x400a0000 0x4000>;
 			interrupts = <29 0>;
 			clocks = <&ccm IMX_CCM_LPUART10_CLK 0x80 14>;
@@ -551,7 +572,7 @@
 		};
 
 		lpuart11: uart@40c24000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40c24000 0x4000>;
 			interrupts = <30 0>;
 			clocks = <&ccm IMX_CCM_LPUART11_CLK 0x80 14>;
@@ -559,7 +580,7 @@
 		};
 
 		lpuart12: uart@40c28000 {
-			compatible = "nxp,kinetis-lpuart";
+			compatible = "nxp,lpuart";
 			reg = <0x40c28000 0x4000>;
 			interrupts = <31 0>;
 			clocks = <&ccm IMX_CCM_LPUART12_CLK 0x80 14>;
@@ -750,6 +771,22 @@
 			};
 		};
 
+		flexio1: flexio@400ac000 {
+			compatible = "nxp,flexio";
+			reg = <0x400ac000 0x4000>;
+			interrupts = <110 0>;
+			clocks = <&ccm IMX_CCM_FLEXIO1_CLK 0 0>;
+			status = "disabled";
+		};
+
+		flexio2: flexio@400b0000 {
+			compatible = "nxp,flexio";
+			reg = <0x400b0000 0x4000>;
+			interrupts = <111 0>;
+			clocks = <&ccm IMX_CCM_FLEXIO2_CLK 0 0>;
+			status = "disabled";
+		};
+
 		enet: ethernet@40424000 {
 			compatible = "nxp,enet";
 			reg = <0x40424000 0x628>;
@@ -872,11 +909,10 @@
 			reg = <0x40800000 0x4000>;
 			interrupts = <56 1>;
 			status = "disabled";
-			source = <&mipi_csi2rx>;
 
 			port {
 				csi_ep_in: endpoint {
-					remote-endpoint = <&mipi_csi2rx_ep_out>;
+					remote-endpoint-label = "mipi_csi2rx_ep_out";
 				};
 			};
 		};
@@ -885,6 +921,9 @@
 			compatible = "nxp,mipi-csi2rx";
 			reg = <0x40810000 0x200>;
 			status = "disabled";
+			clocks = <&ccm IMX_CCM_MIPI_CSI2RX_ROOT_CLK 0 0>,
+			<&ccm IMX_CCM_MIPI_CSI2RX_UI_CLK 0 0>,
+			<&ccm IMX_CCM_MIPI_CSI2RX_ESC_CLK 0 0>;
 
 			ports {
 				#address-cells = <1>;
@@ -893,7 +932,7 @@
 				port@0 {
 					reg = <0>;
 					mipi_csi2rx_ep_out: endpoint {
-						remote-endpoint = <&csi_ep_in>;
+						remote-endpoint-label = "csi_ep_in";
 					};
 				};
 
@@ -958,13 +997,11 @@
 			reg = <0x202c0000 DT_SIZE_K(512)>;
 		};
 
-		lpadc0: lpadc@40050000 {
+		lpadc0: adc@40050000 {
 			compatible = "nxp,lpc-lpadc";
 			reg = <0x40050000 0x304>;
 			interrupts = <88 0>;
 			status = "disabled";
-			clk-divider = <8>;
-			clk-source = <0>;
 			voltage-ref= <1>;
 			calibration-average = <128>;
 			power-level = <0>;
@@ -974,7 +1011,7 @@
 			clocks = <&ccm IMX_CCM_LPADC1_CLK 0 0>;
 		};
 
-		lpadc1: lpadc@40054000 {
+		lpadc1: adc@40054000 {
 			compatible = "nxp,lpc-lpadc";
 			reg = <0x40054000 0x304>;
 			interrupts = <89 0>;
@@ -995,7 +1032,6 @@
 			reg = <0x401a4000 0x4000>;
 			interrupts = <157 0>;
 			status = "disabled";
-			#io-channel-cells = <2>;
 		};
 
 		acmp2: cmp@401a8000 {
@@ -1003,7 +1039,6 @@
 			reg = <0x401a8000 0x4000>;
 			interrupts = <158 0>;
 			status = "disabled";
-			#io-channel-cells = <2>;
 		};
 
 		acmp3: cmp@401ac000 {
@@ -1011,7 +1046,6 @@
 			reg = <0x401ac000 0x4000>;
 			interrupts = <159 0>;
 			status = "disabled";
-			#io-channel-cells = <2>;
 		};
 
 		acmp4: cmp@401b0000 {
@@ -1019,7 +1053,6 @@
 			reg = <0x401b0000 0x4000>;
 			interrupts = <160 0>;
 			status = "disabled";
-			#io-channel-cells = <2>;
 		};
 
 		anatop: anatop@40c84000 {
@@ -1032,10 +1065,11 @@
 		edma0: dma-controller@40070000 {
 			#dma-cells = <2>;
 			compatible = "nxp,mcux-edma";
+			nxp,version = <2>;
 			dma-channels = <32>;
 			dma-requests = <208>;
 			nxp,mem2mem;
-			nxp,a_on;
+			nxp,a-on;
 			reg = <0x40070000 0x4000>,
 				<0x40074000 0x4000>;
 			clocks = <&ccm IMX_CCM_EDMA_CLK 0x7C 0x000000C0>;
@@ -1043,18 +1077,18 @@
 			interrupts = <0 0>, <1 0>, <2 0>, <3 0>,
 				<4 0>, <5 0>, <6 0>, <7 0>,
 				<8 0>, <9 0>, <10 0>, <11 0>,
-				<12 0>, <13 0>, <14 0>, <15 0>,
-				<16 0>;
+				<12 0>, <13 0>, <14 0>, <15 0>;
 			irq-shared-offset = <16>;
 		};
 
 		edma_lpsr0: dma-controller@40c14000 {
 			#dma-cells = <2>;
 			compatible = "nxp,mcux-edma";
+			nxp,version = <2>;
 			dma-channels = <32>;
 			dma-requests = <208>;
 			nxp,mem2mem;
-			nxp,a_on;
+			nxp,a-on;
 			reg = <0x40c14000 0x4000>,
 				<0x40c18000 0x4000>;
 			clocks = <&ccm IMX_CCM_EDMA_LPSR_CLK 0x7C 0x000000C0>;
@@ -1062,8 +1096,7 @@
 			interrupts = <0 0>, <1 0>, <2 0>, <3 0>,
 				<4 0>, <5 0>, <6 0>, <7 0>,
 				<8 0>, <9 0>, <10 0>, <11 0>,
-				<12 0>, <13 0>, <14 0>, <15 0>,
-				<16 0>;
+				<12 0>, <13 0>, <14 0>, <15 0>;
 			irq-shared-offset = <16>;
 		};
 
@@ -1091,12 +1124,12 @@
 			/* Source from audio PLL */
 			clock-mux = <4>;
 			pre-div = <0>;
-			podf = <4>;
+			podf = <16>;
 			pll-clocks = <&anatop 0 0 0>,
-					<&anatop 0 0 30>,
+					<&anatop 0 0 32>,
 					<&anatop 0 0 1>,
-					<&anatop 0 0 77>,
-					<&anatop 0 0 100>;
+					<&anatop 0 0 768>,
+					<&anatop 0 0 1000>;
 			pll-clock-names = "src", "lp", "pd", "num", "den";
 			pinmuxes = <&iomuxcgpr 0x0 0x100>;
 			interrupts = <76 0>;
@@ -1114,12 +1147,12 @@
 			/* Source from audio PLL */
 			clock-mux = <4>;
 			pre-div = <0>;
-			podf = <63>;
+			podf = <16>;
 			pll-clocks = <&anatop 0 0 0>,
-					<&anatop 0 0 30>,
+					<&anatop 0 0 32>,
 					<&anatop 0 0 1>,
-					<&anatop 0 0 77>,
-					<&anatop 0 0 100>;
+					<&anatop 0 0 768>,
+					<&anatop 0 0 1000>;
 			pll-clock-names = "src", "lp", "pd", "num", "den";
 			pinmuxes = <&iomuxcgpr 0x4 0x100>;
 			interrupts = <77 0>;
@@ -1137,12 +1170,12 @@
 			/* Source from audio PLL */
 			clock-mux = <4>;
 			pre-div = <0>;
-			podf = <63>;
+			podf = <16>;
 			pll-clocks = <&anatop 0 0 0>,
-					<&anatop 0 0 30>,
+					<&anatop 0 0 32>,
 					<&anatop 0 0 1>,
-					<&anatop 0 0 77>,
-					<&anatop 0 0 100>;
+					<&anatop 0 0 768>,
+					<&anatop 0 0 1000>;
 			pll-clock-names = "src", "lp", "pd", "num", "den";
 			pinmuxes = <&iomuxcgpr 0x8 0x100>;
 			interrupts = <78 0>, <79 0>;
@@ -1160,12 +1193,12 @@
 			/* Source from audio PLL */
 			clock-mux = <6>;
 			pre-div = <0>;
-			podf = <63>;
+			podf = <16>;
 			pll-clocks = <&anatop 0 0 0>,
-					<&anatop 0 0 30>,
+					<&anatop 0 0 32>,
 					<&anatop 0 0 1>,
-					<&anatop 0 0 77>,
-					<&anatop 0 0 100>;
+					<&anatop 0 0 768>,
+					<&anatop 0 0 1000>;
 			pll-clock-names = "src", "lp", "pd", "num", "den";
 			pinmuxes = <&iomuxcgpr 0x8 0x200>;
 			interrupts = <80 0>, <81 0>;

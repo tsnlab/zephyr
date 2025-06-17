@@ -1,7 +1,4 @@
-.. _01space_esp32c3_042_oled:
-
-ESP32C3 0.42 OLED
-#################
+.. zephyr:board:: esp32c3_042_oled
 
 Overview
 ********
@@ -10,12 +7,6 @@ ESP32C3 0.42 OLED is a mini development board based on the `Espressif ESP32-C3`_
 RISC-V WiFi/Bluetooth dual-mode chip.
 
 For more details see the `01space ESP32C3 0.42 OLED`_ Github repo.
-
-.. figure:: img/esp32c3_042_oled.webp
-   :align: center
-   :alt: 01space ESP32C3 0.42 OLED
-
-   01space ESP32C3 0.42 OLED
 
 Hardware
 ********
@@ -43,31 +34,7 @@ It features:
 Supported Features
 ==================
 
-The 01space ESP32C3 0.42 OLED board configuration supports the following hardware features:
-
-+-----------+------------+------------------+
-| Interface | Controller | Driver/Component |
-+===========+============+==================+
-| PMP       | on-chip    | arch/riscv       |
-+-----------+------------+------------------+
-| INTMTRX   | on-chip    | intc_esp32c3     |
-+-----------+------------+------------------+
-| PINMUX    | on-chip    | pinctrl_esp32    |
-+-----------+------------+------------------+
-| USB UART  | on-chip    | serial_esp32_usb |
-+-----------+------------+------------------+
-| GPIO      | on-chip    | gpio_esp32       |
-+-----------+------------+------------------+
-| UART      | on-chip    | uart_esp32       |
-+-----------+------------+------------------+
-| I2C       | on-chip    | i2c_esp32        |
-+-----------+------------+------------------+
-| SPI       | on-chip    | spi_esp32_spim   |
-+-----------+------------+------------------+
-| RADIO     | on-chip    | Bluetooth        |
-+-----------+------------+------------------+
-| DISPLAY   | off-chip   | display          |
-+-----------+------------+------------------+
+.. zephyr:board-supported-hw::
 
 Connections and IOs
 ===================
@@ -100,6 +67,8 @@ retrieve those files.
 Programming and Debugging
 *************************
 
+.. zephyr:board-supported-runners::
+
 Standalone application
 ======================
 
@@ -130,7 +99,7 @@ To build the sample application using sysbuild, use this command:
 
 .. zephyr-app-commands::
    :tool: west
-   :app: samples/hello_world
+   :zephyr-app: samples/hello_world
    :board: esp32c3_042_oled
    :goals: build
    :west-args: --sysbuild

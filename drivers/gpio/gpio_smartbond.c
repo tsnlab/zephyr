@@ -379,7 +379,7 @@ static int gpio_smartbond_pm_action(const struct device *dev,
 #endif /* CONFIG_PM_DEVICE */
 
 /* GPIO driver registration */
-static const struct gpio_driver_api gpio_smartbond_drv_api_funcs = {
+static DEVICE_API(gpio, gpio_smartbond_drv_api_funcs) = {
 	.pin_configure = gpio_smartbond_pin_configure,
 	.port_get_raw = gpio_smartbond_port_get_raw,
 	.port_set_masked_raw = gpio_smartbond_port_set_masked_raw,
@@ -430,9 +430,9 @@ static const struct gpio_driver_api gpio_smartbond_drv_api_funcs = {
 		return 0;								\
 	}										\
 											\
-	PM_DEVICE_DEFINE(id, gpio_smartbond_pm_action);					\
+	PM_DEVICE_DT_INST_DEFINE(id, gpio_smartbond_pm_action);				\
 	DEVICE_DT_INST_DEFINE(id, gpio_smartbond_init_##id,				\
-			      PM_DEVICE_GET(id),					\
+			      PM_DEVICE_DT_INST_GET(id),				\
 			      &gpio_smartbond_data_##id,				\
 			      &gpio_smartbond_config_##id,				\
 			      PRE_KERNEL_1,						\

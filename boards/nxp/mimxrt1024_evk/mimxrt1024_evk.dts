@@ -21,12 +21,14 @@
 		magn0 = &fxos8700;
 		accel0 = &fxos8700;
 		sdhc0 = &usdhc1;
+		mcuboot-button0 = &user_button;
 	};
 
 	chosen {
 		zephyr,flash-controller = &w25q32jvwj0;
 		zephyr,flash = &w25q32jvwj0;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,uart-mcumgr = &lpuart1;
 		zephyr,sram = &sdram0;
 		zephyr,itcm = &itcm;
 		zephyr,dtcm = &dtcm;
@@ -100,20 +102,22 @@ arduino_serial: &lpuart2 {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+
+		/*
+		 * Partition sizes must be aligned
+		 * to the flash memory sector size of 4KB.
+		 */
 		boot_partition: partition@0 {
 			label = "mcuboot";
 			reg = <0x00000000 DT_SIZE_K(128)>;
 		};
-		/* The MCUBoot swap-move algorithm uses the last 2 sectors
-		 * of the primary slot0 for swap status and move.
-		 */
 		slot0_partition: partition@20000 {
 			label = "image-0";
-			reg = <0x00020000 (DT_SIZE_K(1920) + DT_SIZE_K(8))>;
+			reg = <0x00020000 DT_SIZE_K(1924)>;
 		};
-		slot1_partition: partition@202000 {
+		slot1_partition: partition@201000 {
 			label = "image-1";
-			reg = <0x00202000 DT_SIZE_K(1920)>;
+			reg = <0x00201000 DT_SIZE_K(1924)>;
 		};
 		storage_partition: partition@3E2000 {
 			label = "storage";
@@ -239,6 +243,7 @@ zephyr_udc0: &usb1 {
 	no-1-8-v;
 	sdmmc {
 		compatible = "zephyr,sdmmc-disk";
+		disk-name = "SD";
 		status = "okay";
 	};
 };

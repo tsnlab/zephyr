@@ -503,9 +503,9 @@ static int lmp90xxx_adc_start_read(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	if (!lmp90xxx_has_channel(dev, find_msb_set(sequence->channels) - 1)) {
-		LOG_ERR("unsupported channels in mask: 0x%08x",
-			sequence->channels);
+	if (sequence->channels == 0 ||
+	    !lmp90xxx_has_channel(dev, find_msb_set(sequence->channels) - 1)) {
+		LOG_ERR("unsupported channels in mask: 0x%08x", sequence->channels);
 		return -ENOTSUP;
 	}
 
@@ -1036,7 +1036,7 @@ static int lmp90xxx_init(const struct device *dev)
 	return 0;
 }
 
-static const struct adc_driver_api lmp90xxx_adc_api = {
+static DEVICE_API(adc, lmp90xxx_adc_api) = {
 	.channel_setup = lmp90xxx_adc_channel_setup,
 	.read = lmp90xxx_adc_read,
 #ifdef CONFIG_ADC_ASYNC

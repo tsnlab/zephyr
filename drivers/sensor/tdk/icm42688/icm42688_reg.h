@@ -254,9 +254,9 @@
 #define BIT_FIFO_WM_GT_TH      BIT(5)
 #define BIT_FIFO_HIRES_EN      BIT(4)
 #define BIT_FIFO_TMST_FSYNC_EN BIT(3)
-#define BIT_FIFO_GYRO_EN       BIT(2)
-#define BIT_FIFO_ACCEL_EN      BIT(1)
-#define BIT_FIFO_TEMP_EN       BIT(0)
+#define BIT_FIFO_TEMP_EN       BIT(2)
+#define BIT_FIFO_GYRO_EN       BIT(1)
+#define BIT_FIFO_ACCEL_EN      BIT(0)
 
 /* Bank0 INT_SOURCE0 */
 #define BIT_UI_FSYNC_INT1_EN	    BIT(6)
@@ -275,6 +275,9 @@
 #define BIT_INT_TPULSE_DURATION	  BIT(6)
 #define BIT_INT_TDEASSERT_DISABLE BIT(5)
 #define BIT_INT_ASYNC_RESET	  BIT(4)
+
+/* Bank1 REG_INTF_CONFIG5 */
+#define MASK_PIN9_FUNCTION GENMASK(2, 1)
 
 /* misc. defines */
 #define WHO_AM_I_ICM42688     0x47

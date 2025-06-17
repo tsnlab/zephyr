@@ -29,14 +29,11 @@
 		zephyr,bt-hci-ipc = &ipc0;
 		nordic,802154-spinel-ipc = &ipc0;
 	};
+
 	aliases {
 		ipc-to-cpusys = &cpurad_cpusys_ipc;
 		resetinfo = &cpurad_resetinfo;
 	};
-};
-
-&shared_ram3x_region {
-	status = "okay";
 };
 
 &cpuapp_cpurad_ram0x_region {
@@ -104,7 +101,6 @@ ipc0: &cpuapp_cpurad_ipc {
 	pinctrl-0 = <&uart135_default>;
 	pinctrl-1 = <&uart135_sleep>;
 	pinctrl-names = "default", "sleep";
-	hw-flow-control;
 };
 
 &uart136 {

@@ -7,6 +7,7 @@
 #   elfconvert_flag_final         : empty
 #   elfconvert_flag_strip_all     : -S
 #   elfconvert_flag_strip_debug   : -g
+#   elfconvert_flag_strip_unneeded: --strip-unneeded
 #   elfconvert_flag_compress_debug_sections: --compress-debug-sections
 #   elfconvert_flag_intarget      : --input-target=
 #   elfconvert_flag_outtarget     : --output-target=
@@ -26,14 +27,15 @@
 set_property(TARGET bintools PROPERTY elfconvert_command ${CMAKE_OBJCOPY})
 
 # List of format the tool supports for converting, for example,
-# GNU tools uses objectcopy, which supports the following: ihex, srec, binary
-set_property(TARGET bintools PROPERTY elfconvert_formats ihex srec binary)
+# GNU tools uses objectcopy, which supports the following: ihex, srec, binary, mot
+set_property(TARGET bintools PROPERTY elfconvert_formats ihex srec binary mot)
 
 set_property(TARGET bintools PROPERTY elfconvert_flag "")
 set_property(TARGET bintools PROPERTY elfconvert_flag_final "")
 
 set_property(TARGET bintools PROPERTY elfconvert_flag_strip_all "-S")
 set_property(TARGET bintools PROPERTY elfconvert_flag_strip_debug "-g")
+set_property(TARGET bintools PROPERTY elfconvert_flag_strip_unneeded "--strip-unneeded")
 
 set_property(TARGET bintools PROPERTY elfconvert_flag_compress_debug_sections "--compress-debug-sections")
 

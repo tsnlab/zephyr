@@ -45,8 +45,9 @@ static int sqn_hwspinlock_trylock(const struct device *dev, uint32_t id)
 	const struct sqn_hwspinlock_config *config = dev->config;
 	uint8_t cpuid;
 
-	if (id > config->num_locks)
+	if (id > config->num_locks) {
 		return -EINVAL;
+	}
 
 	/*
 	 * If the register value is equal to cpuid, this means that the current
@@ -122,7 +123,7 @@ static uint32_t sqn_hwspinlock_get_max_id(const struct device *dev)
 	return config->num_locks;
 }
 
-static const struct hwspinlock_driver_api hwspinlock_api = {
+static DEVICE_API(hwspinlock, hwspinlock_api) = {
 	.trylock = sqn_hwspinlock_trylock,
 	.lock = sqn_hwspinlock_lock,
 	.unlock = sqn_hwspinlock_unlock,

@@ -25,7 +25,7 @@ LOG_MODULE_REGISTER(bt_apollox_driver);
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/clock_control_ambiq.h>
 
-#include <am_mcu_apollo.h>
+#include <soc.h>
 #include "apollox_blue.h"
 #if (CONFIG_SOC_SERIES_APOLLO4X)
 #include "am_devices_cooper.h"
@@ -337,6 +337,25 @@ int bt_apollo_controller_init(spi_transmit_fun transmit)
 
 	irq_enable(DT_IRQN(SPI_DEV_NODE));
 #endif /* CONFIG_SOC_SERIES_APOLLO4X */
+
+	return ret;
+}
+
+int bt_apollo_controller_deinit(void)
+{
+	int ret = -ENOTSUP;
+
+#if (CONFIG_SOC_SERIES_APOLLO3X)
+	irq_disable(DT_IRQN(SPI_DEV_NODE));
+
+	ret = am_apollo3_bt_controller_deinit();
+	if (ret == AM_HAL_STATUS_SUCCESS) {
+		LOG_INF("BT controller deinitialized");
+	} else {
+		ret = -EPERM;
+		LOG_ERR("BT controller deinitialization fails");
+	}
+#endif /* CONFIG_SOC_SERIES_APOLLO3X */
 
 	return ret;
 }

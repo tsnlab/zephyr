@@ -275,6 +275,7 @@ struct ptp_msg *ptp_msg_from_pkt(struct net_pkt *pkt)
 		/* remove packet temporarily. */
 		buf = pkt->buffer;
 		pkt->buffer = buf->frags;
+		buf->frags = NULL;
 
 		hdr = net_udp_get_hdr(pkt, NULL);
 
@@ -328,6 +329,7 @@ void ptp_msg_pre_send(struct ptp_msg *msg)
 		msg_port_id_pre_send(&msg->pdelay_resp.req_port_id);
 		break;
 	case PTP_MSG_FOLLOW_UP:
+		msg_timestamp_pre_send(&msg->follow_up.precise_origin_timestamp);
 		break;
 	case PTP_MSG_DELAY_RESP:
 		msg_timestamp_pre_send(&msg->delay_resp.receive_timestamp);

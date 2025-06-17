@@ -34,31 +34,22 @@ static struct pollfd sockfd_tcp[1] = {
 static void receive_data(bool is_udp, struct net_socket_service_event *pev,
 			 char *buf, size_t buflen);
 
-static void tcp_service_handler(struct k_work *work)
+static void tcp_service_handler(struct net_socket_service_event *pev)
 {
-	struct net_socket_service_event *pev =
-		CONTAINER_OF(work, struct net_socket_service_event, work);
 	static char buf[1500];
 
-	/* Note that in this application we receive / send data from
-	 * system work queue. In proper application the socket reading and data
-	 * sending should be done so that the system work queue is not blocked.
-	 * It is possible to create a socket service that uses own work queue.
-	 */
 	receive_data(false, pev, buf, sizeof(buf));
 }
 
-static void udp_service_handler(struct k_work *work)
+static void udp_service_handler(struct net_socket_service_event *pev)
 {
-	struct net_socket_service_event *pev =
-		CONTAINER_OF(work, struct net_socket_service_event, work);
 	static char buf[1500];
 
 	receive_data(true, pev, buf, sizeof(buf));
 }
 
-NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(service_udp, NULL, udp_service_handler, MAX_SERVICES);
-NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(service_tcp, NULL, tcp_service_handler, MAX_SERVICES);
+NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(service_udp, udp_service_handler, MAX_SERVICES);
+NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(service_tcp, tcp_service_handler, MAX_SERVICES);
 
 static void receive_data(bool is_udp, struct net_socket_service_event *pev,
 			 char *buf, size_t buflen)
