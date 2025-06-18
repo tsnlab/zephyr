@@ -136,8 +136,10 @@
 			status = "okay";
 
 			rp1 {
+				compatible = "raspberrypi,rp1";
 				#address-cells = <2>;
 				#size-cells = <1>;
+				status = "okay";
 
 				gpio0: gpio@1f000d0000 {
 					compatible = "simple-bus";

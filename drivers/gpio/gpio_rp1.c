@@ -205,7 +205,6 @@ static int gpio_rp1_init(const struct device *port)
 	return 0;
 }
 
-/* TODO: POST_KERNEL is set to use printk, revert this after the development is done */
 #define GPIO_RP1_INIT(n)                                                                           \
 	static struct gpio_rp1_data gpio_rp1_data_##n;                                             \
                                                                                                    \
