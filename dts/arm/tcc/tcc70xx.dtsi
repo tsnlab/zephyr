@@ -236,5 +236,14 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
+
+		spi0: spi@a0100000 {
+			compatible = "tcc,tccvcp-spi";
+			reg = <0xa0100000 0x38>;
+			status = "disabled";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
 	};
 };

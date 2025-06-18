@@ -1,0 +1,9 @@
+# Copyright (c) 2025 Junho Lee <junho@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SPI_TCCVCP
+	bool "Telechips TOPST VCP SoC SPI Driver"
+	default y
+	depends on DT_HAS_TCC_TCCVCP_SPI_ENABLED
+	help
+	  Enable Driver for Telechips TOPST VCP SoC SPI Controller.
