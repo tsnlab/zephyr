@@ -231,6 +231,15 @@ static inline void trigger_irq(int irq)
 	z_vim_arm_enter_irq(irq);
 }
 
+#elif defined(CONFIG_CPU_CORTEX_R5) && defined(CONFIG_TIC)
+
+extern void z_tic_arm_enter_irq(int);
+
+static inline void trigger_irq(int irq)
+{
+    z_tic_arm_enter_irq(irq);
+}
+
 #elif defined(CONFIG_RX)
 #define IR_BASE_ADDRESS DT_REG_ADDR_BY_NAME(DT_NODELABEL(icu), IR)
 static inline void trigger_irq(int irq)
