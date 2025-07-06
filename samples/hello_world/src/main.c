@@ -8,7 +8,20 @@
 
 int main(void)
 {
-	printf("Hello World! %s\n", CONFIG_BOARD_TARGET);
+	int count = 0;
+
+	printk("Hello World! %s\n", CONFIG_BOARD_TARGET);
+
+	while (count < 10000000) {
+		printk("%d\n", g_hello_cnt);
+		count = 0;
+		while (count < 1000) {
+			count++;
+			printk("\rcount: %4d", count);
+		}
+		printk("\n");
+		g_hello_cnt++;
+	}
 
 	return 0;
 }
