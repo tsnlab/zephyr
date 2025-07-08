@@ -9,11 +9,3 @@ config UART_TCCVCP
 	select SERIAL_SUPPORT_INTERRUPT
 	help
 	  This option enables the UART driver for Telechips VCP platforms.
-
-config TCCVCP_UART_DEBUG_PORT
-	int "Telechips TCC VCP debug uart port"
-	range 0 5
-	default 1
-	depends on UART_TCCVCP
-	help
-	  This option the index of the UART to use for debug port.

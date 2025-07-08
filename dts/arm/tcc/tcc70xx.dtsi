@@ -11,7 +11,6 @@
 
 / {
 	soc {
-
 		flash0: flash@20000000 {
 			compatible = "soc-nv-flash";
 			reg = <0x20000000 DT_SIZE_M(2)>;
@@ -30,6 +29,7 @@
 		syscon: syscon@a0f24000 {
 			compatible = "syscon";
 			reg = <0xa0f24000 0x104>;
+
 			sysclk: sysclk {
 				compatible = "tcc,ccu";
 				#clock-cells = <1>;
@@ -211,7 +211,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-#if 0
 			gio_aon: gpio@0 {
 				compatible = "tcc,tccvcp-gpio";
 				reg = <0>;
@@ -220,7 +219,6 @@
 				ngpios = <29>;
 				status = "disabled";
 			};
-#endif
 		};
 
 		gpioc@a0f22080 {
@@ -237,15 +235,6 @@
 
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			gio_aon: gpio@0 {
-				compatible = "tcc,tccvcp-gpio";
-				reg = <0>;
-				gpio-controller;
-				#gpio-cells = <2>;
-				ngpios = <18>;
-				status = "disabled";
-			};
 		};
 	};
 };

@@ -3,6 +3,12 @@
 
 if SOC_TCC7045
 
+config ARM_CUSTOM_INTERRUPT_CONTROLLER
+	default y
+
+config GEN_IRQ_VECTOR_TABLE
+	default y
+
 config SHARED_INTERRUPTS
 	def_bool y
 
@@ -15,11 +21,11 @@ config TICKLESS_KERNEL
 config TCCVCP_CONSOLE
 	def_bool y
 
-config REQUIRES_FULL_LIBC
+config ARM_MPU
 	def_bool y
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-	default 12000000
+	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
 
 DT_CHOSEN_Z_FLASH := zephyr,flash
 

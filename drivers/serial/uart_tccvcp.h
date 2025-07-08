@@ -6,49 +6,48 @@
 #ifndef ZEPHYR_DRIVERS_SERIAL_UART_TCCVCP_H_
 #define ZEPHYR_DRIVERS_SERIAL_UART_TCCVCP_H_
 
-#define UART_POLLING_MODE (0U)
-#define UART_INTR_MODE    (1U)
-#define UART_DMA_MODE     (2U)
+#define UART_POLLING_MODE 0U
+#define UART_INTR_MODE    1U
+#define UART_DMA_MODE     2U
 
-#define UART_CTSRTS_ON  (1U)
-#define UART_CTSRTS_OFF (0U)
+#define UART_CTSRTS_ON  1U
+#define UART_CTSRTS_OFF 0U
 
-#define ENABLE_FIFO  (1U)
-#define DISABLE_FIFO (0U)
+#define ENABLE_FIFO  1U
+#define DISABLE_FIFO 0U
 
-#define TWO_STOP_BIT_ON  (1U)
-#define TWO_STOP_BIT_OFF (0U)
+#define TWO_STOP_BIT_ON  1U
+#define TWO_STOP_BIT_OFF 0U
 
 /* UART Channels */
-#define UART_CH0    (0U)
-#define UART_CH1    (1U)
-#define UART_CH2    (2U)
-#define UART_CH3    (3U)
-#define UART_CH4    (4U)
-#define UART_CH5    (5U)
-#define UART_CH_MAX (6U)
+#define UART_CH0    0U
+#define UART_CH1    1U
+#define UART_CH2    2U
+#define UART_CH3    3U
+#define UART_CH4    4U
+#define UART_CH5    5U
+#define UART_CH_MAX 6U
 
-#define UART_DEBUG_CH  (TCCVCP_UART_DEBUG_PORT)
-#define UART_DEBUG_CLK (48000000UL) /* 48MHz */
+#define UART_DEBUG_CLK 48000000UL /* 48MHz */
 
 /* UART Base address */
 #define UART_GET_BASE(n) (MCU_BSP_UART_BASE + (0x10000UL * (n)))
 
 /* UART Register (BASE Address + Offset) */
-#define UART_REG_DR    (0x00U) /* Data register */
-#define UART_REG_RSR   (0x04U) /* Receive Status register */
-#define UART_REG_ECR   (0x04U) /* Error Clear register */
-#define UART_REG_FR    (0x18U) /* Flag register */
-#define UART_REG_IBRD  (0x24U) /* Integer Baud rate register */
-#define UART_REG_FBRD  (0x28U) /* Fractional Baud rate register */
-#define UART_REG_LCRH  (0x2cU) /* Line Control register */
-#define UART_REG_CR    (0x30U) /* Control register */
-#define UART_REG_IFLS  (0x34U) /* Interrupt FIFO Level status register */
-#define UART_REG_IMSC  (0x38U) /* Interrupt Mask Set/Clear register */
-#define UART_REG_RIS   (0x3cU) /* Raw Interrupt Status register */
-#define UART_REG_MIS   (0x40U) /* Masked Interrupt Status register */
-#define UART_REG_ICR   (0x44U) /* Interrupt Clear register */
-#define UART_REG_DMACR (0x48U) /* DMA Control register */
+#define UART_REG_DR    0x00U /* Data register */
+#define UART_REG_RSR   0x04U /* Receive Status register */
+#define UART_REG_ECR   0x04U /* Error Clear register */
+#define UART_REG_FR    0x18U /* Flag register */
+#define UART_REG_IBRD  0x24U /* Integer Baud rate register */
+#define UART_REG_FBRD  0x28U /* Fractional Baud rate register */
+#define UART_REG_LCRH  0x2cU /* Line Control register */
+#define UART_REG_CR    0x30U /* Control register */
+#define UART_REG_IFLS  0x34U /* Interrupt FIFO Level status register */
+#define UART_REG_IMSC  0x38U /* Interrupt Mask Set/Clear register */
+#define UART_REG_RIS   0x3cU /* Raw Interrupt Status register */
+#define UART_REG_MIS   0x40U /* Masked Interrupt Status register */
+#define UART_REG_ICR   0x44U /* Interrupt Clear register */
+#define UART_REG_DMACR 0x48U /* DMA Control register */
 
 /* UART Flag Register(FR) Fields */
 #define UART_FR_TXFE (1UL << 7U) /* Transmit FIFO empty */
@@ -76,8 +75,8 @@
 #define UART_CR_LBE   (1UL << 7U)  /* Loopback enable */
 #define UART_CR_EN    (1UL << 0U)  /* UART enable */
 
-#define UART_TX_FIFO_SIZE (8UL)
-#define UART_RX_FIFO_SIZE (12UL)
+#define UART_TX_FIFO_SIZE 8UL
+#define UART_RX_FIFO_SIZE 12UL
 
 #define UART_INT_OEIS (1UL << 10U) /* Overrun error interrupt */
 #define UART_INT_BEIS (1UL << 9U)  /* Break error interrupt */
@@ -88,13 +87,13 @@
 #define UART_INT_RXIS (1UL << 4U)  /* Receive interrupt */
 
 /* UART Settings */
-#define UART_BUFF_SIZE (0x100UL) /* 256 */
+#define UART_BUFF_SIZE 0x100UL /* 256 */
 
-#define UART_MODE_TX (0UL)
-#define UART_MODE_RX (1UL)
+#define UART_MODE_TX 0UL
+#define UART_MODE_RX 1UL
 
-#define UART_PORT_CFG_MAX  (16U)
-#define UART_PORT_TBL_SIZE (UART_PORT_CFG_MAX)
+#define UART_PORT_CFG_MAX  16U
+#define UART_PORT_TBL_SIZE UART_PORT_CFG_MAX
 
 /* DMA Control Register (DMACR) Fields */
 #define UART_DMACR_DMAONERR (1UL << 2U) /* DMA on error */
@@ -103,7 +102,7 @@
 
 #define UART_BASE_ADDR DT_INST_REG_ADDR(0)
 
-#define TCC_GPNONE (0xFFFFUL)
+#define TCC_GPNONE 0xFFFFUL
 
 enum uart_word_len {
 	WORD_LEN_5 = 0,

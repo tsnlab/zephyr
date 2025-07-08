@@ -13,8 +13,6 @@ zephyr_sources_ifdef(
 
 zephyr_include_directories(.)
 
-zephyr_ld_options(--cref -Bstatic -nostdlib -nostartfiles -p -EL)
-
 if(CONFIG_SOC_TCC7045)
   set(SOC_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/linker.ld CACHE INTERNAL "")
 endif()
