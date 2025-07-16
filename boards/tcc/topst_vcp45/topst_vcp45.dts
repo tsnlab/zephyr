@@ -62,3 +62,8 @@
 	current-speed = <115200>;
 	clock-frequency = <48000000>;
 };
+
+&spi0 {
+	status = "okay";
+	clock-frequency = <12000000>;
+};
