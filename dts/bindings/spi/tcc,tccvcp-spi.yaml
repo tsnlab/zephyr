@@ -1,0 +1,30 @@
+# Copyright (c) 2025 Junho Lee <junho@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: Telechips TOPST VCP SoC SPI Driver
+
+compatible: "tcc,tccvcp-spi"
+
+include: [spi-controller.yaml]
+
+properties:
+  reg:
+    required: true
+  
+  clk-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI clock
+  
+  miso-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI MISO
+
+  mosi-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI MOSI

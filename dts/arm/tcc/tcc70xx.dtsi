@@ -8,6 +8,7 @@
 #include <freq.h>
 #include <arm/armv7-r.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/tcc-tic.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 
 / {
 	soc {
@@ -235,6 +236,20 @@
 
 			#address-cells = <1>;
 			#size-cells = <0>;
+		};
+
+		spi0: spi@a0100000 {
+			compatible = "tcc,tccvcp-spi";
+			reg = <0xa0100000 0x38>;
+			status = "disabled";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			clk-gpios = <&gio_aon 4 GPIO_ACTIVE_HIGH>;
+			mosi-gpios = <&gio_aon 6 GPIO_ACTIVE_HIGH>;
+			miso-gpios = <&gio_aon 7 GPIO_ACTIVE_HIGH>;
+			cs-gpios = <&gio_aon 5 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
