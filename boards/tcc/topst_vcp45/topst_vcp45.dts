@@ -9,6 +9,7 @@
 #include <arm/tcc/tcc70xx.dtsi>
 #include <arm/tcc/tcc7045.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/spi/spi.h>
 
 / {
 	compatible = "tcc,topst_vcc45";
