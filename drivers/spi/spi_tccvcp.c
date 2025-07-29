@@ -28,51 +28,51 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define SPI_CTRL(base)    (base + 0x10)
 #define SPI_EVTCTRL(base) (base + 0x14)
 
-#define SPI_STAT_RTH_LSB 0
-#define SPI_STAT_RTH_MASK (0x1 << SPI_STAT_RTH_LSB)
+#define SPI_STAT_RTH_LSB   0
+#define SPI_STAT_RTH_MASK  (0x1 << SPI_STAT_RTH_LSB)
 #define SPI_STAT_RTH(stat) (((stat & SPI_STAT_RTH_MASK) >> SPI_STAT_RTH_LSB) & 0x1)
 
-#define SPI_STAT_WTH_LSB 1
-#define SPI_STAT_WTH_MASK (0x1 << SPI_STAT_WTH_LSB)
+#define SPI_STAT_WTH_LSB   1
+#define SPI_STAT_WTH_MASK  (0x1 << SPI_STAT_WTH_LSB)
 #define SPI_STAT_WTH(stat) (((stat & SPI_STAT_WTH_MASK) >> SPI_STAT_WTH_LSB) & 0x1)
 
-#define SPI_STAT_WBVCNT_LSB 24
-#define SPI_STAT_WBVCNT_MASK (0x1f << SPI_STAT_WBVCNT_LSB)
+#define SPI_STAT_WBVCNT_LSB   24
+#define SPI_STAT_WBVCNT_MASK  (0x1f << SPI_STAT_WBVCNT_LSB)
 #define SPI_STAT_WBVCNT(stat) (((stat & SPI_STAT_WBVCNT_MASK) >> SPI_STAT_WBVCNT_LSB) & 0x1f)
 
-#define SPI_STAT_RBVCNT_LSB 16
-#define SPI_STAT_RBVCNT_MASK (0x1f << SPI_STAT_RBVCNT_LSB)
+#define SPI_STAT_RBVCNT_LSB   16
+#define SPI_STAT_RBVCNT_MASK  (0x1f << SPI_STAT_RBVCNT_LSB)
 #define SPI_STAT_RBVCNT(stat) (((stat & SPI_STAT_RBVCNT_MASK) >> SPI_STAT_RBVCNT_LSB) & 0x1f)
 
-#define SPI_MODE_MD_LSB 0
-#define SPI_MODE_MD_MASK (0x3 << SPI_MODE_MD_LSB)
-#define SPI_MODE_SLV_LSB 2
+#define SPI_MODE_MD_LSB   0
+#define SPI_MODE_MD_MASK  (0x3 << SPI_MODE_MD_LSB)
+#define SPI_MODE_SLV_LSB  2
 #define SPI_MODE_SLV_MASK (0x1 << SPI_MODE_SLV_LSB)
-#define SPI_MODE_EN_LSB 3
-#define SPI_MODE_EN_MASK (0x1 << SPI_MODE_EN_LSB)
-#define SPI_MODE_CTF_LSB 4
+#define SPI_MODE_EN_LSB   3
+#define SPI_MODE_EN_MASK  (0x1 << SPI_MODE_EN_LSB)
+#define SPI_MODE_CTF_LSB  4
 #define SPI_MODE_CTF_MASK (0x1 << SPI_MODE_CTF_LSB)
-#define SPI_MODE_SDO_LSB 5
+#define SPI_MODE_SDO_LSB  5
 #define SPI_MODE_SDO_MASK (0x1 << SPI_MODE_SDO_LSB)
-#define SPI_MODE_LB_LSB 6
-#define SPI_MODE_LB_MASK (0x1 << SPI_MODE_LB_LSB)
-#define SPI_MODE_SD_LSB 7
-#define SPI_MODE_SD_MASK (0x1 << SPI_MODE_SD_LSB)
-#define SPI_MODE_BPW_LSB 8
+#define SPI_MODE_LB_LSB   6
+#define SPI_MODE_LB_MASK  (0x1 << SPI_MODE_LB_LSB)
+#define SPI_MODE_SD_LSB   7
+#define SPI_MODE_SD_MASK  (0x1 << SPI_MODE_SD_LSB)
+#define SPI_MODE_BPW_LSB  8
 #define SPI_MODE_BPW_MASK (0x1f << SPI_MODE_BPW_LSB)
 
-#define SPI_MODE_PCK_LSB 16
+#define SPI_MODE_PCK_LSB  16
 #define SPI_MODE_PCK_MASK (0x1 << SPI_MODE_PCK_LSB)
-#define SPI_MODE_PRD_LSB 17
+#define SPI_MODE_PRD_LSB  17
 #define SPI_MODE_PRD_MASK (0x1 << SPI_MODE_PRD_LSB)
-#define SPI_MODE_PWD_LSB 18
+#define SPI_MODE_PWD_LSB  18
 #define SPI_MODE_PWD_MASK (0x1 << SPI_MODE_PWD_LSB)
-#define SPI_MODE_PCD_LSB 19
+#define SPI_MODE_PCD_LSB  19
 #define SPI_MODE_PCD_MASK (0x1 << SPI_MODE_PCD_LSB)
-#define SPI_MODE_PCS_LSB 20
+#define SPI_MODE_PCS_LSB  20
 #define SPI_MODE_PCS_MASK (0x1 << SPI_MODE_PCS_LSB)
 
-#define SPI_MODE_DIVLDV_LSB 24
+#define SPI_MODE_DIVLDV_LSB  24
 #define SPI_MODE_DIVLDV_MASK (0xff << SPI_MODE_DIVLDV_LSB)
 
 struct spi_tccvcp_config {
@@ -91,7 +91,6 @@ struct spi_tccvcp_data {
 	struct spi_context ctx;
 	uint8_t dfs;
 };
-
 
 #define DEV_CFG(dev)  ((const struct spi_tccvcp_config *)(dev)->config)
 #define DEV_DATA(dev) ((struct spi_tccvcp_data *)(dev)->data)
@@ -118,7 +117,8 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 	spi_mode &= ~SPI_MODE_DIVLDV_MASK;
 	spi_mode |= divldv << SPI_MODE_DIVLDV_LSB;
 
-	LOG_DBG("Given frequency: %u, Actual frequency: %u", spi_cfg->frequency, config->clock_freq / ((divldv + 1) * 2));
+	LOG_DBG("Given frequency: %u, Actual frequency: %u", spi_cfg->frequency,
+		config->clock_freq / ((divldv + 1) * 2));
 
 	if (spi_cfg->operation & SPI_OP_MODE_SLAVE) {
 		LOG_ERR("Slave mode is not supported");
@@ -189,13 +189,18 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 	return 0;
 }
 
-static int spi_tccvcp_xfer(const struct device *port) {
+static int spi_tccvcp_xfer(const struct device *port)
+{
 	struct spi_tccvcp_data *data = port->data;
 	volatile uint32_t stat, wth, rth, spi_data;
 
 	stat = sys_read32(SPI_STAT(data->reg_base));
-	wth = SPI_STAT_WTH(stat);  /* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold and there's room for more samples */
-	rth = SPI_STAT_RTH(stat);  /* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold and there're samples to be read */
+	/* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold
+	 * and there's room for more samples */
+	wth = SPI_STAT_WTH(stat);
+	/* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold
+	 * and there're samples to be read */
+	rth = SPI_STAT_RTH(stat);
 	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rth)) {
 		/* Tx */
 		if (spi_context_tx_buf_on(&data->ctx) && wth) {
@@ -207,7 +212,7 @@ static int spi_tccvcp_xfer(const struct device *port) {
 				spi_data = sys_get_be16(data->ctx.tx_buf);
 				break;
 			case 1:
-				spi_data = *(uint8_t*)data->ctx.tx_buf;
+				spi_data = *(uint8_t *)data->ctx.tx_buf;
 				break;
 			default:
 				LOG_ERR("Unsupported data size: %d", data->dfs * 8);
@@ -228,7 +233,7 @@ static int spi_tccvcp_xfer(const struct device *port) {
 				sys_put_be16(spi_data, data->ctx.rx_buf);
 				break;
 			case 1:
-				*(uint8_t*)data->ctx.rx_buf = spi_data;
+				*(uint8_t *)data->ctx.rx_buf = spi_data;
 				break;
 			default:
 				LOG_ERR("Unsupported data size: %d", data->dfs * 8);
@@ -240,18 +245,19 @@ static int spi_tccvcp_xfer(const struct device *port) {
 		stat = sys_read32(SPI_STAT(data->reg_base));
 		wth = SPI_STAT_WTH(stat);
 		rth = SPI_STAT_RTH(stat);
-		
+
 		/* TODO: Communicating with RPi needs this */
 		/* TODO: This needs to be tested with other devices */
 		volatile int iii = 100000;
-		while (iii--) { arch_nop(); }
+		while (iii--) {
+			arch_nop();
+		}
 	}
 
 	return 0;
 }
 
-static int spi_tccvcp_transceive(const struct device *port,
-				 const struct spi_config *spi_cfg,
+static int spi_tccvcp_transceive(const struct device *port, const struct spi_config *spi_cfg,
 				 const struct spi_buf_set *tx_bufs,
 				 const struct spi_buf_set *rx_bufs)
 {
@@ -271,8 +277,7 @@ end:
 	return ret;
 }
 
-static int spi_tccvcp_release(const struct device *port,
-			      const struct spi_config *config)
+static int spi_tccvcp_release(const struct device *port, const struct spi_config *config)
 {
 	return -ENOTSUP;
 }
@@ -317,8 +322,8 @@ static int spi_tccvcp_init(const struct device *port)
 	/* Configure SPI settings */
 	uint32_t spi_mode = sys_read32(SPI_MODE(data->reg_base));
 
-	spi_mode &= ~SPI_MODE_MD_MASK;   /* Other values than 0 are reserved */
-	spi_mode |= SPI_MODE_EN_MASK;    /* Enable SPI */
+	spi_mode &= ~SPI_MODE_MD_MASK; /* Other values than 0 are reserved */
+	spi_mode |= SPI_MODE_EN_MASK;  /* Enable SPI */
 
 	sys_write32(spi_mode, SPI_MODE(data->reg_base));
 
@@ -327,22 +332,21 @@ static int spi_tccvcp_init(const struct device *port)
 	return 0;
 }
 
-#define SPI_TCCVCP_INIT(n)                                                        \
-	static const struct spi_tccvcp_config spi_tccvcp_cfg_##n = {              \
-		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_DRV_INST(n)),             \
-		.clk_gpio = GPIO_DT_SPEC_INST_GET(n, clk_gpios),                  \
-		.miso_gpio = GPIO_DT_SPEC_INST_GET(n, miso_gpios),                \
-		.mosi_gpio = GPIO_DT_SPEC_INST_GET(n, mosi_gpios),                \
-		.cs_gpio = GPIO_DT_SPEC_INST_GET(n, cs_gpios),                    \
-		.clock_freq = DT_PROP(DT_DRV_INST(n), clock_frequency),           \
-	};                                                                        \
-	static struct spi_tccvcp_data spi_tccvcp_data_##n = {                     \
-		SPI_CONTEXT_INIT_LOCK(spi_tccvcp_data_##n, ctx),                  \
-		SPI_CONTEXT_INIT_SYNC(spi_tccvcp_data_##n, ctx),                  \
-		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)                             \
-	};                      \
+#define SPI_TCCVCP_INIT(n)                                                                         \
+	static const struct spi_tccvcp_config spi_tccvcp_cfg_##n = {                               \
+		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_DRV_INST(n)),                              \
+		.clk_gpio = GPIO_DT_SPEC_INST_GET(n, clk_gpios),                                   \
+		.miso_gpio = GPIO_DT_SPEC_INST_GET(n, miso_gpios),                                 \
+		.mosi_gpio = GPIO_DT_SPEC_INST_GET(n, mosi_gpios),                                 \
+		.cs_gpio = GPIO_DT_SPEC_INST_GET(n, cs_gpios),                                     \
+		.clock_freq = DT_PROP(DT_DRV_INST(n), clock_frequency),                            \
+	};                                                                                         \
+	static struct spi_tccvcp_data spi_tccvcp_data_##n = {                                      \
+		SPI_CONTEXT_INIT_LOCK(spi_tccvcp_data_##n, ctx),                                   \
+		SPI_CONTEXT_INIT_SYNC(spi_tccvcp_data_##n, ctx),                                   \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)};                             \
                                                                                                    \
-	DEVICE_DT_INST_DEFINE(n, spi_tccvcp_init, NULL, &spi_tccvcp_data_##n, &spi_tccvcp_cfg_##n,       \
+	DEVICE_DT_INST_DEFINE(n, spi_tccvcp_init, NULL, &spi_tccvcp_data_##n, &spi_tccvcp_cfg_##n, \
 			      POST_KERNEL, CONFIG_SPI_INIT_PRIORITY, &spi_tccvcp_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SPI_TCCVCP_INIT)
