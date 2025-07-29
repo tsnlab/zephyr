@@ -99,6 +99,8 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 {
 	const struct spi_tccvcp_config *config = port->config;
 	struct spi_tccvcp_data *data = port->data;
+	int32_t divldv_;
+	uint32_t divldv, word_size, bpw;
 
 	if (spi_context_configured(&data->ctx, spi_cfg)) {
 		return 0;
@@ -107,13 +109,13 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 	uint32_t spi_mode = sys_read32(SPI_MODE(data->reg_base));
 
 	/* TODO: Use another peripheral clock? XIN cannot support frequency higher than 6MHz */
-	int32_t divldv_ = ((int32_t)config->clock_freq / (spi_cfg->frequency * 2)) - 1;
+	divldv_ = ((int32_t)config->clock_freq / (spi_cfg->frequency * 2)) - 1;
 	if (divldv_ < 0 || divldv_ > 0xff) {
 		LOG_ERR("Invalid frequency: %d", spi_cfg->frequency);
 		return -EINVAL;
 	}
 
-	uint32_t divldv = divldv_ & 0xff;
+	divldv = divldv_ & 0xff;
 	spi_mode &= ~SPI_MODE_DIVLDV_MASK;
 	spi_mode |= divldv << SPI_MODE_DIVLDV_LSB;
 
@@ -153,13 +155,13 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 		spi_mode &= ~SPI_MODE_SD_MASK;
 	}
 
-	uint32_t word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
+	word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
 	if (word_size != 8 && word_size != 16 && word_size != 32) {
 		LOG_ERR("Invalid word size: %d", word_size);
 		return -EINVAL;
 	}
 
-	uint32_t bpw = word_size - 1;
+	bpw = word_size - 1;
 	spi_mode &= ~SPI_MODE_BPW_MASK;
 	spi_mode |= bpw << SPI_MODE_BPW_LSB;
 
@@ -195,11 +197,9 @@ static int spi_tccvcp_xfer(const struct device *port)
 	volatile uint32_t stat, wth, rth, spi_data;
 
 	stat = sys_read32(SPI_STAT(data->reg_base));
-	/* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold
-	 * and there's room for more samples */
+	/* wth == 1 means there's room for more samples */
 	wth = SPI_STAT_WTH(stat);
-	/* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold
-	 * and there're samples to be read */
+	/* rth == 1 means there're samples to be read */
 	rth = SPI_STAT_RTH(stat);
 	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rth)) {
 		/* Tx */
@@ -249,6 +249,7 @@ static int spi_tccvcp_xfer(const struct device *port)
 		/* TODO: Communicating with RPi needs this */
 		/* TODO: This needs to be tested with other devices */
 		volatile int iii = 100000;
+
 		while (iii--) {
 			arch_nop();
 		}
@@ -265,7 +266,8 @@ static int spi_tccvcp_transceive(const struct device *port, const struct spi_con
 	int ret = 0;
 
 	spi_context_lock(&data->ctx, false, NULL, NULL, spi_cfg);
-	if ((ret = spi_tccvcp_configure(port, spi_cfg)) < 0) {
+	ret = spi_tccvcp_configure(port, spi_cfg);
+	if (ret < 0) {
 		goto end;
 	}
 	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, data->dfs);
@@ -291,6 +293,7 @@ static int spi_tccvcp_init(const struct device *port)
 {
 	const struct spi_tccvcp_config *config = port->config;
 	struct spi_tccvcp_data *data = port->data;
+
 	data->reg_base = DEVICE_MMIO_NAMED_GET(port, reg_base);
 
 	if (config->clock_freq == 0) {
