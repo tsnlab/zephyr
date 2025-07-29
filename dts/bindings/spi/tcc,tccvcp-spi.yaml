@@ -10,13 +10,13 @@ include: [spi-controller.yaml]
 properties:
   reg:
     required: true
-  
+
   clk-gpios:
     type: phandle-array
     required: true
     description: |
       GPIO pin for SPI clock
-  
+
   miso-gpios:
     type: phandle-array
     required: true
