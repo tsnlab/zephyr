@@ -28,6 +28,14 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define SPI_CTRL(base)    (base + 0x10)
 #define SPI_EVTCTRL(base) (base + 0x14)
 
+#define SPI_STAT_RTH_LSB 0
+#define SPI_STAT_RTH_MASK (0x1 << SPI_STAT_RTH_LSB)
+#define SPI_STAT_RTH(stat) (((stat & SPI_STAT_RTH_MASK) >> SPI_STAT_RTH_LSB) & 0x1)
+
+#define SPI_STAT_WTH_LSB 1
+#define SPI_STAT_WTH_MASK (0x1 << SPI_STAT_WTH_LSB)
+#define SPI_STAT_WTH(stat) (((stat & SPI_STAT_WTH_MASK) >> SPI_STAT_WTH_LSB) & 0x1)
+
 #define SPI_STAT_WBVCNT_LSB 24
 #define SPI_STAT_WBVCNT_MASK (0x1f << SPI_STAT_WBVCNT_LSB)
 #define SPI_STAT_WBVCNT(stat) (((stat & SPI_STAT_WBVCNT_MASK) >> SPI_STAT_WBVCNT_LSB) & 0x1f)
@@ -99,7 +107,7 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 
 	uint32_t spi_mode = sys_read32(SPI_MODE(data->reg_base));
 
-	// TODO: Use another peripheral clock? XIN cannot support frequency higher than 6MHz
+	/* TODO: Use another peripheral clock? XIN cannot support frequency higher than 6MHz */
 	int32_t divldv_ = ((int32_t)config->clock_freq / (spi_cfg->frequency * 2)) - 1;
 	if (divldv_ < 0 || divldv_ > 0xff) {
 		LOG_ERR("Invalid frequency: %d", spi_cfg->frequency);
@@ -183,14 +191,14 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 
 static int spi_tccvcp_xfer(const struct device *port) {
 	struct spi_tccvcp_data *data = port->data;
-	volatile uint32_t stat, wbvcnt, rbvcnt, spi_data;
+	volatile uint32_t stat, wth, rth, spi_data;
 
 	stat = sys_read32(SPI_STAT(data->reg_base));
-	wbvcnt = SPI_STAT_WBVCNT(stat);
-	rbvcnt = SPI_STAT_RBVCNT(stat);
-	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rbvcnt != 0)) {
+	wth = SPI_STAT_WTH(stat);  /* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold */
+	rth = SPI_STAT_RTH(stat);  /* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold */
+	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rth != 0)) {
 		/* Tx */
-		if (spi_context_tx_buf_on(&data->ctx) && wbvcnt == 0) {
+		if (spi_context_tx_buf_on(&data->ctx) && wth) {
 			switch (data->dfs) {
 			case 4:
 				spi_data = sys_get_be32(data->ctx.tx_buf);
@@ -210,7 +218,7 @@ static int spi_tccvcp_xfer(const struct device *port) {
 		}
 
 		/* Rx */
-		if (spi_context_rx_buf_on(&data->ctx) && rbvcnt != 0) {
+		if (spi_context_rx_buf_on(&data->ctx) && rth) {
 			spi_data = sys_read32(SPI_DATA(data->reg_base));
 			switch (data->dfs) {
 			case 4:
@@ -230,13 +238,13 @@ static int spi_tccvcp_xfer(const struct device *port) {
 		}
 
 		stat = sys_read32(SPI_STAT(data->reg_base));
-		wbvcnt = SPI_STAT_WBVCNT(stat);
-		rbvcnt = SPI_STAT_RBVCNT(stat);
+		wth = SPI_STAT_WTH(stat);
+		rth = SPI_STAT_RTH(stat);
 		
 		/* TODO: Communicating with RPi needs this */
 		/* TODO: This needs to be tested with other devices */
 		volatile int iii = 100000;
-		while (iii--) { arch_nop();}
+		while (iii--) { arch_nop(); }
 	}
 
 	return 0;
@@ -285,7 +293,7 @@ static int spi_tccvcp_init(const struct device *port)
 		return -EINVAL;
 	}
 
-	/* TODO: This should be done by SPI_CONTEXT_INIT_* somehow but it's not working */
+	/* TODO: This should be done by SPI_CONTEXT_INIT_* but somehow it's not working */
 	/* TODO: Fix the issue and remove this */
 	k_sem_init(&data->ctx.lock, 0, 1);
 	k_sem_init(&data->ctx.sync, 0, 1);
