@@ -153,7 +153,7 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 		spi_mode &= ~SPI_MODE_LB_MASK;
 	}
 
-	if (spi_cfg->operation & SPI_TRANSFER_MSB) {
+	if (spi_cfg->operation & SPI_TRANSFER_LSB) {
 		spi_mode |= SPI_MODE_SD_MASK;
 	} else {
 		spi_mode &= ~SPI_MODE_SD_MASK;
