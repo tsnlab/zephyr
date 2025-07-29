@@ -75,6 +75,10 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define SPI_MODE_DIVLDV_LSB  24
 #define SPI_MODE_DIVLDV_MASK (0xff << SPI_MODE_DIVLDV_LSB)
 
+#define DFS_4B 4 /* 32-bit */
+#define DFS_2B 2 /* 16-bit */
+#define DFS_1B 1 /* 8-bit */
+
 struct spi_tccvcp_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
 
@@ -205,13 +209,13 @@ static int spi_tccvcp_xfer(const struct device *port)
 		/* Tx */
 		if (spi_context_tx_buf_on(&data->ctx) && wth) {
 			switch (data->dfs) {
-			case 4:
+			case DFS_4B:
 				spi_data = sys_get_be32(data->ctx.tx_buf);
 				break;
-			case 2:
+			case DFS_2B:
 				spi_data = sys_get_be16(data->ctx.tx_buf);
 				break;
-			case 1:
+			case DFS_1B:
 				spi_data = *(uint8_t *)data->ctx.tx_buf;
 				break;
 			default:
@@ -226,13 +230,13 @@ static int spi_tccvcp_xfer(const struct device *port)
 		if (spi_context_rx_buf_on(&data->ctx) && rth) {
 			spi_data = sys_read32(SPI_DATA(data->reg_base));
 			switch (data->dfs) {
-			case 4:
+			case DFS_4B:
 				sys_put_be32(spi_data, data->ctx.rx_buf);
 				break;
-			case 2:
+			case DFS_2B:
 				sys_put_be16(spi_data, data->ctx.rx_buf);
 				break;
-			case 1:
+			case DFS_1B:
 				*(uint8_t *)data->ctx.rx_buf = spi_data;
 				break;
 			default:
