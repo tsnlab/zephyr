@@ -194,8 +194,8 @@ static int spi_tccvcp_xfer(const struct device *port) {
 	volatile uint32_t stat, wth, rth, spi_data;
 
 	stat = sys_read32(SPI_STAT(data->reg_base));
-	wth = SPI_STAT_WTH(stat);  /* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold */
-	rth = SPI_STAT_RTH(stat);  /* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold */
+	wth = SPI_STAT_WTH(stat);  /* wth == 1 means Write FIFO valid entry count(wbvcnt) is under threshold and there's room for more samples */
+	rth = SPI_STAT_RTH(stat);  /* rth == 1 means Read FIFO valid entry count(rbvcnt) is over threshold and there're samples to be read */
 	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rth)) {
 		/* Tx */
 		if (spi_context_tx_buf_on(&data->ctx) && wth) {
