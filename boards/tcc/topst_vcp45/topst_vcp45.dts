@@ -17,6 +17,7 @@
 
 	aliases {
 		led0 = &led_act;
+		spi0 = &spi0;
 	};
 
 	chosen {
