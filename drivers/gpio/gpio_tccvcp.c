@@ -362,11 +362,10 @@ static const struct gpio_driver_api gpio_tccvcp_api = {
 
 static int gpio_tccvcp_init(const struct device *port)
 {
-	const struct gpio_tccvcp_config *config = port->config;
 	struct gpio_tccvcp_data *data = port->data;
 
 	DEVICE_MMIO_NAMED_MAP(port, reg_base, K_MEM_CACHE_NONE);
-	data->base = DEVICE_MMIO_NAMED_GET(port, reg_base) + config->offset;
+	data->base = DEVICE_MMIO_NAMED_GET(port, reg_base);
 
 	return 0;
 }
@@ -376,8 +375,7 @@ static int gpio_tccvcp_init(const struct device *port)
                                                                                                    \
 	static const struct gpio_tccvcp_config gpio_tccvcp_cfg_##n = {                             \
 		.common = {.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(0)},                   \
-		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_INST_PARENT(n)),                           \
-		.offset = DT_INST_REG_ADDR(n),                                                     \
+		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_DRV_INST(n)),                           \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, gpio_tccvcp_init, NULL, &gpio_tccvcp_data_##n,                    \

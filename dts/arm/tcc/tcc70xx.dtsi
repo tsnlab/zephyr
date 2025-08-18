@@ -198,44 +198,46 @@
 		};
 
 		gpioa@a0f22000 {
-			compatible = "simple-bus";
+			compatible = "tcc,tccvcp-gpio";
 			reg = <0xa0f22000 0x40>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
+
+			status = "disabled";
 		};
 
-		gpiob@a0f22040 {
-			compatible = "simple-bus";
+		gpiob: gpio@a0f22040 {
+			compatible = "tcc,tccvcp-gpio";
 			reg = <0xa0f22040 0x40>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			gio_aon: gpio@0 {
-				compatible = "tcc,tccvcp-gpio";
-				reg = <0>;
-				gpio-controller;
-				#gpio-cells = <2>;
-				ngpios = <29>;
-				status = "disabled";
-			};
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <29>;
+			status = "disabled";
 		};
 
 		gpioc@a0f22080 {
-			compatible = "simple-bus";
+			compatible = "tcc,tccvcp-gpio";
 			reg = <0xa0f22080 0x40>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
+
+			status = "disabled";
 		};
 
 		gpiok@a0f220c0 {
-			compatible = "simple-bus";
+			compatible = "tcc,tccvcp-gpio";
 			reg = <0xa0f220c0 0x40>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
+
+			status = "disabled";
 		};
 
 		spi0: spi@a0100000 {
@@ -246,10 +248,10 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			clk-gpios = <&gio_aon 4 GPIO_ACTIVE_HIGH>;
-			mosi-gpios = <&gio_aon 6 GPIO_ACTIVE_HIGH>;
-			miso-gpios = <&gio_aon 7 GPIO_ACTIVE_HIGH>;
-			cs-gpios = <&gio_aon 5 GPIO_ACTIVE_LOW>;
+			clk-gpios = <&gpiob 4 GPIO_ACTIVE_HIGH>;
+			mosi-gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
+			miso-gpios = <&gpiob 7 GPIO_ACTIVE_HIGH>;
+			cs-gpios = <&gpiob 5 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
