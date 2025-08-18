@@ -67,5 +67,5 @@
 
 &spi0 {
 	status = "okay";
-	clock-frequency = <12000000>;
+	clock-frequency = <50000000>;
 };
