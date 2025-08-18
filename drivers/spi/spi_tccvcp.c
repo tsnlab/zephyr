@@ -79,6 +79,12 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define DFS_2B 2 /* 16-bit */
 #define DFS_1B 1 /* 8-bit */
 
+#define PERI_CLK_GPSB0_REG 0xA0F24038UL  /* TODO: Move this to device tree */
+#define PERI_CLK_GPSB0_CLK_SRC_MASK (0x1F << 24)
+#define PERI_CLK_GPSB0_CLK_SRC_PLL0 (0x0 << 24)
+#define PERI_CLK_GPSB0_CLK_DIV_MASK (0xFFF << 0)
+#define PERI_CLK_GPSB0_CLK_DIV_50MHz ((1200 / 50) - 1)  /* PLL0 is 1200MHz, CLK_DIV = (Actual Divisor - 1) */
+
 struct spi_tccvcp_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
 
@@ -304,6 +310,13 @@ static int spi_tccvcp_init(const struct device *port)
 		LOG_ERR("Invalid clock frequency: %d", config->clock_freq);
 		return -EINVAL;
 	}
+
+	uint32_t clk_reg = sys_read32(PERI_CLK_GPSB0_REG);
+	clk_reg &= ~PERI_CLK_GPSB0_CLK_SRC_MASK;
+	clk_reg |= PERI_CLK_GPSB0_CLK_SRC_PLL0;
+	clk_reg &= ~PERI_CLK_GPSB0_CLK_DIV_MASK;
+	clk_reg |= PERI_CLK_GPSB0_CLK_DIV_50MHz;
+	sys_write32(clk_reg, PERI_CLK_GPSB0_REG);
 
 	/* TODO: This should be done by SPI_CONTEXT_INIT_* but somehow it's not working */
 	/* TODO: Fix the issue and remove this */
