@@ -254,14 +254,6 @@ static int spi_tccvcp_xfer(const struct device *port)
 		stat = sys_read32(SPI_STAT(data->reg_base));
 		wth = SPI_STAT_WTH(stat);
 		rth = SPI_STAT_RTH(stat);
-
-		/* TODO: Communicating with RPi needs this */
-		/* TODO: This needs to be tested with other devices */
-		volatile int iii = 100000;
-
-		while (iii--) {
-			arch_nop();
-		}
 	}
 
 	return 0;
