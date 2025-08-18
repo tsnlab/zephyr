@@ -30,7 +30,7 @@
 		compatible = "gpio-leds";
 
 		led_act: led-act {
-			gpios = <&gio_aon 6 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
 			label = "ACT";
 		};
 	};
@@ -41,7 +41,7 @@
 	status = "okay";
 };
 
-&gio_aon {
+&gpiob {
 	status = "okay";
 };
 
