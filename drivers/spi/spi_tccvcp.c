@@ -83,7 +83,7 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define PERI_CLK_GPSB0_CLK_SRC_MASK (0x1F << 24)
 #define PERI_CLK_GPSB0_CLK_SRC_PLL0 (0x0 << 24)
 #define PERI_CLK_GPSB0_CLK_DIV_MASK (0xFFF << 0)
-#define PERI_CLK_GPSB0_CLK_DIV_50MHz ((1200 / 50) - 1)  /* PLL0 is 1200MHz, CLK_DIV = (Actual Divisor - 1) */
+#define PLL0_FREQ 120000000UL  /* 1200MHz */
 
 struct spi_tccvcp_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
@@ -118,7 +118,6 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 
 	uint32_t spi_mode = sys_read32(SPI_MODE(data->reg_base));
 
-	/* TODO: Use another peripheral clock? XIN cannot support frequency higher than 6MHz */
 	divldv_ = ((int32_t)config->clock_freq / (spi_cfg->frequency * 2)) - 1;
 	if (divldv_ < 0 || divldv_ > 0xff) {
 		LOG_ERR("Invalid frequency: %d", spi_cfg->frequency);
@@ -311,11 +310,12 @@ static int spi_tccvcp_init(const struct device *port)
 		return -EINVAL;
 	}
 
+	/* TODO: This might need to be in another driver */
 	uint32_t clk_reg = sys_read32(PERI_CLK_GPSB0_REG);
 	clk_reg &= ~PERI_CLK_GPSB0_CLK_SRC_MASK;
 	clk_reg |= PERI_CLK_GPSB0_CLK_SRC_PLL0;
 	clk_reg &= ~PERI_CLK_GPSB0_CLK_DIV_MASK;
-	clk_reg |= PERI_CLK_GPSB0_CLK_DIV_50MHz;
+	clk_reg |= (PLL0_FREQ / config->clock_freq) - 1;
 	sys_write32(clk_reg, PERI_CLK_GPSB0_REG);
 
 	/* TODO: This should be done by SPI_CONTEXT_INIT_* but somehow it's not working */
