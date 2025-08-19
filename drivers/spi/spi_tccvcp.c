@@ -104,7 +104,7 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define PERI_CLK_GPSB0_CLK_SRC_MASK (0x1F << 24)
 #define PERI_CLK_GPSB0_CLK_SRC_PLL0 (0x0 << 24)
 #define PERI_CLK_GPSB0_CLK_DIV_MASK (0xFFF << 0)
-#define PLL0_FREQ                   120000000UL /* 1200MHz */
+#define PLL0_FREQ                   1200000000UL /* 1200MHz */
 
 struct spi_tccvcp_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);

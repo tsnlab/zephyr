@@ -40,7 +40,7 @@ static bool t1s_hw_readreg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_re
     commandheader.ctrl_head_bits.addr = (uint32_t)p_regInfoInput->address;
     commandheader.ctrl_head_bits.len = (uint32_t)(p_regInfoInput->length & 0x7F);
     commandheader.ctrl_head_bits.p = 0;
-    commandheader.ctrl_head_bits.p = ((get_parity(commandheader.ctrl_frame_head) == 0) ? 1 : 0);
+    commandheader.ctrl_head_bits.p = get_parity(commandheader.ctrl_frame_head);
 
     converted_commandheader = sys_cpu_to_be32(commandheader.ctrl_frame_head);
     memcpy(txbuffer, &converted_commandheader, HEADER_SIZE);
@@ -105,7 +105,7 @@ static bool t1s_hw_writereg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_r
     commandheader.ctrl_head_bits.addr = (uint32_t)p_regData->address;
     commandheader.ctrl_head_bits.len = (uint32_t)(p_regData->length & 0x7F);
     commandheader.ctrl_head_bits.p = 0;
-    commandheader.ctrl_head_bits.p = ((get_parity(commandheader.ctrl_frame_head) == 0) ? 1 : 0);
+    commandheader.ctrl_head_bits.p = get_parity(commandheader.ctrl_frame_head);
 
     converted_commandheader = sys_cpu_to_be32(commandheader.ctrl_frame_head);
     memcpy(txbuffer, &converted_commandheader, HEADER_SIZE);
