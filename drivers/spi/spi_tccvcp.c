@@ -22,11 +22,18 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 
 #include "spi_context.h"
 
-#define SPI_DATA(base)    (base + 0x00)
-#define SPI_STAT(base)    (base + 0x04)
-#define SPI_MODE(base)    (base + 0x0c)
-#define SPI_CTRL(base)    (base + 0x10)
-#define SPI_EVTCTRL(base) (base + 0x14)
+#define SPI_DATA(base)       (base + 0x00)
+#define SPI_STAT(base)       (base + 0x04)
+#define SPI_INTEN(base)      (base + 0x08)
+#define SPI_MODE(base)       (base + 0x0c)
+#define SPI_CTRL(base)       (base + 0x10)
+#define SPI_EVTCTRL(base)    (base + 0x14)
+#define SPI_DMA_CTRL(base)   (base + 0x2c)
+#define SPI_DMA_STATUS(base) (base + 0x30)
+#define SPI_TXBASE(base)     (base + 0x20)
+#define SPI_RXBASE(base)     (base + 0x24)
+#define SPI_PACKET(base)     (base + 0x28)
+#define SPI_DMA_ICR(base)    (base + 0x34)
 
 #define SPI_STAT_RTH_LSB   0
 #define SPI_STAT_RTH_MASK  (0x1 << SPI_STAT_RTH_LSB)
@@ -75,15 +82,29 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define SPI_MODE_DIVLDV_LSB  24
 #define SPI_MODE_DIVLDV_MASK (0xff << SPI_MODE_DIVLDV_LSB)
 
+#define SPI_INTEN_DR BIT(30)
+#define SPI_INTEN_DW BIT(31)
+
+#define SPI_DMA_CTR_EN   BIT(0)
+#define SPI_DMA_CTR_PCLR BIT(2)
+#define SPI_DMA_CTR_DRE  BIT(30)
+#define SPI_DMA_CTR_DTE  BIT(31)
+
+#define SPI_DMA_ICR_IED BIT(17)
+#define SPI_DMA_ICR_ISD BIT(29)
+
 #define DFS_4B 4 /* 32-bit */
 #define DFS_2B 2 /* 16-bit */
 #define DFS_1B 1 /* 8-bit */
 
-#define PERI_CLK_GPSB0_REG 0xA0F24038UL  /* TODO: Move this to device tree */
+#define SPI_XFER_TIMEOUT    50
+#define SPI_MAX_BUFFER_SIZE 0x1fff
+
+#define PERI_CLK_GPSB0_REG          0xA0F24038UL /* TODO: Move this to device tree */
 #define PERI_CLK_GPSB0_CLK_SRC_MASK (0x1F << 24)
 #define PERI_CLK_GPSB0_CLK_SRC_PLL0 (0x0 << 24)
 #define PERI_CLK_GPSB0_CLK_DIV_MASK (0xFFF << 0)
-#define PLL0_FREQ 120000000UL  /* 1200MHz */
+#define PLL0_FREQ                   120000000UL /* 1200MHz */
 
 struct spi_tccvcp_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
@@ -200,60 +221,78 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 	return 0;
 }
 
+static int spi_tccvcp_dma_start(const struct device *port, uint32_t length, const uint8_t *tx_buf, uint8_t *rx_buf)
+{
+	struct spi_tccvcp_data *data = port->data;
+
+	sys_write32(length, SPI_PACKET(data->reg_base));
+
+	/* Null should be checked already */
+	sys_write32((uint32_t)tx_buf, SPI_TXBASE(data->reg_base));
+	sys_write32((uint32_t)rx_buf, SPI_RXBASE(data->reg_base));
+
+	sys_write32(SPI_DMA_CTR_DTE | SPI_DMA_CTR_DRE | SPI_DMA_CTR_EN, SPI_DMA_CTRL(data->reg_base));
+
+	return 0;
+}
+
+static int spi_tccvcp_dma_stop(const struct device *port)
+{
+	struct spi_tccvcp_data *data = port->data;
+
+	sys_write32(0, SPI_DMA_CTRL(data->reg_base));
+
+	/* Clear the buffers */
+	sys_write32(0, SPI_TXBASE(data->reg_base));
+	sys_write32(0, SPI_RXBASE(data->reg_base));
+
+	return 0;
+}
+
+static bool spi_tccvcp_wait_for_xfer_complete(const struct device *port, uint32_t timeout)
+{
+	struct spi_tccvcp_data *data = port->data;
+	uint32_t dma_icr;
+	while (--timeout) {
+		dma_icr = sys_read32(SPI_DMA_ICR(data->reg_base));
+		if (dma_icr & SPI_DMA_ICR_ISD) {
+			return true;
+		}
+	}
+
+	LOG_ERR("Timeout waiting for DMA transfer complete");
+	return false;
+}
+
 static int spi_tccvcp_xfer(const struct device *port)
 {
 	struct spi_tccvcp_data *data = port->data;
-	volatile uint32_t stat, wth, rth, spi_data;
 
-	stat = sys_read32(SPI_STAT(data->reg_base));
-	/* wth == 1 means there's room for more samples */
-	wth = SPI_STAT_WTH(stat);
-	/* rth == 1 means there're samples to be read */
-	rth = SPI_STAT_RTH(stat);
-	while (spi_context_tx_buf_on(&data->ctx) || (spi_context_rx_buf_on(&data->ctx) && rth)) {
-		/* Tx */
-		if (spi_context_tx_buf_on(&data->ctx) && wth) {
-			switch (data->dfs) {
-			case DFS_4B:
-				spi_data = sys_get_be32(data->ctx.tx_buf);
-				break;
-			case DFS_2B:
-				spi_data = sys_get_be16(data->ctx.tx_buf);
-				break;
-			case DFS_1B:
-				spi_data = *(uint8_t *)data->ctx.tx_buf;
-				break;
-			default:
-				LOG_ERR("Unsupported data size: %d", data->dfs * 8);
-				return -EINVAL;
-			}
-			sys_write32(spi_data, SPI_DATA(data->reg_base));
-			spi_context_update_tx(&data->ctx, data->dfs, 1);
+	while (spi_context_tx_buf_on(&data->ctx) || spi_context_rx_buf_on(&data->ctx)) {
+		if (data->ctx.tx_buf == NULL || data->ctx.rx_buf == NULL) {
+			LOG_ERR("Noop is not supported");
+			return -ENOTSUP;
 		}
 
-		/* Rx */
-		if (spi_context_rx_buf_on(&data->ctx) && rth) {
-			spi_data = sys_read32(SPI_DATA(data->reg_base));
-			switch (data->dfs) {
-			case DFS_4B:
-				sys_put_be32(spi_data, data->ctx.rx_buf);
-				break;
-			case DFS_2B:
-				sys_put_be16(spi_data, data->ctx.rx_buf);
-				break;
-			case DFS_1B:
-				*(uint8_t *)data->ctx.rx_buf = spi_data;
-				break;
-			default:
-				LOG_ERR("Unsupported data size: %d", data->dfs * 8);
-				return -EINVAL;
-			}
-			spi_context_update_rx(&data->ctx, data->dfs, 1);
+		if (data->ctx.tx_len != data->ctx.rx_len) {
+			LOG_ERR("Tx and Rx length should be the same");
+			return -EINVAL;
 		}
 
-		stat = sys_read32(SPI_STAT(data->reg_base));
-		wth = SPI_STAT_WTH(stat);
-		rth = SPI_STAT_RTH(stat);
+		size_t len = spi_context_max_continuous_chunk(&data->ctx);
+		spi_tccvcp_dma_start(port, len, data->ctx.tx_buf, data->ctx.rx_buf);
+		bool result = spi_tccvcp_wait_for_xfer_complete(port, SPI_XFER_TIMEOUT);
+		spi_tccvcp_dma_stop(port);
+		if (!result) {
+			return -ETIMEDOUT;
+		}
+
+		spi_context_update_tx(&data->ctx, data->dfs, len);
+		spi_context_update_rx(&data->ctx, data->dfs, len);
+	}
+
+	if (spi_context_tx_buf_on(&data->ctx) || spi_context_rx_buf_on(&data->ctx)) {
+		LOG_WRN("Tx and Rx buffer should be the same length");
 	}
 
 	return 0;
@@ -338,6 +377,15 @@ static int spi_tccvcp_init(const struct device *port)
 	spi_mode |= SPI_MODE_EN_MASK;  /* Enable SPI */
 
 	sys_write32(spi_mode, SPI_MODE(data->reg_base));
+
+	/* Configure DMA settings */
+	sys_write32(0, SPI_DMA_CTRL(data->reg_base));  /* Clear everything */
+	sys_write32(SPI_INTEN_DW | SPI_INTEN_DR, SPI_INTEN(data->reg_base));  /* TODO: This might be unnecessary */
+	sys_write32(SPI_DMA_CTR_PCLR, SPI_DMA_CTRL(data->reg_base));  /* Clear state bits */
+
+	uint32_t dma_icr = sys_read32(SPI_DMA_ICR(data->reg_base));
+	dma_icr |= SPI_DMA_ICR_IED;
+	sys_write32(dma_icr, SPI_DMA_ICR(data->reg_base));
 
 	spi_context_unlock_unconditionally(&data->ctx);
 
