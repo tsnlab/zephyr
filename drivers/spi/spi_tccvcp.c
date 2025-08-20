@@ -97,7 +97,7 @@ LOG_MODULE_REGISTER(spi_tccvcp, CONFIG_SPI_LOG_LEVEL);
 #define DFS_2B 2 /* 16-bit */
 #define DFS_1B 1 /* 8-bit */
 
-#define SPI_XFER_TIMEOUT    50
+#define SPI_XFER_TIMEOUT    1000
 #define SPI_MAX_BUFFER_SIZE 0x1fff
 
 #define PERI_CLK_GPSB0_REG          0xA0F24038UL /* TODO: Move this to device tree */
@@ -252,13 +252,15 @@ static int spi_tccvcp_dma_stop(const struct device *port)
 static bool spi_tccvcp_wait_for_xfer_complete(const struct device *port, uint32_t timeout)
 {
 	struct spi_tccvcp_data *data = port->data;
-	uint32_t dma_icr;
+	uint32_t dma_icr = 0;
 	while (--timeout) {
 		dma_icr = sys_read32(SPI_DMA_ICR(data->reg_base));
 		if (dma_icr & SPI_DMA_ICR_ISD) {
+			sys_write32(dma_icr, SPI_DMA_ICR(data->reg_base));
 			return true;
 		}
 	}
+	sys_write32(dma_icr, SPI_DMA_ICR(data->reg_base));
 
 	LOG_ERR("Timeout waiting for DMA transfer complete");
 	return false;
@@ -280,9 +282,11 @@ static int spi_tccvcp_xfer(const struct device *port)
 		}
 
 		size_t len = spi_context_max_continuous_chunk(&data->ctx);
-		spi_tccvcp_dma_start(port, len, data->ctx.tx_buf, data->ctx.rx_buf);
+		size_t bytes = len * data->dfs;
+		spi_tccvcp_dma_start(port, bytes, data->ctx.tx_buf, data->ctx.rx_buf);
 		bool result = spi_tccvcp_wait_for_xfer_complete(port, SPI_XFER_TIMEOUT);
 		spi_tccvcp_dma_stop(port);
+
 		if (!result) {
 			return -ETIMEDOUT;
 		}
@@ -373,8 +377,13 @@ static int spi_tccvcp_init(const struct device *port)
 	/* Configure SPI settings */
 	uint32_t spi_mode = sys_read32(SPI_MODE(data->reg_base));
 
+	/* Default settings */
 	spi_mode &= ~SPI_MODE_MD_MASK; /* Other values than 0 are reserved */
 	spi_mode |= SPI_MODE_EN_MASK;  /* Enable SPI */
+	spi_mode &= ~SPI_MODE_SLV_MASK;
+	spi_mode |= SPI_MODE_CTF_MASK;
+	spi_mode &= ~SPI_MODE_BPW_MASK;
+	spi_mode |= 31 << SPI_MODE_BPW_LSB;
 
 	sys_write32(spi_mode, SPI_MODE(data->reg_base));
 
