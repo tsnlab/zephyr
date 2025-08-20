@@ -34,7 +34,7 @@
 
 #define SPI_WORD_BYTES 4
 
-int transceive(uint8_t* tx_buf, uint8_t* rx_buf, uint32_t length);
+int transceive(uint8_t *tx_buf, uint8_t *rx_buf, uint32_t length);
 void setup_dma();
 
 #endif /* SPI_H */
