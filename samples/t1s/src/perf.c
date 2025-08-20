@@ -179,17 +179,19 @@ int recv_latency_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_
 		return 0;
 	}
 
-	memcpy(source_mac_addr, rxbuffer, ETH_ALEN);
+	memcpy(source_mac_addr, rxbuffer + 6, ETH_ALEN);
 	struct ethhdr *eth = (struct ethhdr *)rxbuffer;
 	if (eth->h_proto != sys_cpu_to_be16(PERF_ETHERTYPE)) { /* Ignore Non-Perf packets */
 		return 0;
 	}
 
 	struct perf_latency_header *perf = (struct perf_latency_header *)(eth + 1);
+
+	if (perf->op != PERF_PING) { /* Ignore Non-Ping packets */
+		return 0;
+	}
+
 	*id = sys_be32_to_cpu(perf->id);
-	printk("Received latency request from %02x:%02x:%02x:%02x:%02x:%02x, id: %u\n",
-	       source_mac_addr[0], source_mac_addr[1], source_mac_addr[2], source_mac_addr[3],
-	       source_mac_addr[4], source_mac_addr[5], *id);
 
 	return 0;
 }
@@ -205,7 +207,7 @@ uint16_t make_latency_res(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
 	eth->h_proto = sys_cpu_to_be16(PERF_ETHERTYPE);
 
 	perf->id = sys_cpu_to_be32(id);
-	perf->op = PERF_RES_START;
+	perf->op = PERF_PONG;
 
 	return sizeof(struct ethhdr) + sizeof(struct perf_latency_header);
 }
@@ -224,7 +226,7 @@ int send_latency_res(const struct spi_dt_spec *spi, const uint8_t *packet, uint1
 	data_transfer_header.tx_header_bits.dv = DV_DATA_VALID;
 	data_transfer_header.tx_header_bits.sv = SV_START_VALID;
 	data_transfer_header.tx_header_bits.ev = EV_END_VALID;
-	data_transfer_header.tx_header_bits.ebo = 0;
+	data_transfer_header.tx_header_bits.ebo = length - 1;
 
 	data_transfer_header.tx_header_bits.p = get_parity(data_transfer_header.data_frame_head);
 
