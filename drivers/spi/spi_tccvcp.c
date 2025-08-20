@@ -221,7 +221,8 @@ static int spi_tccvcp_configure(const struct device *port, const struct spi_conf
 	return 0;
 }
 
-static int spi_tccvcp_dma_start(const struct device *port, uint32_t length, const uint8_t *tx_buf, uint8_t *rx_buf)
+static int spi_tccvcp_dma_start(const struct device *port, uint32_t length, const uint8_t *tx_buf,
+				uint8_t *rx_buf)
 {
 	struct spi_tccvcp_data *data = port->data;
 
@@ -231,7 +232,8 @@ static int spi_tccvcp_dma_start(const struct device *port, uint32_t length, cons
 	sys_write32((uint32_t)tx_buf, SPI_TXBASE(data->reg_base));
 	sys_write32((uint32_t)rx_buf, SPI_RXBASE(data->reg_base));
 
-	sys_write32(SPI_DMA_CTR_DTE | SPI_DMA_CTR_DRE | SPI_DMA_CTR_EN, SPI_DMA_CTRL(data->reg_base));
+	sys_write32(SPI_DMA_CTR_DTE | SPI_DMA_CTR_DRE | SPI_DMA_CTR_EN,
+		    SPI_DMA_CTRL(data->reg_base));
 
 	return 0;
 }
@@ -388,9 +390,10 @@ static int spi_tccvcp_init(const struct device *port)
 	sys_write32(spi_mode, SPI_MODE(data->reg_base));
 
 	/* Configure DMA settings */
-	sys_write32(0, SPI_DMA_CTRL(data->reg_base));  /* Clear everything */
-	sys_write32(SPI_INTEN_DW | SPI_INTEN_DR, SPI_INTEN(data->reg_base));  /* TODO: This might be unnecessary */
-	sys_write32(SPI_DMA_CTR_PCLR, SPI_DMA_CTRL(data->reg_base));  /* Clear state bits */
+	sys_write32(0, SPI_DMA_CTRL(data->reg_base)); /* Clear everything */
+	sys_write32(SPI_INTEN_DW | SPI_INTEN_DR,
+		    SPI_INTEN(data->reg_base)); /* TODO: This might be unnecessary */
+	sys_write32(SPI_DMA_CTR_PCLR, SPI_DMA_CTRL(data->reg_base)); /* Clear state bits */
 
 	uint32_t dma_icr = sys_read32(SPI_DMA_ICR(data->reg_base));
 	dma_icr |= SPI_DMA_ICR_IED;
