@@ -42,7 +42,7 @@ int receive_arp_reply(const struct spi_dt_spec* spi) {
     uint8_t packet[MAX_PACKET_SIZE] = {0,};
     uint16_t length = 0;
 
-    while (length > 0) {
+    while (length == 0) {
         if (receive_packet(spi, packet, &length) < 0) {
             printk("Failed to receive ARP reply\n");
             return -1;

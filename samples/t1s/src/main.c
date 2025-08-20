@@ -5,7 +5,6 @@
 
 #include "lan8651.h"
 #include "arp.h"
-#include "spi.h"
 
 #define SPI_NODE DT_ALIAS(spi0)
 

@@ -59,7 +59,7 @@ static bool t1s_hw_readreg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_re
     {
         if (commandheader.ctrl_head_bits.len == 0) {
             memcpy((uint8_t*)&p_readRegData->databuffer[0], &(rxbuffer[ignored_echoedbytes + HEADER_SIZE]), REG_SIZE);
-            p_readRegData->databuffer[0] = sys_be32_to_cpu(p_readRegData->databuffer[1]);
+            p_readRegData->databuffer[0] = sys_be32_to_cpu(p_readRegData->databuffer[0]);
         } else {
             for (int regCount = 0; regCount <= commandheader.ctrl_head_bits.len; regCount++) {
                 memcpy((uint8_t*)&p_readRegData->databuffer[regCount],
@@ -83,7 +83,7 @@ static bool t1s_hw_writereg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_r
     bool execution_status = false;
     const uint8_t ignored_echoedbytes = HEADER_SIZE;
     uint8_t txbuffer[MAX_PAYLOAD_BYTE + HEADER_SIZE] = {0};
-    uint8_t rxbuffer[MAX_PAYLOAD_BYTE + HEADER_SIZE + 8] = {0};
+    uint8_t rxbuffer[MAX_PAYLOAD_BYTE + HEADER_SIZE] = {0};
     union ctrl_header commandheader;
     union ctrl_header commandheader_echoed;
     uint32_t converted_commandheader;
@@ -294,8 +294,8 @@ int send_packet(const struct spi_dt_spec* spi_dev, const uint8_t* data, uint16_t
         return -1;
     }
 
-    uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE];
-    uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE];
+    uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
+    uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE] = {0};
 
     union data_header data_header;
     uint32_t be_header;
@@ -345,8 +345,8 @@ int send_packet(const struct spi_dt_spec* spi_dev, const uint8_t* data, uint16_t
 }
 
 int receive_packet(const struct spi_dt_spec* spi_dev, uint8_t* data, uint16_t* length) {
-    uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE];
-    uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE];
+    uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
+    uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE] = {0};
 
     union data_header data_header;
     union data_footer data_footer;

@@ -275,8 +275,8 @@ enum {
     };
 
 enum {
-    NORX_NO_RECEIVE = 0,
-    NORX_RECEIVE = 1,
+    NORX_RECEIVE = 0,
+    NORX_NO_RECEIVE = 1,
 };
 
 enum {
