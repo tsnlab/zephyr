@@ -5,6 +5,7 @@
 #include <zephyr/sys/printk.h>
 
 #include "lan8651.h"
+#include "spi.h"
 
 /* FIXME: These are borrowed from our T1S demo */
 
@@ -49,11 +50,7 @@ static bool t1s_hw_readreg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_re
         HEADER_SIZE + ((commandheader.ctrl_head_bits.len + 1) * REG_SIZE) +
         ignored_echoedbytes; // Added extra 4 bytes because first 4 bytes during reception shall be ignored
 
-	struct spi_buf tx_buf = {.buf = txbuffer, .len = numberof_bytestosend};
-	const struct spi_buf_set tx_buf_set = {.buffers = &tx_buf, .count = 1};
-	struct spi_buf rx_buf = {.buf = rxbuffer, .len = numberof_bytestosend};
-	const struct spi_buf_set rx_buf_set = {.buffers = &rx_buf, .count = 1};
-    spi_transceive_dt(spi_dev, &tx_buf_set, &rx_buf_set);
+    transceive(txbuffer, rxbuffer, numberof_bytestosend);
 
     memcpy((uint8_t*)&commandheader_echoed.ctrl_frame_head, &rxbuffer[ignored_echoedbytes], HEADER_SIZE);
     commandheader_echoed.ctrl_frame_head = sys_be32_to_cpu(commandheader_echoed.ctrl_frame_head);
@@ -120,11 +117,7 @@ static bool t1s_hw_writereg(const struct spi_dt_spec* spi_dev, struct ctrl_cmd_r
         HEADER_SIZE + ((commandheader.ctrl_head_bits.len + 1) * REG_SIZE) +
         ignored_echoedbytes; // Added extra 4 bytes because last 4 bytes of payload will be ignored by MACPHY
 
-	struct spi_buf tx_buf = {.buf = txbuffer, .len = numberof_bytestosend};
-	const struct spi_buf_set tx_buf_set = {.buffers = &tx_buf, .count = 1};
-	struct spi_buf rx_buf = {.buf = rxbuffer, .len = numberof_bytestosend};
-	const struct spi_buf_set rx_buf_set = {.buffers = &rx_buf, .count = 1};
-    spi_transceive_dt(spi_dev, &tx_buf_set, &rx_buf_set);
+    transceive(txbuffer, rxbuffer, numberof_bytestosend);
 
     memcpy((uint8_t*)&commandheader_echoed.ctrl_frame_head, &rxbuffer[ignored_echoedbytes], HEADER_SIZE);
     commandheader_echoed.ctrl_frame_head = sys_be32_to_cpu(commandheader_echoed.ctrl_frame_head);
