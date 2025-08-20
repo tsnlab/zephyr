@@ -24,7 +24,7 @@ struct perf_latency_header {
 	uint32_t tv_usec;
 } __attribute__((packed));
 
-enum perf_op {
+enum perf_throughput_op {
 	PERF_REQ_START = 0x00,
 	PERF_REQ_END = 0x01,
 	PERF_RES_START = 0x20,
@@ -32,6 +32,13 @@ enum perf_op {
 	PERF_DATA = 0x30,
 	PERF_REQ_RESULT = 0x40,
 	PERF_RES_RESULT = 0x41,
+};
+
+enum perf_latency_op {
+	PERF_PING = 0,
+	PERF_PONG = 1,
+	PERF_TX = 2,
+	PERF_SYNC = 3,
 };
 
 #define PERF_ETHERTYPE   0x1337
