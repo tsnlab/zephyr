@@ -168,14 +168,14 @@ int recv_latency_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_
 	const struct spi_buf_set rx_buf_set = {.buffers = &rx_buf, .count = 1};
 	spi_transceive_dt(spi, &tx_buf_set, &rx_buf_set);
 
-	union data_footer data_footer;
-	data_footer.data_frame_foot = sys_be32_to_cpu(*(uint32_t *)(rxbuffer + MAX_PAYLOAD_BYTE));
-	if (data_footer.rx_footer_bits.p != get_parity(data_footer.data_frame_foot)) {
+	union data_footer footer;
+	footer.data_frame_foot = sys_be32_to_cpu(*(uint32_t *)(rxbuffer + MAX_PAYLOAD_BYTE));
+	if (footer.rx_footer_bits.p != get_parity(footer.data_frame_foot)) {
 		printk("Parity error while receiving packet\n");
 		return -1;
 	}
 
-	if (data_footer.rx_footer_bits.dv != DV_DATA_VALID) { /* No data to be received */
+	if (footer.rx_footer_bits.dv != DV_DATA_VALID) { /* No data to be received */
 		return 0;
 	}
 
