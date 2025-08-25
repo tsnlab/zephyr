@@ -333,7 +333,7 @@ int send_packet(const struct spi_dt_spec *spi_dev, const uint8_t *data, uint16_t
 	uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
 	uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE] = {0};
 
-	union data_header data_header;
+	union data_header header;
 	uint32_t be_header;
 
 	uint32_t chunk_count = length / MAX_PAYLOAD_BYTE;
@@ -343,30 +343,30 @@ int send_packet(const struct spi_dt_spec *spi_dev, const uint8_t *data, uint16_t
 
 	uint32_t chunk_size = MAX_PAYLOAD_BYTE;
 
-	data_header.tx_header_bits.dnc = DNC_COMMANDTYPE_DATA;
-	data_header.tx_header_bits.norx = NORX_NO_RECEIVE;
-	data_header.tx_header_bits.dv = DV_DATA_VALID;
+	header.tx_header_bits.dnc = DNC_COMMANDTYPE_DATA;
+	header.tx_header_bits.norx = NORX_NO_RECEIVE;
+	header.tx_header_bits.dv = DV_DATA_VALID;
 	for (uint32_t i = 0; i < chunk_count; i++) {
-		data_header.tx_header_bits.sv = SV_START_INVALID;
-		data_header.tx_header_bits.ev = EV_END_INVALID;
-		data_header.tx_header_bits.ebo = 0;
+		header.tx_header_bits.sv = SV_START_INVALID;
+		header.tx_header_bits.ev = EV_END_INVALID;
+		header.tx_header_bits.ebo = 0;
 
 		if (i == 0) { // First chunk
-			data_header.tx_header_bits.sv = SV_START_VALID;
+			header.tx_header_bits.sv = SV_START_VALID;
 		}
 		if (i == chunk_count - 1) {
 			chunk_size = length % MAX_PAYLOAD_BYTE;
 			if (chunk_size == 0) {
 				chunk_size = MAX_PAYLOAD_BYTE;
 			}
-			data_header.tx_header_bits.ev = EV_END_VALID;
-			data_header.tx_header_bits.ebo = chunk_size - 1;
+			header.tx_header_bits.ev = EV_END_VALID;
+			header.tx_header_bits.ebo = chunk_size - 1;
 		}
 
-		data_header.tx_header_bits.p = 0;
-		data_header.tx_header_bits.p = get_parity(data_header.data_frame_head);
+		header.tx_header_bits.p = 0;
+		header.tx_header_bits.p = get_parity(header.data_frame_head);
 
-		be_header = sys_cpu_to_be32(data_header.data_frame_head);
+		be_header = sys_cpu_to_be32(header.data_frame_head);
 		memcpy(tx_buffer, &be_header, HEADER_SIZE);
 		memcpy(tx_buffer + HEADER_SIZE, data + i * MAX_PAYLOAD_BYTE, MAX_PAYLOAD_BYTE);
 
@@ -388,8 +388,8 @@ int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *l
 	uint8_t tx_buffer[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
 	uint8_t rx_buffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE] = {0};
 
-	union data_header data_header;
-	union data_footer data_footer;
+	union data_header header;
+	union data_footer footer;
 	uint32_t be_header;
 	uint32_t be_footer;
 	size_t data_offset = 0;
@@ -398,15 +398,15 @@ int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *l
 
 	*length = 0;
 
-	data_header.tx_header_bits.dnc = DNC_COMMANDTYPE_DATA;
-	data_header.tx_header_bits.norx = NORX_RECEIVE;
-	data_header.tx_header_bits.dv = DV_DATA_INVALID;
-	data_header.tx_header_bits.sv = SV_START_INVALID;
-	data_header.tx_header_bits.ev = EV_END_INVALID;
-	data_header.tx_header_bits.ebo = 0;
-	data_header.tx_header_bits.p = get_parity(data_header.data_frame_head);
+	header.tx_header_bits.dnc = DNC_COMMANDTYPE_DATA;
+	header.tx_header_bits.norx = NORX_RECEIVE;
+	header.tx_header_bits.dv = DV_DATA_INVALID;
+	header.tx_header_bits.sv = SV_START_INVALID;
+	header.tx_header_bits.ev = EV_END_INVALID;
+	header.tx_header_bits.ebo = 0;
+	header.tx_header_bits.p = get_parity(header.data_frame_head);
 	while (*length < MAX_PACKET_SIZE && !finished) {
-		be_header = sys_cpu_to_be32(data_header.data_frame_head);
+		be_header = sys_cpu_to_be32(header.data_frame_head);
 		memcpy(tx_buffer, &be_header, HEADER_SIZE);
 
 		struct spi_buf tx_buf = {.buf = tx_buffer, .len = HEADER_SIZE + MAX_PAYLOAD_BYTE};
@@ -419,29 +419,29 @@ int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *l
 		}
 
 		be_footer = *((uint32_t *)(rx_buffer + MAX_PAYLOAD_BYTE));
-		data_footer.data_frame_foot = sys_be32_to_cpu(be_footer);
+		footer.data_frame_foot = sys_be32_to_cpu(be_footer);
 
-		if (data_footer.rx_footer_bits.p != get_parity(data_footer.data_frame_foot)) {
+		if (footer.rx_footer_bits.p != get_parity(footer.data_frame_foot)) {
 			printk("Parity error while receiving packet\n");
 			return -1;
 		}
 
 		if (*length == 0) { /* First chunk */
-			if (data_footer.rx_footer_bits.dv == DV_DATA_INVALID) {
+			if (footer.rx_footer_bits.dv == DV_DATA_INVALID) {
 				/* No data to be received */
 				return 0;
 			}
 
-			if (data_footer.rx_footer_bits.sv == SV_START_INVALID) {
+			if (footer.rx_footer_bits.sv == SV_START_INVALID) {
 				printk("Invalid start of the packet\n");
 				return -1;
 			}
 
-			data_offset = (data_footer.rx_footer_bits.swo * 4); /* 4 bytes per word */
+			data_offset = (footer.rx_footer_bits.swo * 4); /* 4 bytes per word */
 		}
 
-		if (data_footer.rx_footer_bits.ev == EV_END_VALID) { /* Last chunk */
-			chunk_size = data_footer.rx_footer_bits.ebo + 1;
+		if (footer.rx_footer_bits.ev == EV_END_VALID) { /* Last chunk */
+			chunk_size = footer.rx_footer_bits.ebo + 1;
 			finished = true;
 		}
 
