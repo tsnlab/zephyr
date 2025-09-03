@@ -222,6 +222,9 @@ static int malloc_prepare(void)
 		}
 		heap_size >>= 1;
 	}
+	if (heap_base == NULL) {
+		heap_base = UINT_TO_POINTER(HEAP_ALIGN);
+	}
 #else
 	heap_base = UINT_TO_POINTER(HEAP_BASE);
 	heap_size = HEAP_SIZE;
