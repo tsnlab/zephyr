@@ -158,8 +158,7 @@ static bool t1s_hw_writereg(const struct spi_dt_spec *spi_dev, struct ctrl_cmd_r
 		if (execution_status == false) {
 			printk("Reading CONFIG0 reg failed after writing (inside WriteReg)\n");
 		} else {
-			printk("CONFIG0 reg value is 0x%08x in WriteReg function\n",
-			       readreg_data.databuffer[0]);
+			// printk("CONFIG0 reg value is 0x%08x in WriteReg function\n", readreg_data.databuffer[0]);
 		}
 	}
 
@@ -253,17 +252,17 @@ int set_register(const struct spi_dt_spec *spi_dev, int mode)
 
 	/* Read OA_STATUS0 */
 	regval = read_register(spi_dev, MMS0, OA_STATUS0);
-	printk("OA_STATUS0: 0x%08x\n", regval);
+	// printk("OA_STATUS0: 0x%08x\n", regval);
 
 	/* Write 1 to RESETC bit of OA_STATUS0 */
 	regval |= (1 << 6);
 	write_register(spi_dev, MMS0, OA_STATUS0, regval);
-	printk("OA_STATUS0: 0x%08x\n", regval);
+	// printk("OA_STATUS0: 0x%08x\n", regval);
 
 	regval = read_register(spi_dev, MMS4, CDCTL0);
 	write_register(spi_dev, MMS4, CDCTL0,
 		       regval | (1 << 15)); // Initial logic (disable collision detection)
-	printk("CDCTL0: 0x%08x\n", regval);
+	// printk("CDCTL0: 0x%08x\n", regval);
 
 	// PLCA Configuration based on mode
 	// TODO: This process is temporary and assumes that there are only two nodes.
@@ -275,18 +274,18 @@ int set_register(const struct spi_dt_spec *spi_dev, int mode)
 			       0x11111111); // Configure MAC Address (Temporary)
 		write_register(spi_dev, MMS1, MAC_SAT1,
 			       0x00001111); // Configure MAC Address (Temporary)
-		printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
-		printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
-		printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
+		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
+		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
+		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
 	} else if (mode == PLCA_MODE_FOLLOWER) {
 		write_register(spi_dev, MMS4, PLCA_CTRL1, 0x00000801); // Follower, node 1
 		write_register(spi_dev, MMS1, MAC_SAB1,
 			       0x22222222); // Configure MAC Address (Temporary)
 		write_register(spi_dev, MMS1, MAC_SAT1,
 			       0x00002222); // Configure MAC Address (Temporary)
-		printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
-		printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
-		printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
+		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
+		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
+		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
 	} else {
 		printk("Invalid mode: %d\n", mode);
 		return false;
@@ -296,29 +295,29 @@ int set_register(const struct spi_dt_spec *spi_dev, int mode)
 	write_register(spi_dev, MMS4, PLCA_CTRL0, 0x00008000); // Enable PLCA
 	write_register(spi_dev, MMS1, MAC_NCFGR, 0x000000C0);  // Enable unicast, multicast
 	write_register(spi_dev, MMS1, MAC_NCR, 0x0000000C);    // Enable MACPHY TX, RX
-	printk("PLCA_CTRL0: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL0));
-	printk("MAC_NCFGR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCFGR));
-	printk("MAC_NCR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCR));
+	// printk("PLCA_CTRL0: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL0));
+	// printk("MAC_NCFGR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCFGR));
+	// printk("MAC_NCR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCR));
 
 	/* Read OA_CONFIG0 */
 	regval = read_register(spi_dev, MMS0, OA_CONFIG0);
-	printk("OA_CONFIG0: 0x%08x\n", regval);
+	// printk("OA_CONFIG0: 0x%08x\n", regval);
 
 	/* Set SYNC bit of OA_CONFIG0 */
 	regval |= (1 << 15);
 	regval &= ~(0x7);
 	regval |= (0x6);
 	write_register(spi_dev, MMS0, OA_CONFIG0, regval);
-	printk("OA_CONFIG0: 0x%08x\n", regval);
+	// printk("OA_CONFIG0: 0x%08x\n", regval);
 
 	/* Read OA_STATUS0 */
 	regval = read_register(spi_dev, MMS0, OA_STATUS0);
-	printk("OA_STATUS0: 0x%08x\n", regval);
+	// printk("OA_STATUS0: 0x%08x\n", regval);
 
 	/* Clear RESETC bit of OA_STATUS0 */
 	regval &= ~(1UL << 6);
 	write_register(spi_dev, MMS0, OA_STATUS0, regval);
-	printk("OA_STATUS0: 0x%08x\n", regval);
+	// printk("OA_STATUS0: 0x%08x\n", regval);
 
 	return true;
 }
