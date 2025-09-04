@@ -40,7 +40,12 @@ uint32_t vcp_timer_irq_clear(enum timer_channel channel);
 static uint32_t read_count(void)
 {
 	/* Read current counter value */
-	return sys_read32(TIMER_BASE_ADDR + TMR_MAIN_CNT);
+	uint32_t count = sys_read32(TIMER_BASE_ADDR + TMR_MAIN_CNT);
+	// printk("read_count: %d opencfg: 0x%08x maincntldv: 0x%08x\n", count, sys_read32(TIMER_BASE_ADDR + TMR_OP_EN_CFG), sys_read32(TIMER_BASE_ADDR + TMR_MAIN_CNT_LDV));
+	// printk("cmp0: 0x%08x\n", sys_read32(TIMER_BASE_ADDR + TMR_CMP_VALUE0));
+	// printk("cmp1: 0x%08x\n", sys_read32(TIMER_BASE_ADDR + TMR_CMP_VALUE1));
+	return count * 12;
+	// return sys_read32(TIMER_BASE_ADDR + TMR_MAIN_CNT);
 }
 
 #ifdef CONFIG_TICKLESS_KERNEL
@@ -99,13 +104,15 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 uint32_t sys_clock_elapsed(void)
 {
 #ifdef CONFIG_TICKLESS_KERNEL
-	uint32_t cycles;
+	uint32_t cycles, elapsed;
 
 	/* Read counter value */
 	cycles = read_count();
 
 	/* Return the number of ticks since last announcement */
-	return (cycles - last_cycle) / CYCLES_PER_TICK;
+	elapsed = (cycles - last_cycles) / CYCLES_PER_TICK;
+	last_cycles = cycles;
+	return elapsed;
 #else
 	return 0;
 #endif
@@ -170,7 +177,7 @@ static void vcp_timer_set_enable_core_reg(const struct vcp_timer_config *cfg_ptr
 			  ? 0xFFFFFFFFUL
 			  : ((cfg_ptr->cfg_main_val_usec * rate_factor) - 1UL);
 
-	sys_write32(mainval, (uint32_t)(reg + TMR_MAIN_CNT_LVD));
+	sys_write32(mainval, (uint32_t)(reg + TMR_MAIN_CNT_LDV));
 	sys_write32(cmp0_val, (uint32_t)(reg + TMR_CMP_VALUE0));
 	sys_write32(cmp1_val, (uint32_t)(reg + TMR_CMP_VALUE1));
 
@@ -377,7 +384,7 @@ static int32_t vcp_timer_enable_with_mode(enum timer_channel channel, uint32_t u
 	cfg.cfg_channel = channel;
 	cfg.cfg_start_mode = TIMER_START_ZERO;
 	cfg.cfg_op_mode = op_mode;
-	cfg.cfg_counter_mode = TIMER_COUNTER_COMP0;
+	cfg.cfg_counter_mode = TIMER_COUNTER_MAIN;
 	cfg.cfg_main_val_usec = 0;
 	cfg.cfg_cmp0_val_usec = u_sec;
 	cfg.cfg_cmp1_val_usec = 0;
@@ -413,7 +420,7 @@ static int32_t vcp_timer_init(void)
 		vcp_timer_resource[resIndex].rsc_table_arg = TCC_NULL_PTR;
 
 		sys_write32(0x7FFFU, (uint32_t)(reg + TMR_OP_EN_CFG));
-		sys_write32(0x0U, (uint32_t)(reg + TMR_MAIN_CNT_LVD));
+		sys_write32(0x0U, (uint32_t)(reg + TMR_MAIN_CNT_LDV));
 		sys_write32(0x0U, (uint32_t)(reg + TMR_CMP_VALUE0));
 		sys_write32(0x0U, (uint32_t)(reg + TMR_CMP_VALUE1));
 

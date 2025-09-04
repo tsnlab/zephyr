@@ -24,7 +24,7 @@
 
 /* Register Map */
 #define TMR_OP_EN_CFG    0x000UL
-#define TMR_MAIN_CNT_LVD 0x004UL
+#define TMR_MAIN_CNT_LDV 0x004UL
 #define TMR_CMP_VALUE0   0x008UL
 #define TMR_CMP_VALUE1   0x00CUL
 #define TMR_PSCL_CNT     0x010UL
