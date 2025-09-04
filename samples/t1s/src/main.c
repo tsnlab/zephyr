@@ -2,6 +2,7 @@
 
 #include <zephyr/drivers/spi.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/arch/cpu.h>
 
 #include "eth.h"
 #include "lan8651.h"
@@ -73,17 +74,44 @@ static void latency_test()
 	}
 }
 
+const uint8_t sender_mac_addr[ETH_ALEN] = { 0xaa, 0xbb, 0xcc, 0x00, 0x00, 0x11, };
+const uint8_t receiver_mac_addr[ETH_ALEN] = {0xaa, 0xbb, 0xcc, 0x00, 0x00, 0x22, };
+const uint8_t sender_ip_addr[IP_LEN] = { 10, 1, 1, 1, };
+const uint8_t receiver_ip_addr[IP_LEN] = { 10, 1, 1, 2, };
+
+static void arp_receiver() {
+	printk("ARP Receiver started\n");
+	while (true) {
+		receive_arp_request(&spi_dev, receiver_mac_addr, receiver_ip_addr);
+	}
+}
+
+static void arp_sender() {
+	printk("ARP Sender started\n");
+	while (true) {
+		printk("Sending ARP Request to %d.%d.%d.%d\n", receiver_ip_addr[0], receiver_ip_addr[1], receiver_ip_addr[2], receiver_ip_addr[3]);
+		send_arp_request(&spi_dev, sender_mac_addr, sender_ip_addr, receiver_ip_addr);
+		receive_arp_reply(&spi_dev);
+		for (int i = 0; i < 100000000; i++) {
+			arch_nop();
+		}
+	}
+}
+
 int main(void)
 {
 	spi_dev.bus = DEVICE_DT_GET(SPI_NODE);
 	spi_dev.config.frequency = 25000000;
 	spi_dev.config.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(32) | SPI_HOLD_ON_CS;
 
-	set_register(&spi_dev, PLCA_MODE_COORDINATOR);
+	// set_register(&spi_dev, PLCA_MODE_COORDINATOR);
+	set_register(&spi_dev, PLCA_MODE_FOLLOWER);
 
 	// arp_test();
 	// throughput_test();
-	latency_test();
+	// latency_test();
+	// arp_sender();
+	arp_receiver();
 
 	return 0;
 }
