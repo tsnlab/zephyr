@@ -5,6 +5,7 @@ config TCC_VCPTTC_TIMER
 	bool "Telechips VCP ttc timer support"
 	default y
 	depends on DT_HAS_TCC_TTCVCP_ENABLED
+	select TICKLESS_CAPABLE
 	help
 	  This module implements a kernel device driver for the Telechips VCP
 	  platform provides the standard "system clock driver" interfaces.

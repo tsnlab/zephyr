@@ -92,9 +92,16 @@ static void arp_sender() {
 		printk("Sending ARP Request to %d.%d.%d.%d\n", receiver_ip_addr[0], receiver_ip_addr[1], receiver_ip_addr[2], receiver_ip_addr[3]);
 		send_arp_request(&spi_dev, sender_mac_addr, sender_ip_addr, receiver_ip_addr);
 		receive_arp_reply(&spi_dev);
-		for (int i = 0; i < 100000000; i++) {
-			arch_nop();
-		}
+		// for (int i = 0; i < 100000000; i++) {
+		// 	arch_nop();
+		// }
+		k_busy_wait(1000000);
+	}
+}
+
+static void perf_server() {
+	printk("Perf Server started\n");
+	while (true) {
 	}
 }
 
