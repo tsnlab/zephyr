@@ -111,7 +111,6 @@ uint32_t sys_clock_elapsed(void)
 
 	/* Return the number of ticks since last announcement */
 	elapsed = (cycles - last_cycles) / CYCLES_PER_TICK;
-	last_cycles = cycles;
 	return elapsed;
 #else
 	return 0;
