@@ -270,19 +270,15 @@ int set_register(const struct spi_dt_spec *spi_dev, int mode)
 	if (mode == PLCA_MODE_COORDINATOR) {
 		write_register(spi_dev, MMS4, PLCA_CTRL1,
 			       0x00000800); // Coordinator(node 0), 2 nodes
-		write_register(spi_dev, MMS1, MAC_SAB1,
-			       0x11111111); // Configure MAC Address (Temporary)
-		write_register(spi_dev, MMS1, MAC_SAT1,
-			       0x00001111); // Configure MAC Address (Temporary)
+		write_register(spi_dev, MMS1, MAC_SAB1, 0x00ccbbaa); // Configure MAC Address (Temporary)
+		write_register(spi_dev, MMS1, MAC_SAT1, 0x00004400); // Configure MAC Address (Temporary)
 		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
 		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
 		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
 	} else if (mode == PLCA_MODE_FOLLOWER) {
 		write_register(spi_dev, MMS4, PLCA_CTRL1, 0x00000801); // Follower, node 1
-		write_register(spi_dev, MMS1, MAC_SAB1,
-			       0x22222222); // Configure MAC Address (Temporary)
-		write_register(spi_dev, MMS1, MAC_SAT1,
-			       0x00002222); // Configure MAC Address (Temporary)
+		write_register(spi_dev, MMS1, MAC_SAB1, 0x00ccbbaa); // Configure MAC Address (Temporary)
+		write_register(spi_dev, MMS1, MAC_SAT1, 0x00003300); // Configure MAC Address (Temporary)
 		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
 		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
 		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
@@ -437,6 +433,11 @@ int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *l
 			}
 
 			data_offset = (footer.rx_footer_bits.swo * 4); /* 4 bytes per word */
+		} else {
+			if (footer.rx_footer_bits.sv == SV_START_VALID) {
+				printk("Unexpected start of the packet\n");
+				return -1;
+			}
 		}
 
 		if (footer.rx_footer_bits.ev == EV_END_VALID) { /* Last chunk */

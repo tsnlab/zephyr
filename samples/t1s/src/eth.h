@@ -60,6 +60,7 @@ struct arphdr_ipv4 {
 	uint8_t sender_ip[IP_LEN];
 	uint8_t target_mac[ETH_ALEN];
 	uint8_t target_ip[IP_LEN];
+	uint32_t seq;
 };
 
 // ARP table entry regarding IPv4
