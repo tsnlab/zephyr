@@ -47,6 +47,8 @@ enum perf_latency_op {
 int send_perf_req_packet(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH_ALEN],
 			 const uint8_t target_mac_addr[ETH_ALEN], uint32_t duration,
 			 uint32_t warmup);
+int send_perf_res_packet(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH_ALEN],
+			 const uint8_t target_mac_addr[ETH_ALEN]);
 uint16_t make_perf_data_packet(const uint8_t my_mac_addr[ETH_ALEN],
 			       const uint8_t target_mac_addr[ETH_ALEN], uint8_t *packet,
 			       uint32_t len);
@@ -57,5 +59,7 @@ int recv_latency_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_
 uint16_t make_latency_res(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
 			  const uint8_t target_mac_addr[ETH_ALEN], uint32_t id);
 int send_latency_res(const struct spi_dt_spec *spi, const uint8_t *packet, uint16_t length);
+int recv_perf_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint32_t *duration, uint32_t *warmup);
+int recv_perf_data(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint32_t *id, uint32_t* len);
 
 #endif /* PERF_H */

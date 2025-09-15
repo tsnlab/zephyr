@@ -9,7 +9,7 @@
 
 static uint16_t make_arp_request_packet(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
 					const uint8_t my_ip_addr[IP_LEN],
-					const uint8_t target_ip_addr[IP_LEN])
+					const uint8_t target_ip_addr[IP_LEN], uint32_t seq)
 {
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
@@ -30,6 +30,7 @@ static uint16_t make_arp_request_packet(uint8_t *packet, const uint8_t my_mac_ad
 	memcpy(arp->sender_ip, my_ip_addr, IP_LEN);
 	memset(arp->target_mac, 0x00, ETH_ALEN); // Unknown
 	memcpy(arp->target_ip, target_ip_addr, IP_LEN);
+	arp->seq = seq;
 
 	return PACKET_SIZE_ARP;
 }
@@ -37,14 +38,14 @@ static uint16_t make_arp_request_packet(uint8_t *packet, const uint8_t my_mac_ad
 static uint16_t make_arp_reply_packet(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
 					const uint8_t my_ip_addr[IP_LEN],
 					const uint8_t target_mac_addr[ETH_ALEN],
-					const uint8_t target_ip_addr[IP_LEN])
+					const uint8_t target_ip_addr[IP_LEN], uint32_t seq)
 {
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
 	struct arphdr_ipv4 *arp = (struct arphdr_ipv4 *)(eth + 1);
 
 	// Fill Ethernet header
-	memset(eth->h_dest, 0xFF, ETH_ALEN); // Broadcast
+	memcpy(eth->h_dest, target_mac_addr, ETH_ALEN);
 	memcpy(eth->h_source, my_mac_addr, ETH_ALEN);
 	eth->h_proto = sys_cpu_to_be16(ETH_P_ARP);
 
@@ -58,30 +59,31 @@ static uint16_t make_arp_reply_packet(uint8_t *packet, const uint8_t my_mac_addr
 	memcpy(arp->sender_ip, my_ip_addr, IP_LEN);
 	memcpy(arp->target_mac, target_mac_addr, ETH_ALEN);
 	memcpy(arp->target_ip, target_ip_addr, IP_LEN);
+	arp->seq = seq;
 
 	return PACKET_SIZE_ARP;
 }
 
 int send_arp_request(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH_ALEN],
-		     const uint8_t my_ip_addr[IP_LEN], const uint8_t target_ip_addr[IP_LEN])
+		     const uint8_t my_ip_addr[IP_LEN], const uint8_t target_ip_addr[IP_LEN], uint32_t seq)
 {
 	uint8_t packet[PACKET_SIZE_ARP];
-	uint16_t length = make_arp_request_packet(packet, my_mac_addr, my_ip_addr, target_ip_addr);
+	uint16_t length = make_arp_request_packet(packet, my_mac_addr, my_ip_addr, target_ip_addr, seq);
 
 	return send_packet(spi, packet, length);
 }
 
 int send_arp_reply(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH_ALEN],
 		     const uint8_t my_ip_addr[IP_LEN], const uint8_t target_mac_addr[ETH_ALEN],
-		     const uint8_t target_ip_addr[IP_LEN])
+		     const uint8_t target_ip_addr[IP_LEN], uint32_t seq)
 {
 	uint8_t packet[PACKET_SIZE_ARP];
-	uint16_t length = make_arp_reply_packet(packet, my_mac_addr, my_ip_addr, target_mac_addr, target_ip_addr);
+	uint16_t length = make_arp_reply_packet(packet, my_mac_addr, my_ip_addr, target_mac_addr, target_ip_addr, seq);
 
 	return send_packet(spi, packet, length);
 }
 
-int receive_arp_reply(const struct spi_dt_spec *spi)
+int receive_arp_reply(const struct spi_dt_spec *spi, uint32_t *seq)
 {
 	uint8_t packet[MAX_PACKET_SIZE] = {
 		0,
@@ -106,6 +108,7 @@ int receive_arp_reply(const struct spi_dt_spec *spi)
 		printk("Invalid ARP reply\n");
 		return -1;
 	}
+	*seq = arp->seq;
 
 	printk("Reply Received from %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d)\n", eth->h_source[0], eth->h_source[1], eth->h_source[2],
 	       eth->h_source[3], eth->h_source[4], eth->h_source[5], arp->sender_ip[0], arp->sender_ip[1], arp->sender_ip[2], arp->sender_ip[3]);
@@ -170,14 +173,15 @@ int receive_arp_request(const struct spi_dt_spec *spi, const uint8_t my_mac_addr
 	}
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
-	struct arphdr_ipv4 *arp = (struct arphdr_ipv4 *)(eth + 1);
 
 	if (eth->h_proto != sys_cpu_to_be16(ETH_P_ARP)) {
-		printk("Invalid ARP packet\n");
+		printk("Invalid ARP packet: 0x%04x\n", eth->h_proto);
 	}
 
+	struct arphdr_ipv4 *arp = (struct arphdr_ipv4 *)(eth + 1);
+
 	if (arp->arp.ar_op != sys_cpu_to_be16(ARPOP_REQUEST)) {
-		printk("Invalid ARP request\n");
+		printk("Invalid ARP request: 0x%04x\n", arp->arp.ar_op);
 		return -1;
 	}
 
@@ -191,7 +195,7 @@ int receive_arp_request(const struct spi_dt_spec *spi, const uint8_t my_mac_addr
 	       eth->h_source[3], eth->h_source[4], eth->h_source[5], arp->sender_ip[0], arp->sender_ip[1], arp->sender_ip[2], arp->sender_ip[3]);
 
 	printk("Sending ARP Reply\n");
-	send_arp_reply(spi, my_mac_addr, my_ip_addr, eth->h_source, arp->sender_ip);
+	send_arp_reply(spi, my_mac_addr, my_ip_addr, eth->h_source, arp->sender_ip, arp->seq);
 
 	return 0;
 }

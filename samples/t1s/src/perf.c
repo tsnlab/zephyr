@@ -33,31 +33,35 @@ int send_perf_req_packet(const struct spi_dt_spec *spi, const uint8_t my_mac_add
 	uint16_t length =
 		make_perf_req_packet(packet, my_mac_addr, target_mac_addr, duration, warmup);
 
-	uint8_t txbuffer[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
-	uint8_t rxbuffer[MAX_PAYLOAD_BYTE + FOOTER_SIZE] = {0};
-	union data_header data_transfer_header;
+	send_packet(spi, packet, length);
 
-	data_transfer_header.data_frame_head = 0;
-	uint32_t be_header;
+	return 0;
+}
 
-	data_transfer_header.tx_header_bits.dnc = DNC_COMMANDTYPE_DATA;
-	data_transfer_header.tx_header_bits.norx = NORX_NO_RECEIVE;
-	data_transfer_header.tx_header_bits.dv = DV_DATA_VALID;
-	data_transfer_header.tx_header_bits.sv = SV_START_VALID;
-	data_transfer_header.tx_header_bits.ev = EV_END_VALID;
-	data_transfer_header.tx_header_bits.ebo = length - 1;
-	data_transfer_header.tx_header_bits.p = get_parity(data_transfer_header.data_frame_head);
+static uint16_t make_perf_res_packet(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
+				     const uint8_t target_mac_addr[ETH_ALEN])
+{
+	struct ethhdr *eth = (struct ethhdr *)packet;
+	struct perf_header *res = (struct perf_header *)(eth + 1);
 
-	be_header = sys_cpu_to_be32(data_transfer_header.data_frame_head);
-	memcpy(txbuffer, &be_header, HEADER_SIZE);
+	memcpy(eth->h_dest, target_mac_addr, ETH_ALEN);
+	memcpy(eth->h_source, my_mac_addr, ETH_ALEN);
+	eth->h_proto = sys_cpu_to_be16(PERF_ETHERTYPE);
 
-	memcpy(&txbuffer[HEADER_SIZE], packet, length);
+	res->id = sys_cpu_to_be32(0xdeadbeef);
+	res->op = PERF_RES_START;
 
-	struct spi_buf tx_buf = {.buf = txbuffer, .len = HEADER_SIZE + MAX_PAYLOAD_BYTE};
-	const struct spi_buf_set tx_buf_set = {.buffers = &tx_buf, .count = 1};
-	struct spi_buf rx_buf = {.buf = rxbuffer, .len = MAX_PAYLOAD_BYTE + FOOTER_SIZE};
-	const struct spi_buf_set rx_buf_set = {.buffers = &rx_buf, .count = 1};
-	spi_transceive_dt(spi, &tx_buf_set, &rx_buf_set);
+	return sizeof(struct ethhdr) + sizeof(struct perf_header);
+}
+
+int send_perf_res_packet(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH_ALEN],
+			 const uint8_t target_mac_addr[ETH_ALEN])
+{
+	uint8_t packet[HEADER_SIZE + MAX_PAYLOAD_BYTE] = {0};
+	uint16_t length =
+		make_perf_res_packet(packet, my_mac_addr, target_mac_addr);
+
+	send_packet(spi, packet, length);
 
 	return 0;
 }
@@ -240,6 +244,69 @@ int send_latency_res(const struct spi_dt_spec *spi, const uint8_t *packet, uint1
 	struct spi_buf rx_buf = {.buf = rxbuffer, .len = MAX_PAYLOAD_BYTE + FOOTER_SIZE};
 	const struct spi_buf_set rx_buf_set = {.buffers = &rx_buf, .count = 1};
 	spi_transceive_dt(spi, &tx_buf_set, &rx_buf_set);
+
+	return 0;
+}
+
+int recv_perf_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint32_t *duration, uint32_t *warmup)
+{
+	uint8_t packet[MAX_PACKET_SIZE] = {0,};
+	uint16_t length = 0;
+
+	while (length == 0) {
+		if (receive_packet(spi, packet, &length) < 0) {
+			printk("Failed to receive Perf request\n");
+			return -1;
+		}
+	}
+
+	struct ethhdr *eth = (struct ethhdr *)packet;
+	if (eth->h_proto != sys_cpu_to_be16(PERF_ETHERTYPE)) { /* Ignore Non-Perf packets */
+		printk("Non-Perf packet received %d\n", eth->h_proto);
+		return 0;
+	}
+
+	struct perf_startreq_header *perf = (struct perf_startreq_header *)(eth + 1);
+	if (perf->header.op != PERF_REQ_START) {
+		printk("Non-Req packet received %d\n", perf->header.op);
+		return 0;
+	}
+
+	memcpy(source_mac_addr, eth->h_source, ETH_ALEN);
+	*duration = sys_be32_to_cpu(perf->duration);
+	*warmup = sys_be32_to_cpu(perf->warmup);
+
+	return 0;
+}
+
+int recv_perf_data(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint32_t *id, uint32_t* len)
+{
+	uint8_t packet[MAX_PACKET_SIZE] = {0};
+	uint16_t length = 0;
+
+	while (length == 0) {
+		if (receive_packet(spi, packet, &length) < 0) {
+			printk("Failed to receive Perf data\n");
+			return -1;
+		}
+	}
+
+	struct ethhdr *eth = (struct ethhdr *)packet;
+	if (eth->h_proto != sys_cpu_to_be16(PERF_ETHERTYPE)) { /* Ignore Non-Perf packets */
+		printk("Non-Perf packet received %d\n", eth->h_proto);
+		return 0;
+	}
+
+	struct perf_header *perf = (struct perf_header *)(eth + 1);
+
+	if (perf->op != PERF_DATA) { /* Ignore Non-Data packets */
+		return 0;
+	}
+
+	memcpy(source_mac_addr, eth->h_source, ETH_ALEN);
+
+	*id = sys_be32_to_cpu(perf->id);
+	*len = length;
 
 	return 0;
 }
