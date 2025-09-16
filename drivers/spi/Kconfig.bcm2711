@@ -1,0 +1,8 @@
+# TODO: Copyright
+
+config SPI_BCM2711
+	bool "TODO"
+	default y
+	depends on DT_HAS_BRCM_BCM2711_SPI_ENABLED
+	help
+	  TODO
