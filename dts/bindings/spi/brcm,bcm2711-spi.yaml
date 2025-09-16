@@ -1,0 +1,29 @@
+# TODO
+
+description: Broadcom BCM2711 SPI
+
+compatible: "brcm,bcm2711-spi"
+
+include: [spi-controller.yaml]
+
+properties:
+  reg:
+    required: true
+
+  clk-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI clock
+
+  miso-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI MISO
+
+  mosi-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO pin for SPI MOSI

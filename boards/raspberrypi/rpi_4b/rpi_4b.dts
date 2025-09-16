@@ -35,6 +35,10 @@
 	};
 };
 
+&gpio0 {
+	status = "okay";
+};
+
 &gpio1 {
 	status = "okay";
 };
@@ -42,4 +46,9 @@
 &uart1 {
 	status = "okay";
 	current-speed = <115200>;
+};
+
+&spi0 {
+	status = "okay";
+	clock-frequency = <1800000000>;
 };

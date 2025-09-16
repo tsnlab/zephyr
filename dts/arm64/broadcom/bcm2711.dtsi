@@ -9,6 +9,7 @@
 
 #include <arm64/armv8-a.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 
 / {
 	cpus {
@@ -90,6 +91,20 @@
 			interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			status = "disabled";
+		};
+
+		spi0: spi@fe204000 {
+			compatible = "brcm,bcm2711-spi";
+			reg = <0xfe204000 0x18>;
+			status = "disabled";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			clk-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+			mosi-gpios = <&gpio0 10 GPIO_ACTIVE_HIGH>;
+			miso-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+			cs-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
