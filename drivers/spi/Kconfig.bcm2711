@@ -6,4 +6,4 @@ config SPI_BCM2711
 	default y
 	depends on DT_HAS_BRCM_BCM2711_SPI_ENABLED
 	help
-	  Enable Driver for BCM2711 SPI device.
+	  Enable Driver for BCM2711 SPI controller.
