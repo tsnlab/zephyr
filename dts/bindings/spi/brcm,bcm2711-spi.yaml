@@ -1,4 +1,5 @@
-# TODO
+# Copyright (c) 2025 Junho Lee <junho@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
 
 description: Broadcom BCM2711 SPI
 
