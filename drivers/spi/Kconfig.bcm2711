@@ -1,8 +1,9 @@
-# TODO: Copyright
+# Copyright (c) 2025 Junho Lee <junho@tsnlab.com>
+# SPDX-License-Identifier: Apache-2.0
 
 config SPI_BCM2711
-	bool "TODO"
+	bool "BCM2711 SPI driver"
 	default y
 	depends on DT_HAS_BRCM_BCM2711_SPI_ENABLED
 	help
-	  TODO
+	  Enable Driver for BCM2711 SPI device.

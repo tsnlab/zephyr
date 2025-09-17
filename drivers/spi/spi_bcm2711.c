@@ -1,5 +1,7 @@
 /*
- * TODO: copyright
+ * Copyright (c) 2025 Junho Lee <junho@tsnlab.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 #define DT_DRV_COMPAT brcm_bcm2711_spi
 
@@ -12,7 +14,6 @@ LOG_MODULE_REGISTER(spi_bcm2711);
 #include <zephyr/irq.h>
 #include <zephyr/sys/byteorder.h>
 
-// #include "spi_bcm2711.h"
 #include "spi_context.h"
 
 #define SPI_CS(base) (base + 0x00)
@@ -39,17 +40,20 @@ LOG_MODULE_REGISTER(spi_bcm2711);
 
 struct spi_bcm2711_config {
     DEVICE_MMIO_NAMED_ROM(reg_base);
+
     struct gpio_dt_spec clk_gpio;
     struct gpio_dt_spec miso_gpio;
     struct gpio_dt_spec mosi_gpio;
     struct gpio_dt_spec cs_gpio;
+
     uint32_t clock_freq;
 };
 
 struct spi_bcm2711_data {
-	struct spi_context ctx;
     DEVICE_MMIO_NAMED_RAM(reg_base);
     mem_addr_t base;
+
+	struct spi_context ctx;
     uint8_t dfs;
 };
 
