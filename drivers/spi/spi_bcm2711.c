@@ -133,7 +133,7 @@ static int spi_bcm2711_configure(const struct device *port, const struct spi_con
 static int spi_bcm2711_xfer(const struct device *port)
 {
 	struct spi_bcm2711_data *data = port->data;
-	uint32_t cs;
+	uint32_t cs, spi_data;
 
 	cs = sys_read32(SPI_CS(data->base));
 	cs |= SPI_CS_TA;
@@ -146,16 +146,20 @@ static int spi_bcm2711_xfer(const struct device *port)
 		if (spi_context_tx_buf_on(&data->ctx) && (cs & SPI_CS_TXD)) {
 			switch (data->dfs) {
 			case DFS_4B:
-				sys_write32(sys_get_be32(data->ctx.tx_buf), SPI_FIFO(data->base));
+				spi_data = sys_get_be32(data->ctx.tx_buf);
+				sys_write32(spi_data, SPI_FIFO(data->base));
 				break;
 			case DFS_2B:
-				sys_write32((uint32_t)sys_get_be16(data->ctx.tx_buf),
-					    SPI_FIFO(data->base));
+				spi_data = (uint32_t)sys_get_be16(data->ctx.tx_buf);
+				sys_write32(spi_data, SPI_FIFO(data->base));
 				break;
 			case DFS_1B:
-				sys_write32((uint32_t)*(uint8_t *)data->ctx.tx_buf,
-					    SPI_FIFO(data->base));
+				spi_data = (uint32_t)*(uint8_t *)data->ctx.tx_buf;
+				sys_write32(spi_data, SPI_FIFO(data->base));
 				break;
+			default:
+				LOG_ERR("Invalid DFS: %d", data->dfs);
+				return -EINVAL;
 			}
 			spi_context_update_tx(&data->ctx, data->dfs, 1);
 		}
@@ -164,14 +168,20 @@ static int spi_bcm2711_xfer(const struct device *port)
 		if (spi_context_rx_buf_on(&data->ctx) && (cs & SPI_CS_RXD)) {
 			switch (data->dfs) {
 			case DFS_4B:
-				sys_put_be32(sys_read32(SPI_FIFO(data->base)), data->ctx.rx_buf);
+				spi_data = sys_read32(SPI_FIFO(data->base));
+				sys_put_be32(spi_data, data->ctx.rx_buf);
 				break;
 			case DFS_2B:
-				sys_put_be16(sys_read32(SPI_FIFO(data->base)), data->ctx.rx_buf);
+				spi_data = (uint32_t)sys_read32(SPI_FIFO(data->base));
+				sys_put_be16(spi_data, data->ctx.rx_buf);
 				break;
 			case DFS_1B:
-				*(uint8_t *)data->ctx.rx_buf = sys_read32(SPI_FIFO(data->base));
+				spi_data = (uint32_t)sys_read32(SPI_FIFO(data->base));
+				*(uint8_t *)data->ctx.rx_buf = spi_data;
 				break;
+			default:
+				LOG_ERR("Invalid DFS: %d", data->dfs);
+				return -EINVAL;
 			}
 			spi_context_update_rx(&data->ctx, data->dfs, 1);
 		}
