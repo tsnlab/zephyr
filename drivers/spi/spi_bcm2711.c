@@ -61,13 +61,13 @@ static int spi_bcm2711_configure(const struct device *port, const struct spi_con
 {
 	const struct spi_bcm2711_config *config = port->config;
 	struct spi_bcm2711_data *data = port->data;
-	uint32_t word_size;
+	uint32_t word_size, clk, spi_cs;
 
 	if (spi_context_configured(&data->ctx, spi_cfg)) {
 		return 0;
 	}
 
-	uint32_t clk = config->clock_freq / spi_cfg->frequency;
+	clk = config->clock_freq / spi_cfg->frequency;
 	sys_write32(clk, SPI_CLK(data->base));
 
 	if (spi_cfg->operation & SPI_OP_MODE_SLAVE) {
@@ -75,7 +75,7 @@ static int spi_bcm2711_configure(const struct device *port, const struct spi_con
 		return -ENOTSUP;
 	}
 
-	uint32_t spi_cs = sys_read32(SPI_CS(data->base));
+	spi_cs = sys_read32(SPI_CS(data->base));
 
 	if (spi_cfg->operation & SPI_MODE_CPOL) {
 		spi_cs |= SPI_CS_CPOL;
@@ -133,8 +133,9 @@ static int spi_bcm2711_configure(const struct device *port, const struct spi_con
 static int spi_bcm2711_xfer(const struct device *port)
 {
 	struct spi_bcm2711_data *data = port->data;
+	uint32_t cs;
 
-	uint32_t cs = sys_read32(SPI_CS(data->base));
+	cs = sys_read32(SPI_CS(data->base));
 	cs |= SPI_CS_TA;
 	sys_write32(cs, SPI_CS(data->base));
 
@@ -229,8 +230,11 @@ static int spi_bcm2711_init(const struct device *port)
 #define BCM2711_GPIO_BASE  0xfe200000 /* There's no API for this right now */
 #define BCM2711_GPI0_FUNC0 0x4
 	mm_reg_t gpio_base;
+
 	device_map(&gpio_base, BCM2711_GPIO_BASE, 0x1000, K_MEM_CACHE_NONE);
+
 	uint32_t fsel = sys_read32(gpio_base + 0x00);
+
 	fsel |= (BCM2711_GPI0_FUNC0 << 24); /* PIN8 */
 	fsel |= (BCM2711_GPI0_FUNC0 << 27); /* PIN9 */
 	sys_write32(fsel, gpio_base + 0x00);
