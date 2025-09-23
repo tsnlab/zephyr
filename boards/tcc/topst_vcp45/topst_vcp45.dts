@@ -18,6 +18,7 @@
 	aliases {
 		led0 = &led_act;
 		spi0 = &spi0;
+		sw0 = &button0;
 	};
 
 	chosen {
@@ -31,8 +32,17 @@
 		compatible = "gpio-leds";
 
 		led_act: led-act {
-			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;
 			label = "ACT";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+
+		button0: button_0 {
+			gpios = <&gpiob 2 GPIO_ACTIVE_LOW>;
+			label = "User button";
 		};
 	};
 

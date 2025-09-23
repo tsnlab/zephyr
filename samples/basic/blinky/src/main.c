@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/sys/printk.h>
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
@@ -26,23 +27,27 @@ int main(void)
 	bool led_state = true;
 
 	if (!gpio_is_ready_dt(&led)) {
+		printk("gpio_is_ready_dt fail\n");
 		return 0;
 	}
 
 	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
 	if (ret < 0) {
+		printk("gpio_pin_configure_dt fail\n");
 		return 0;
 	}
 
+	printk("test\n");
 	while (1) {
 		ret = gpio_pin_toggle_dt(&led);
 		if (ret < 0) {
+			printk("gpio_pin_toggle_dt fail\n");
 			return 0;
 		}
 
+		printk("LED state: %s\n", led_state ? "ON" : "OFF");
 		led_state = !led_state;
-		printf("LED state: %s\n", led_state ? "ON" : "OFF");
-		k_msleep(SLEEP_TIME_MS);
+		k_busy_wait(2 * 1000 * SLEEP_TIME_MS);
 	}
 	return 0;
 }
