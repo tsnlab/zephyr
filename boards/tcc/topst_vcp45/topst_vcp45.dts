@@ -18,7 +18,8 @@
 	aliases {
 		led0 = &led_act;
 		spi0 = &spi0;
-		sw0 = &button0;
+		buttons0 = &buttons0;
+		stepper0 = &stepper0;
 	};
 
 	chosen {
@@ -32,23 +33,35 @@
 		compatible = "gpio-leds";
 
 		led_act: led-act {
-			gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
 			label = "ACT";
 		};
 	};
 
-	buttons {
+	buttons: buttons {
 		compatible = "gpio-keys";
 
-		button0: button_0 {
-			gpios = <&gpiob 2 GPIO_ACTIVE_LOW>;
-			label = "User button";
+		buttons0: buttons0 {
+			gpios = <&gpiob 3 GPIO_ACTIVE_LOW>,  // estop
+				<&gpioa 29 GPIO_ACTIVE_LOW>, // ccw
+				<&gpioa 28 GPIO_ACTIVE_LOW>; // cw
 		};
+	};
+
+	stepper0: stepper0 {
+		compatible = "zephyr,gpio-stepper";
+
+		gpios = <&gpioa 0 GPIO_ACTIVE_LOW>, // step
+			<&gpioa 1 GPIO_ACTIVE_LOW>; // dir
 	};
 
 };
 
 &flash0 {
+	status = "okay";
+};
+
+&gpioa {
 	status = "okay";
 };
 

@@ -197,13 +197,16 @@
 			reg = <0xa0f2a900 0x20>;
 		};
 
-		gpioa@a0f22000 {
+		gpioa: gpioa@a0f22000 {
 			compatible = "tcc,tccvcp-gpio";
 			reg = <0xa0f22000 0x40>;
 
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <31>;
 			status = "disabled";
 		};
 
