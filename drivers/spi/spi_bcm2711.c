@@ -28,8 +28,9 @@ LOG_MODULE_REGISTER(spi_bcm2711);
 #define SPI_CS_CSPOL BIT(6)
 #define SPI_CS_TA    BIT(7)
 
-#define SPI_CS_RXD BIT(17)
-#define SPI_CS_TXD BIT(18)
+#define SPI_CS_DONE BIT(16)
+#define SPI_CS_RXD  BIT(17)
+#define SPI_CS_TXD  BIT(18)
 
 #define DFS_4B 4
 #define DFS_2B 2
@@ -133,15 +134,18 @@ static int spi_bcm2711_configure(const struct device *port, const struct spi_con
 static int spi_bcm2711_xfer(const struct device *port)
 {
 	struct spi_bcm2711_data *data = port->data;
-	uint32_t cs, spi_data;
+	volatile uint32_t cs, spi_data;
 
 	cs = sys_read32(SPI_CS(data->base));
 	cs |= SPI_CS_TA;
 	sys_write32(cs, SPI_CS(data->base));
 
+	bool first = true;
+
 	cs = sys_read32(SPI_CS(data->base));
-	while (spi_context_tx_buf_on(&data->ctx) ||
-	       (spi_context_rx_buf_on(&data->ctx) && (cs & SPI_CS_RXD))) {
+	while (spi_context_tx_on(&data->ctx) ||
+	       (spi_context_rx_on(&data->ctx) && (cs & SPI_CS_RXD))) {
+		k_busy_wait(10);
 		/* Tx */
 		if (spi_context_tx_buf_on(&data->ctx) && (cs & SPI_CS_TXD)) {
 			switch (data->dfs) {
@@ -155,14 +159,19 @@ static int spi_bcm2711_xfer(const struct device *port)
 				break;
 			case DFS_1B:
 				spi_data = (uint32_t)*(uint8_t *)data->ctx.tx_buf;
-				sys_write32(spi_data, SPI_FIFO(data->base));
+				sys_write32(spi_data & 0xff, SPI_FIFO(data->base));
 				break;
 			default:
 				LOG_ERR("Invalid DFS: %d", data->dfs);
 				return -EINVAL;
 			}
 			spi_context_update_tx(&data->ctx, data->dfs, 1);
+		} else if (data->ctx.tx_buf == NULL && data->ctx.tx_len > 0) {
+			sys_write32(0, SPI_FIFO(data->base));
+			spi_context_update_tx(&data->ctx, data->dfs, 1);
 		}
+
+		k_busy_wait(10);
 
 		/* Rx */
 		if (spi_context_rx_buf_on(&data->ctx) && (cs & SPI_CS_RXD)) {
@@ -177,17 +186,33 @@ static int spi_bcm2711_xfer(const struct device *port)
 				break;
 			case DFS_1B:
 				spi_data = (uint32_t)sys_read32(SPI_FIFO(data->base));
-				*(uint8_t *)data->ctx.rx_buf = spi_data;
+				*(uint8_t *)data->ctx.rx_buf = spi_data & 0xff;
 				break;
 			default:
 				LOG_ERR("Invalid DFS: %d", data->dfs);
 				return -EINVAL;
 			}
 			spi_context_update_rx(&data->ctx, data->dfs, 1);
+		} else if (!first && data->ctx.rx_buf == NULL) {
+			if (cs & SPI_CS_RXD) {
+				spi_data = sys_read32(SPI_FIFO(data->base));
+				spi_context_update_rx(&data->ctx, data->dfs, 1);
+			}
 		}
+
+		first = false;
 
 		cs = sys_read32(SPI_CS(data->base));
 	}
+
+	cs = sys_read32(SPI_CS(data->base));
+	while (!(cs & SPI_CS_DONE)) {
+		cs = sys_read32(SPI_CS(data->base));
+	}
+
+	cs = sys_read32(SPI_CS(data->base));
+	cs &= ~SPI_CS_TA;
+	sys_write32(cs, SPI_CS(data->base));
 
 	return 0;
 }
