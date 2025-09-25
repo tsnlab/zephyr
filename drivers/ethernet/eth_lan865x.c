@@ -158,23 +158,30 @@ static int lan865x_wait_for_reset(const struct device *dev)
 	struct lan865x_data *ctx = dev->data;
 	uint8_t i;
 
+	// printk("lan865x_wait_for_reset: waiting for reset\n");
 	/* Wait for end of LAN865x reset */
 	for (i = 0; !ctx->reset && i < LAN865X_RESET_TIMEOUT; i++) {
 		k_msleep(1);
 	}
 
 	if (i == LAN865X_RESET_TIMEOUT) {
+		// printk("lan865x_wait_for_reset: reset timeout reached!\n");
 		LOG_ERR("LAN865x reset timeout reached!");
 		return -ENODEV;
 	}
 
+	// printk("lan865x_wait_for_reset: reset completed\n");
+
 	return 0;
 }
+
+static int lan865x_default_config(const struct device *dev);
 
 static int lan865x_gpio_reset(const struct device *dev)
 {
 	const struct lan865x_config *cfg = dev->config;
 	struct lan865x_data *ctx = dev->data;
+	uint32_t sts;
 
 	ctx->reset = false;
 	ctx->tc6->protected = false;
@@ -182,11 +189,22 @@ static int lan865x_gpio_reset(const struct device *dev)
 	/* Perform (GPIO based) HW reset */
 	/* assert RESET_N low for 10 µs (5 µs min) */
 	gpio_pin_set_dt(&cfg->reset, 1);
+	oa_tc6_reg_write(ctx->tc6, OA_RESET, OA_RESET_SWRESET);
+	oa_tc6_reg_read(ctx->tc6, OA_STATUS0, &sts);
+	sts |= BIT(6);
+	oa_tc6_reg_write(ctx->tc6, OA_STATUS0, sts);
+	// printk("lan865x_gpio_reset: applying default config\n");
+	lan865x_default_config(dev);
+	oa_tc6_reg_read(ctx->tc6, OA_STATUS0, &sts);
+	sts &= ~BIT(6);
+	oa_tc6_reg_write(ctx->tc6, OA_STATUS0, sts);
 	k_busy_wait(10U);
 	/* deassert - end of reset indicated by IRQ_N low  */
-	gpio_pin_set_dt(&cfg->reset, 0);
+	// gpio_pin_set_dt(&cfg->reset, 0);
+	ctx->reset = true;
+	return 0;
 
-	return lan865x_wait_for_reset(dev);
+	// return lan865x_wait_for_reset(dev);
 }
 
 static int lan865x_check_spi(const struct device *dev)
@@ -256,21 +274,86 @@ static int lan865x_set_specific_multicast_addr(const struct device *dev)
 	return oa_tc6_reg_write(ctx->tc6, LAN865x_MAC_NCFGR, LAN865x_MAC_NCFGR_MTIHEN);
 }
 
+static void set_macphy_registers(struct lan865x_data *ctx)
+{
+	uint32_t value1, value2;
+	int8_t offset1, offset2;
+	uint16_t cfgparam1, cfgparam2;
+	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x1f), &value1);
+	if ((value1 & 0x10) != 0) {
+		offset1 = (int8_t)((uint8_t)value1 - 0x20);
+	} else {
+		offset1 = (int8_t)value1;
+	}
+
+	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x1F), &value2);
+	if ((value2 & 0x10) != 0) {
+		offset2 = (int8_t)((uint8_t)value2 - 0x20);
+	} else {
+		offset2 = (int8_t)value2;
+	}
+
+	cfgparam1 = (uint16_t)(((9 + offset1) & 0x3F) << 10) | (uint16_t)(((14 + offset1) & 0x3F) << 4) | 0x03;
+	cfgparam2 = (uint16_t)(((40 + offset2) & 0x3F) << 10);
+
+
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xD0), 0x3F31);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xE0), 0xC000);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x84), cfgparam1);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x8A), cfgparam2);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xE9), 0x9E50);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xF5), 0x1CF8);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xF4), 0xC020);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xF8), 0xB900);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xF9), 0x4E53);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x81), 0x0080);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x91), 0x9660);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x77), 0x0028);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x43), 0x00FF);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x44), 0xFFFF);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x45), 0x0000);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x53), 0x00FF);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x54), 0xFFFF);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x55), 0x0000);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x40), 0x0002);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x50), 0x0002);
+}
+
 static int lan865x_default_config(const struct device *dev)
 {
 	struct lan865x_data *ctx = dev->data;
 	int ret;
+	uint32_t val;
 
 	/* Enable protected control RW */
-	oa_tc6_set_protected_ctrl(ctx->tc6, true);
+	// oa_tc6_set_protected_ctrl(ctx->tc6, true);
 
-	ret = oa_tc6_reg_write(ctx->tc6, LAN865X_FIXUP_REG, LAN865X_FIXUP_VALUE);
-	if (ret) {
-		return ret;
-	}
+	val = oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x87), &val);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x87), val | BIT(15));
 
-	lan865x_write_macaddress(dev);
-	lan865x_set_specific_multicast_addr(dev);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xCA02), 0x00000800);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x22), 0x00ccbbaa);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x23), 0x00001100);
+
+	set_macphy_registers(ctx);
+
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xCA01), 0x00008000);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x01), 0x000000C0);
+	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x00), 0x0000000C);
+
+	oa_tc6_reg_read(ctx->tc6, OA_CONFIG0, &val);
+	val |= BIT(15);
+	val &= ~(0x07);
+	val |= 0x06;
+	oa_tc6_reg_write(ctx->tc6, OA_CONFIG0, val);
+
+	// ret = oa_tc6_reg_write(ctx->tc6, LAN865X_FIXUP_REG, LAN865X_FIXUP_VALUE);
+	// if (ret) {
+	// 	return ret;
+	// }
+
+	// lan865x_write_macaddress(dev);
+	// lan865x_set_specific_multicast_addr(dev);
 
 	return 0;
 }
@@ -326,22 +409,27 @@ static void lan865x_int_thread(const struct device *dev)
 
 	while (true) {
 		k_sem_take(&ctx->int_sem, K_FOREVER);
-		if (!ctx->reset) {
-			oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
-			if (sts & OA_STATUS0_RESETC) {
-				oa_tc6_reg_write(tc6, OA_STATUS0, sts);
+		// if (!ctx->reset) {
+		// 	printk("lan865x_int_thread: checking RESETC\n");
+		// 	oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
+		// 	if (sts & OA_STATUS0_RESETC) {
+		// 		// printk("lan865x_int_thread: RESETC on, applying default config\n");
+		// 		// lan865x_default_config(dev);
+		// 		printk("lan865x_int_thread: RESETC on, writing back\n");
+		// 		oa_tc6_reg_write(tc6, OA_STATUS0, sts);
 
-				lan865x_default_config(dev);
+		//      lan865x_default_config(dev);
 
-				ctx->reset = true;
-				/*
-				 * According to OA T1S standard - it is mandatory to
-				 * read chunk of data to get the IRQ_N negated (deasserted).
-				 */
-				oa_tc6_read_status(tc6, &ftr);
-				continue;
-			}
-		}
+		// 		ctx->reset = true;
+		// 		/*
+		// 		 * According to OA T1S standard - it is mandatory to
+		// 		 * read chunk of data to get the IRQ_N negated (deasserted).
+		// 		 */
+		// 		printk("lan865x_int_thread: READ STATUS\n");
+		// 		oa_tc6_read_status(tc6, &ftr);
+				// continue;
+		// 	}
+		// }
 
 		/*
 		 * The IRQ_N is asserted when RCA becomes > 0. As described in
@@ -356,6 +444,7 @@ static void lan865x_int_thread(const struct device *dev)
 
 		ret = oa_tc6_check_status(tc6);
 		if (ret == -EIO) {
+			// printk("lan865x_int_thread: check status error\n");
 			lan865x_gpio_reset(dev);
 		}
 	}
