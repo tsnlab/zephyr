@@ -51,8 +51,8 @@
 	stepper0: stepper0 {
 		compatible = "zephyr,gpio-stepper";
 
-		gpios = <&gpioa 0 GPIO_ACTIVE_LOW>, // step
-			<&gpioa 1 GPIO_ACTIVE_LOW>; // dir
+		gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>, // step
+			<&gpioa 1 GPIO_ACTIVE_HIGH>; // dir
 	};
 
 };

@@ -10,6 +10,8 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/printk.h>
 
+#define LOW		0
+#define HIGH		1
 #define SLEEP_TIME_MS	1000
 
 /*
@@ -88,29 +90,40 @@ int main(void)
 {
 	int estop;
 	int motor;
+	int prev_motor;
 	int dir;
 
 	if (initialize() < 0) {
 		return 0;
 	}
 	printk("Initialization done\n");
+	motor = 0;
 	while (1) {
+		prev_motor = motor;
 		estop = gpio_pin_get_dt(&estop_dt);
-		if (estop > 0) {
-			gpio_pin_set_dt(&led_dt, 1);
-			printk("estop\n");
-			busy_wait_ms(200);
-			continue;
-		} else {
-			gpio_pin_set_dt(&led_dt, 0);
-		}
 		dir = gpio_pin_get_dt(&rotate_ccw_dt) > 0 ? 1 : 0;
 		motor = dir ^ (gpio_pin_get_dt(&rotate_cw_dt) > 0 ? 1 : 0);
-		gpio_pin_set_dt(&motor_dir_dt, dir);
-		busy_wait_ms(15);
-		gpio_pin_set_dt(&motor_step_dt, motor);
-		printk("dir=%d  motor=%d\n", dir, motor);
-		busy_wait_ms(200);
+		printk("motor=%d  dir=%d\n", motor, dir);
+		if (estop > 0) {
+			motor = 0;
+			gpio_pin_set_dt(&led_dt, HIGH);
+			printk("estop\n");
+			busy_wait_ms(2);
+			continue;
+		} else {
+			gpio_pin_set_dt(&led_dt, LOW);
+		}
+		if (motor == 0) {
+			busy_wait_ms(2);
+			continue;
+		}
+		if (prev_motor == 0) {
+			gpio_pin_set_dt(&motor_dir_dt, dir);
+			k_busy_wait(15);
+		}
+		gpio_pin_set_dt(&motor_step_dt, 0);
+		busy_wait_ms(2);
+		gpio_pin_set_dt(&motor_step_dt, 1);
 	}
 	return 0;
 }
