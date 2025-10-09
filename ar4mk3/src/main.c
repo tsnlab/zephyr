@@ -69,6 +69,7 @@ enum ROBOT_ARM_STATE {
 	NOT_READY,
 	CALIBRATING,
 	READY,
+	RUNNING,
 };
 
 struct robot_arm {
@@ -181,6 +182,10 @@ int main(void)
 
 			case CALIBRATING:
 				printk("Robot Arm is calibrating. Please wait for calibration done.\n");
+				break;
+
+			case RUNNING:
+				/* Do nothing */
 				break;
 
 			case READY: {
@@ -436,6 +441,7 @@ void do_calibration(void)
 
 void move_joint(enum JOINT_NUM joint_num, enum JOINT_DIRECTION direction)
 {
+	global_robot_arm.state = RUNNING;
 	switch (joint_num) {
 		case JOINT_1:
 			move_joint_1_one_step(direction);
@@ -459,6 +465,7 @@ void move_joint(enum JOINT_NUM joint_num, enum JOINT_DIRECTION direction)
 			printk("Invalid joint number: %d\n", joint_num);
 			break;
 	}
+	global_robot_arm.state = READY;
 }
 
 void move_joint_1_one_step(enum JOINT_DIRECTION direction)
