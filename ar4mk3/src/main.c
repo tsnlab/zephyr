@@ -445,14 +445,17 @@ void move_joint(enum JOINT_NUM joint_num, enum JOINT_DIRECTION direction)
 	switch (joint_num) {
 		case JOINT_1:
 			move_joint_1_one_step(direction);
+			move_joint_1_one_step(direction);
 			break;
 		case JOINT_2:
 			move_joint_2_one_step(direction);
 			break;
 		case JOINT_3:
 			move_joint_3_one_step(direction);
+			move_joint_3_one_step(direction);
 			break;
 		case JOINT_4:
+			move_joint_4_one_step(direction);
 			move_joint_4_one_step(direction);
 			break;
 		case JOINT_5:
@@ -592,58 +595,65 @@ void move_joint_6_one_step(enum JOINT_DIRECTION direction)
 
 void common_move_joint(enum JOINT_NUM joint_num)
 {
+
+	/* NOTE:
+	 *   - The first delay is the minimum delay required to generate pulses for the stepper motor.
+	 *   - The second delay controls the speed of the stepper motor. (This value differs for each joint.)
+	 *   - (ToDo) For the second delay, an API to calculate the appropriate speed should be implemented.
+	 */
+
 	switch (joint_num) {
 		case JOINT_1: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint1.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint1.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(250); // second delay
 			}
 			break;
 		}
 		case JOINT_2: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint2.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint2.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(500); // second delay
 			}
 			break;
 		}
 		case JOINT_3: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint3.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint3.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(250); // second delay
 			}
 			break;
 		}
 		case JOINT_4: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint4.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint4.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(500); // second delay
 			}
 			break;
 		}
 		case JOINT_5: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint5.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint5.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(500); // second delay
 			}
 			break;
 		}
 		case JOINT_6: {
 			for(int i = 0; i < PULSE_COUNT; i++) {
 				gpio_pin_set_dt(&global_robot_arm.joint6.pulse, LOW);
-				k_busy_wait(500);
+				k_busy_wait(100); // first delay
 				gpio_pin_set_dt(&global_robot_arm.joint6.pulse, HIGH);
-				k_busy_wait(1000);
+				k_busy_wait(500); // second delay	
 			}
 			break;
 		}
