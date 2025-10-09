@@ -65,6 +65,12 @@ struct joint {
 	struct gpio_dt_spec limit_button;
 };
 
+enum ROBOT_ARM_STATE {
+	NOT_READY,
+	CALIBRATING,
+	READY,
+};
+
 struct robot_arm {
 	struct joint joint1;
 	struct joint joint2;
@@ -72,6 +78,8 @@ struct robot_arm {
 	struct joint joint4;
 	struct joint joint5;
 	struct joint joint6;
+
+	enum ROBOT_ARM_STATE state;
 };
 
 
@@ -149,93 +157,108 @@ static bool check_joint_limit_button(enum JOINT_NUM joint_num);
 ##########################################################################################*/
 int main(void)
 {
-	int ret;
-
 	char uart_char = '\0';
 
 	if (initialize() < 0) {
 		return 0;
 	}
-	printk("Initialization done\n");
 
 	while (1) {
 		/* Read character from UART1 */
-		ret = uart_poll_in(uart1, &uart_char);
+		if (uart_poll_in(uart1, &uart_char) < 0) {
+			continue;
+		}
 
-		switch (uart_char) {
+		switch (global_robot_arm.state) {
 
-			/* Joint 1 Commands */
-			case '1':
-				printk("Joint 1 Direction Left\n");
-				move_joint(JOINT_1, LEFT);
-				break;
-			case '2':
-				printk("Joint 1 Direction Right\n");
-				move_joint(JOINT_1, RIGHT);
-				break;
-
-			/* Joint 2 Commands */
-			case 'q':
-				printk("Joint 2 Direction Left\n");
-				move_joint(JOINT_2, LEFT);
-				break;
-			case 'w':
-				printk("Joint 2 Direction Right\n");
-				move_joint(JOINT_2, RIGHT);
+			case NOT_READY:
+				if (uart_char == '0') {
+					do_calibration();
+				} else {
+					printk("Robot Arm is not ready. Please do calibration first (press '0').\n");
+				}
 				break;
 
-			/* Joint 3 Commands */
-			case 'a':
-				printk("Joint 3 Direction Left\n");
-				move_joint(JOINT_3, LEFT);
-				break;
-			case 's':
-				printk("Joint 3 Direction Right\n");
-				move_joint(JOINT_3, RIGHT);
+			case CALIBRATING:
+				printk("Robot Arm is calibrating. Please wait for calibration done.\n");
 				break;
 
-			/* Joint 4 Commands */
-			case 'z':
-				printk("Joint 4 Direction Left\n");
-				move_joint(JOINT_4, LEFT);
-				break;
-			case 'x':
-				printk("Joint 4 Direction Right\n");
-				move_joint(JOINT_4, RIGHT);
-				break;
+			case READY: {
+				switch (uart_char) {
+					/* Calibration Commands */
+					case '0':
+						printk("Re-Calibrate Robot Arm\n");
+						do_calibration();
+						break;
 
-			/* Joint 5 Commands */
-			case '3':
-				printk("Joint 5 Direction Left\n");
-				move_joint(JOINT_5, LEFT);
-				break;
-			case '4':
-				printk("Joint 5 Direction Right\n");
-				move_joint(JOINT_5, RIGHT);
-				break;
-
-			/* Joint 6 Commands */
-			case 'e':
-				printk("Joint 6 Direction Left\n");
-				move_joint(JOINT_6, LEFT);
-				break;
-			case 'r':
-				printk("Joint 6 Direction Right\n");
-				move_joint(JOINT_6, RIGHT);
-				break;
-
-			/* Calibration Commands */
-			case '0':
-				printk("Calibration\n");
-				do_calibration();
-				break;
-
-			/* Default Commands */
-			case '\0':
-				continue;
-			default:
-				printk("Invalid input: %c. Commands: 1, 2, 3, 4, 5, 6, q, w, a, s, z, x, 3, 4, e, r, 0\n", uart_char);
-				break;
+					/* Joint 1 Commands */
+					case '1':
+						printk("Joint 1 Direction Left\n");
+						move_joint(JOINT_1, LEFT);
+						break;
+					case '2':
+						printk("Joint 1 Direction Right\n");
+						move_joint(JOINT_1, RIGHT);
+						break;
+		
+					/* Joint 2 Commands */
+					case 'q':
+						printk("Joint 2 Direction Left\n");
+						move_joint(JOINT_2, LEFT);
+						break;
+					case 'w':
+						printk("Joint 2 Direction Right\n");
+						move_joint(JOINT_2, RIGHT);
+						break;
+		
+					/* Joint 3 Commands */
+					case 'a':
+						printk("Joint 3 Direction Left\n");
+						move_joint(JOINT_3, LEFT);
+						break;
+					case 's':
+						printk("Joint 3 Direction Right\n");
+						move_joint(JOINT_3, RIGHT);
+						break;
+		
+					/* Joint 4 Commands */
+					case 'z':
+						printk("Joint 4 Direction Left\n");
+						move_joint(JOINT_4, LEFT);
+						break;
+					case 'x':
+						printk("Joint 4 Direction Right\n");
+						move_joint(JOINT_4, RIGHT);
+						break;
+		
+					/* Joint 5 Commands */
+					case '3':
+						printk("Joint 5 Direction Left\n");
+						move_joint(JOINT_5, LEFT);
+						break;
+					case '4':
+						printk("Joint 5 Direction Right\n");
+						move_joint(JOINT_5, RIGHT);
+						break;
+		
+					/* Joint 6 Commands */
+					case 'e':
+						printk("Joint 6 Direction Left\n");
+						move_joint(JOINT_6, LEFT);
+						break;
+					case 'r':
+						printk("Joint 6 Direction Right\n");
+						move_joint(JOINT_6, RIGHT);
+						break;
+		
+					/* Default Commands */
+					case '\0':
+						continue;
+					default:
+						printk("Invalid input: %c. Commands: 1, 2, 3, 4, 5, 6, q, w, a, s, z, x, 3, 4, e, r, 0\n", uart_char);
+						break;
+				}
+			}
 		}
 
 		uart_char = '\0';
@@ -258,6 +281,8 @@ int main(void)
 ##########################################################################################*/
 int initialize(void)
 {
+	printk("Do Initialization\n");
+
 	/* Initialize all joint GPIOs as outputs */
 	CHECK_INIT_GPIO(init_gpio(&joint1_pulse, GPIO_OUTPUT));
 	CHECK_INIT_GPIO(init_gpio(&joint1_direction, GPIO_OUTPUT));
@@ -318,10 +343,13 @@ int initialize(void)
 		.joint4 = joint4,
 		.joint5 = joint5,
 		.joint6 = joint6,
+		.state = NOT_READY,
 	};
 
 	/* Initialize UART1 */
 	CHECK_INIT_UART(init_uart());
+
+	printk("Initialization Done\n");
 
 	return 0;
 }
@@ -360,7 +388,50 @@ int init_uart(void)
 
 void do_calibration(void)
 {
-	printk("Do Something\n");
+	printk("Do Calibration\n");
+
+	global_robot_arm.state = CALIBRATING;
+
+	printk("1. Calibrate Joint 1\n");
+	while(1) {
+		move_joint(JOINT_1, LEFT);
+		if (check_joint_limit_button(JOINT_1)) {
+			break;
+		}
+	}
+
+	printk("2. Calibrate Joint 2\n");
+	while(1) {
+		move_joint(JOINT_2, LEFT);
+		if (check_joint_limit_button(JOINT_2)) {
+			break;
+		}
+	}
+
+	printk("3. Calibrate Joint 3\n");
+	while(1) {
+		move_joint(JOINT_3, RIGHT);
+		if (check_joint_limit_button(JOINT_3)) {
+			break;
+		}
+	}
+
+	printk("4. Move Joint 3 to Left N degree\n");
+	for(int i = 0; i < 50; i++) {
+		move_joint(JOINT_3, LEFT);
+	}
+
+	printk("5. Calibrate Joint 4\n");
+	while(1) {
+		move_joint(JOINT_4, LEFT);
+		if (check_joint_limit_button(JOINT_4)) {
+			break;
+		}
+	}
+
+	global_robot_arm.state = READY;
+
+	printk("Calibration Done\n");
 }
 
 void move_joint(enum JOINT_NUM joint_num, enum DIRECTION direction)
@@ -472,6 +543,9 @@ void move_joint_4_one_step(enum DIRECTION direction)
 
 void move_joint_5_one_step(enum DIRECTION direction)
 {
+	printk("Not supported\n");
+	return;
+
 	switch (direction) {
 		case LEFT: {
 			if (check_joint_limit_button(JOINT_5)) {
