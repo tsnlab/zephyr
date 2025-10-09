@@ -45,7 +45,7 @@
 /*#########################################################################################
 #                                    Enum and Struct                                      #
 ##########################################################################################*/
-enum DIRECTION {
+enum JOINT_DIRECTION {
 	LEFT,
 	RIGHT,
 };
@@ -137,14 +137,14 @@ static int init_uart(void);
 
 static void do_calibration(void);
 
-static void move_joint(enum JOINT_NUM joint_num, enum DIRECTION direction);
+static void move_joint(enum JOINT_NUM joint_num, enum JOINT_DIRECTION direction);
 
-static void move_joint_1_one_step(enum DIRECTION direction);
-static void move_joint_2_one_step(enum DIRECTION direction);
-static void move_joint_3_one_step(enum DIRECTION direction);
-static void move_joint_4_one_step(enum DIRECTION direction);
-static void move_joint_5_one_step(enum DIRECTION direction);
-static void move_joint_6_one_step(enum DIRECTION direction);
+static void move_joint_1_one_step(enum JOINT_DIRECTION direction);
+static void move_joint_2_one_step(enum JOINT_DIRECTION direction);
+static void move_joint_3_one_step(enum JOINT_DIRECTION direction);
+static void move_joint_4_one_step(enum JOINT_DIRECTION direction);
+static void move_joint_5_one_step(enum JOINT_DIRECTION direction);
+static void move_joint_6_one_step(enum JOINT_DIRECTION direction);
 
 static void common_move_joint(enum JOINT_NUM joint_num);
 static bool check_joint_limit_button(enum JOINT_NUM joint_num);
@@ -434,7 +434,7 @@ void do_calibration(void)
 	printk("Calibration Done\n");
 }
 
-void move_joint(enum JOINT_NUM joint_num, enum DIRECTION direction)
+void move_joint(enum JOINT_NUM joint_num, enum JOINT_DIRECTION direction)
 {
 	switch (joint_num) {
 		case JOINT_1:
@@ -461,7 +461,7 @@ void move_joint(enum JOINT_NUM joint_num, enum DIRECTION direction)
 	}
 }
 
-void move_joint_1_one_step(enum DIRECTION direction)
+void move_joint_1_one_step(enum JOINT_DIRECTION direction)
 {
 	switch (direction) {
 		case LEFT: {
@@ -481,7 +481,7 @@ void move_joint_1_one_step(enum DIRECTION direction)
 	common_move_joint(JOINT_1);
 }
 
-void move_joint_2_one_step(enum DIRECTION direction)
+void move_joint_2_one_step(enum JOINT_DIRECTION direction)
 {
 	switch (direction) {
 		case LEFT: {
@@ -501,7 +501,7 @@ void move_joint_2_one_step(enum DIRECTION direction)
 	common_move_joint(JOINT_2);
 }
 
-void move_joint_3_one_step(enum DIRECTION direction)
+void move_joint_3_one_step(enum JOINT_DIRECTION direction)
 {
 	switch (direction) {
 		case LEFT: {
@@ -521,7 +521,7 @@ void move_joint_3_one_step(enum DIRECTION direction)
 	common_move_joint(JOINT_3);
 }
 
-void move_joint_4_one_step(enum DIRECTION direction)
+void move_joint_4_one_step(enum JOINT_DIRECTION direction)
 {
 	switch (direction) {
 		case LEFT: {
@@ -541,7 +541,7 @@ void move_joint_4_one_step(enum DIRECTION direction)
 	common_move_joint(JOINT_4);
 }
 
-void move_joint_5_one_step(enum DIRECTION direction)
+void move_joint_5_one_step(enum JOINT_DIRECTION direction)
 {
 	printk("Not supported\n");
 	return;
@@ -564,7 +564,7 @@ void move_joint_5_one_step(enum DIRECTION direction)
 	common_move_joint(JOINT_5);
 }
 
-void move_joint_6_one_step(enum DIRECTION direction)
+void move_joint_6_one_step(enum JOINT_DIRECTION direction)
 {
 	printk("Not supported\n");
 	return;
