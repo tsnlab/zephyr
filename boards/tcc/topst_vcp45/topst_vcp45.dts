@@ -19,7 +19,7 @@
 		led0 = &led_act;
 		spi0 = &spi0;
 		buttons0 = &buttons0;
-		stepper0 = &stepper0;
+		joints0 = &joints0;
 	};
 
 	chosen {
@@ -33,28 +33,45 @@
 		compatible = "gpio-leds";
 
 		led_act: led-act {
-			gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpiob 6 GPIO_ACTIVE_HIGH>;
 			label = "ACT";
 		};
+	};
+
+	joints0: joints0 {
+		compatible = "zephyr,gpio-stepper";
+
+		gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>, // joint 1 pulse
+				<&gpioa 1 GPIO_ACTIVE_HIGH>, // joint 1 direction
+
+				<&gpioa 2 GPIO_ACTIVE_HIGH>, // joint 2 pulse
+				<&gpioa 3 GPIO_ACTIVE_HIGH>, // joint 2 direction
+
+				<&gpioa 4 GPIO_ACTIVE_HIGH>, // joint 3 pulse
+				<&gpioa 5 GPIO_ACTIVE_HIGH>, // joint 3 direction
+
+				<&gpioa 8 GPIO_ACTIVE_HIGH>, // joint 4 pulse
+				<&gpioa 9 GPIO_ACTIVE_HIGH>, // joint 4 direction
+
+				<&gpioa 10 GPIO_ACTIVE_HIGH>, // joint 5 pulse
+				<&gpioa 11 GPIO_ACTIVE_HIGH>, // joint 5 direction
+
+				<&gpioa 16 GPIO_ACTIVE_HIGH>, // joint 6 pulse
+				<&gpioa 17 GPIO_ACTIVE_HIGH>; // joint 6 direction
 	};
 
 	buttons: buttons {
 		compatible = "gpio-keys";
 
 		buttons0: buttons0 {
-			gpios = <&gpiob 3 GPIO_ACTIVE_LOW>,  // estop
-				<&gpioa 29 GPIO_ACTIVE_LOW>, // ccw
-				<&gpioa 28 GPIO_ACTIVE_LOW>; // cw
+			gpios = <&gpioa 6 GPIO_ACTIVE_HIGH>,  // joint 1 limit button
+					<&gpioa 7 GPIO_ACTIVE_HIGH>,  // joint 2 limit button
+					<&gpioa 28 GPIO_ACTIVE_HIGH>, // joint 3 limit button
+					<&gpioa 29 GPIO_ACTIVE_HIGH>, // joint 4 limit button
+					<&gpiob 3 GPIO_ACTIVE_HIGH>,  // joint 5 limit button
+					<&gpiob 2 GPIO_ACTIVE_HIGH>;  // joint 6 limit button
 		};
 	};
-
-	stepper0: stepper0 {
-		compatible = "zephyr,gpio-stepper";
-
-		gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>, // step
-			<&gpioa 1 GPIO_ACTIVE_HIGH>; // dir
-	};
-
 };
 
 &flash0 {
