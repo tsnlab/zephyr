@@ -53,3 +53,15 @@
 	status = "okay";
 	clock-frequency = <1800000000>;
 };
+
+&lan8651 {
+	status = "okay";
+};
+
+&lan865x_mdio {
+	status = "okay";
+};
+
+&ethernet0{
+	status = "okay";
+};

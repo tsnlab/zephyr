@@ -1,0 +1,48 @@
+/ {
+	joints0: joints0 {
+		compatible = "zephyr,h-bridge-stepper";
+
+		gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>,
+				<&gpio0 27 GPIO_ACTIVE_HIGH>,
+				<&gpio0 0 GPIO_ACTIVE_HIGH>,
+				<&gpio0 5 GPIO_ACTIVE_HIGH>,
+				<&gpio0 13 GPIO_ACTIVE_HIGH>,
+				<&gpio0 19 GPIO_ACTIVE_HIGH>;
+	};
+
+	buttons: buttons {
+		compatible = "gpio-keys";
+
+		buttons0: buttons0 {
+			gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>,
+					<&gpio0 6 GPIO_ACTIVE_HIGH>,
+					<&gpio0 26 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	aliases {
+		joints0 = &joints0;
+		buttons0 = &buttons0;
+	};
+};
+
+&lan8651 {
+#if defined(CONFIG_ROBOTARM_SLAVE_IS_FIRST)
+	local-mac-address = [aa bb cc 00 00 11];
+#else
+	local-mac-address = [aa bb cc 00 00 22];
+#endif
+};
+
+&lan865x_mdio {
+	plca-enable;
+#if defined(CONFIG_ROBOTARM_SLAVE_IS_FIRST)
+	plca-node-id = <1>;
+#else
+	plca-node-id = <2>;
+#endif
+	plca-node-count = <3>;
+	plca-burst-count = <0>;
+	plca-burst-timer = <0x80>;
+	plca-to-timer = <0x20>;
+};

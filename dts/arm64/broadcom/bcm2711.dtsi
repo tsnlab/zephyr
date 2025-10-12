@@ -110,15 +110,16 @@
 				compatible = "microchip,lan865x";
 				reg = <0x0>;
 				spi-max-frequency = <25000000>;
-				int-gpios = <&gpio0 23 0>;
+				int-gpios = <&gpio0 21 0>; // TODO: gpio 23 is used by T32
 				rst-gpios = <&gpio0 4 0>;
 				local-mac-address = [aa bb cc 00 00 00];
+				status = "disabled";
 				lan865x_mdio: lan865x_mdio {
 					compatible = "microchip,lan865x-mdio";
-					status = "okay";
+					status = "disabled";
 					#address-cells = <1>;
 					#size-cells = <0>;
-					ethernet-phy@0 {
+					ethernet0: ethernet-phy@0 {
 						compatible = "microchip,t1s-phy";
 						reg = <0x0>;
 						plca-enable;
@@ -127,7 +128,7 @@
 						plca-burst-count = <0>;
 						plca-burst-timer = <0x80>;
 						plca-to-timer = <0x20>;
-						status = "okay";
+						status = "disabled";
 					};
 				};
 			};
