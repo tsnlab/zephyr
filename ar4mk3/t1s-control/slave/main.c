@@ -619,7 +619,7 @@ void common_move_joint(enum JOINT_NUM joint_num)
 
     switch (joint_num) {
         case JOINT_1: {
-            for(int i = 0; i < PULSE_COUNT * 2; i++) {
+            for(int i = 0; i < PULSE_COUNT * 5; i++) {
                 gpio_pin_set_dt(&global_robot_arm.joint1.pulse, LOW);
                 k_busy_wait(100); // first delay
                 gpio_pin_set_dt(&global_robot_arm.joint1.pulse, HIGH);
@@ -628,7 +628,7 @@ void common_move_joint(enum JOINT_NUM joint_num)
             break;
         }
         case JOINT_2: {
-            for(int i = 0; i < PULSE_COUNT; i++) {
+            for(int i = 0; i < PULSE_COUNT * 5; i++) {
                 gpio_pin_set_dt(&global_robot_arm.joint2.pulse, LOW);
                 k_busy_wait(100); // first delay
                 gpio_pin_set_dt(&global_robot_arm.joint2.pulse, HIGH);
