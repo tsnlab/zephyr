@@ -86,7 +86,7 @@ int main(void)
             continue;
         }
 
-        /* Send Control Request Message to Slave Node - Ping*/
+        /* Send Control Request Message to Slave Node - Ping */
         {
             switch (uart_char) {
                 
@@ -191,7 +191,7 @@ int main(void)
             }
         }
 
-        /* Receive Control Response Message from Slave Node - Pong*/
+        /* Receive Control Response Message from Slave Node - Pong */
         if (uart_char == '0' || uart_char == '1' || uart_char == '2' || uart_char == 'q' || uart_char == 'w' || 
             uart_char == 'a' || uart_char == 's' || uart_char == 'z' || uart_char == 'x' || uart_char == '3' || 
             uart_char == '4' || uart_char == 'e' || uart_char == 'r') 
@@ -254,6 +254,7 @@ int initialize(void)
 {
     printk("Do Initialization\n");
 
+    /* Initialize UART1 */
     CHECK_INIT_UART(init_uart());
 
     printk("UART1 initialized\n");
