@@ -1,0 +1,12 @@
+&lan8651 {
+	local-mac-address = [aa bb cc 00 00 00];
+};
+
+&lan865x_mdio {
+	plca-enable;
+	plca-node-id = <0>;
+	plca-node-count = <3>;
+	plca-burst-count = <0>;
+	plca-burst-timer = <0x80>;
+	plca-to-timer = <0x20>;
+};

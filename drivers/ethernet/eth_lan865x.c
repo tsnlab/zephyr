@@ -123,12 +123,16 @@ static int lan865x_set_config(const struct device *dev, enum ethernet_config_typ
 	const struct lan865x_config *cfg = dev->config;
 	struct lan865x_data *ctx = dev->data;
 	struct phy_plca_cfg plca_cfg;
+	printk("!!!!!!!!!!lan865x_set_config\n");
 
 	if (type == ETHERNET_CONFIG_TYPE_PROMISC_MODE) {
 		return oa_tc6_reg_write(ctx->tc6, LAN865x_MAC_NCFGR, LAN865x_MAC_NCFGR_CAF);
 	}
 
 	if (type == ETHERNET_CONFIG_TYPE_MAC_ADDRESS) {
+		printk("lan865x_set_config: MAC address set to %02x:%02x:%02x:%02x:%02x:%02x\n",
+			config->mac_address.addr[0], config->mac_address.addr[1], config->mac_address.addr[2],
+			config->mac_address.addr[3], config->mac_address.addr[4], config->mac_address.addr[5]);
 		memcpy(ctx->mac_address, config->mac_address.addr, sizeof(ctx->mac_address));
 
 		lan865x_write_macaddress(dev);
@@ -139,6 +143,7 @@ static int lan865x_set_config(const struct device *dev, enum ethernet_config_typ
 
 	if (type == ETHERNET_CONFIG_TYPE_T1S_PARAM) {
 		if (config->t1s_param.type == ETHERNET_T1S_PARAM_TYPE_PLCA_CONFIG) {
+			printk("lan865x_set_config: PLCA config seting\n");
 			plca_cfg.enable = config->t1s_param.plca.enable;
 			plca_cfg.node_id = config->t1s_param.plca.node_id;
 			plca_cfg.node_count = config->t1s_param.plca.node_count;
@@ -198,7 +203,7 @@ static int lan865x_gpio_reset(const struct device *dev)
 	oa_tc6_reg_read(ctx->tc6, OA_STATUS0, &sts);
 	sts &= ~BIT(6);
 	oa_tc6_reg_write(ctx->tc6, OA_STATUS0, sts);
-	k_busy_wait(10U);
+	// k_busy_wait(10U);
 	/* deassert - end of reset indicated by IRQ_N low  */
 	// gpio_pin_set_dt(&cfg->reset, 0);
 	ctx->reset = true;
@@ -331,9 +336,10 @@ static int lan865x_default_config(const struct device *dev)
 	val = oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x87), &val);
 	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0x87), val | BIT(15));
 
-	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xCA02), 0x00000800);
-	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x22), 0x00ccbbaa);
-	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x23), 0x00001100);
+	// oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xCA02), 0x00000800);
+	// oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x22), 0x00ccbbaa);
+	// oa_tc6_reg_write(ctx->tc6, MMS_REG(0x1, 0x23), 0x00001100);
+	lan865x_write_macaddress(dev);
 
 	set_macphy_registers(ctx);
 
@@ -352,7 +358,6 @@ static int lan865x_default_config(const struct device *dev)
 	// 	return ret;
 	// }
 
-	// lan865x_write_macaddress(dev);
 	// lan865x_set_specific_multicast_addr(dev);
 
 	return 0;
@@ -364,6 +369,7 @@ static void lan865x_int_callback(const struct device *dev, struct gpio_callback 
 	ARG_UNUSED(pins);
 
 	struct lan865x_data *ctx = CONTAINER_OF(cb, struct lan865x_data, gpio_int_callback);
+	printk("lan865x_int_callback\n");
 
 	k_sem_give(&ctx->int_sem);
 }
@@ -408,7 +414,7 @@ static void lan865x_int_thread(const struct device *dev)
 	int ret;
 
 	while (true) {
-		k_sem_take(&ctx->int_sem, K_FOREVER);
+		// k_sem_take(&ctx->int_sem, K_FOREVER);
 		// if (!ctx->reset) {
 		// 	printk("lan865x_int_thread: checking RESETC\n");
 		// 	oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
@@ -430,6 +436,9 @@ static void lan865x_int_thread(const struct device *dev)
 				// continue;
 		// 	}
 		// }
+		// k_msleep(10);
+		k_sched_lock();
+		printk("LAN8651 Loop\n");
 
 		/*
 		 * The IRQ_N is asserted when RCA becomes > 0. As described in
@@ -441,12 +450,14 @@ static void lan865x_int_thread(const struct device *dev)
 		do {
 			lan865x_read_chunks(dev);
 		} while (tc6->rca > 0);
+		k_sched_unlock();
+		k_yield();
 
-		ret = oa_tc6_check_status(tc6);
-		if (ret == -EIO) {
-			// printk("lan865x_int_thread: check status error\n");
-			lan865x_gpio_reset(dev);
-		}
+		// ret = oa_tc6_check_status(tc6);
+		// if (ret == -EIO) {
+		// 	// printk("lan865x_int_thread: check status error\n");
+		// 	lan865x_gpio_reset(dev);
+		// }
 	}
 }
 
@@ -500,7 +511,8 @@ static int lan865x_init(const struct device *dev)
 	ctx->tid_int = k_thread_create(
 		&ctx->thread, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
 		(k_thread_entry_t)lan865x_int_thread, (void *)dev, NULL, NULL,
-		K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
+		// K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
+		K_PRIO_PREEMPT(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
 	k_thread_name_set(ctx->tid_int, "lan865x_interrupt");
 
 	/* Perform HW reset - 'rst-gpios' required property set in DT */
