@@ -164,7 +164,6 @@ int main(void)
 {
     printk("Slave Node Started\n");
 
-    _tt_CONFIG.addr = CONFIG_NET_CONFIG_MY_IPV4_ADDR;
     _tt_CONFIG.broadcast = "192.168.10.255";
 
     do_calibration();
