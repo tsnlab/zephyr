@@ -1109,8 +1109,6 @@ int32_t tt_Node_poll(struct tt_Node* node) {
         uint16_t port = 0;
         int32_t len = tt_receive(node, buffer, tt_MAX_BUFFER_LENGTH, &ip, &port);
 
-        printk("main thread\n");
-
         if (len == -1) {      // Timeout
             ;                 // Do nothing
         } else if (len < 0) { // I/O error

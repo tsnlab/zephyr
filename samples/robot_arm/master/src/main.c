@@ -32,7 +32,6 @@ int main(void)
 {
     printk("Master Node Started\n");
 
-    _tt_CONFIG.addr = "192.168.10.1";
     _tt_CONFIG.broadcast = "192.168.10.255";
 
     int32_t ret = tt_Node_create(&node);

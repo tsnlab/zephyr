@@ -438,7 +438,6 @@ static void lan865x_int_thread(const struct device *dev)
 		// }
 		// k_msleep(10);
 		k_sched_lock();
-		printk("LAN8651 Loop\n");
 
 		/*
 		 * The IRQ_N is asserted when RCA becomes > 0. As described in
