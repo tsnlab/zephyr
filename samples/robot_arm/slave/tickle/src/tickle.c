@@ -99,7 +99,8 @@ static bool end_encode(struct tt_Node* node, struct tt_SubmessageHeader* submess
     // case 2: Flush when tx_tail exceeds tt_MAX_BUFFER_LENGTH
     if (is_flush) {
         uint32_t len;
-        if (node->tx_tail > tt_MAX_BUFFER_LENGTH) {
+        /* TODO: Is this really necessary? */
+        if (true || node->tx_tail > tt_MAX_BUFFER_LENGTH) {
             len = node->tx_tail;
         } else {
             len = node->tx_tail - length;
@@ -566,6 +567,7 @@ static void node_update(struct tt_Node* node, uint64_t time, void* param) {
         switch (endpoint->kind) {
         case tt_KIND_TOPIC_PUBLISHER:
             type = ((struct tt_Publisher*)endpoint)->topic->name;
+            break;
         case tt_KIND_TOPIC_SUBSCRIBER:
         case tt_KIND_SERVICE_CLIENT:
             continue;
