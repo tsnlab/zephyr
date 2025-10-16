@@ -499,7 +499,7 @@ int32_t tt_Publisher_publish(struct tt_Publisher* pub, struct tt_Data* data) {
         return -2;
     }
 
-    if (!end_encode(node, submessage_header, false)) {
+    if (!end_encode(node, submessage_header, true)) {
         rollback(node, submessage_header);
         return -3;
     }
