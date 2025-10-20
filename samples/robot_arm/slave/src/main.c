@@ -165,6 +165,7 @@ static void do_calibration(void) {
         }
     }
 #endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
+    printk("Calibration finished\n");
 }
 
 static void command_callback(struct tt_Subscriber* sub, uint64_t timestamp, uint16_t seq_no, struct CommandData* data) {

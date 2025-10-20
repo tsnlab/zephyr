@@ -38,6 +38,7 @@ static void initial_state(void) {
 static void move_command(struct tt_Node* node, uint64_t time, void* param) {
     int64_t idx = (int64_t)param;
 
+    printk("move %lld\n", idx);
     if (idx == 0) {
         move_joint(1, 25);
         move_joint(3, 25);
