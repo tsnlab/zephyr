@@ -10,8 +10,9 @@
 #include <tickle/tickle.h>
 #include "Command.h"
 
-#define PULSE_COUNT 20
+#define PPR 16000
 
+#define PULSE_COUNT 20
 #define JOINT_COUNT 3
 
 #define JOINTS_NODE DT_ALIAS(joints0)
@@ -96,6 +97,10 @@ static const struct gpio_dt_spec limit_buttons[] = {
     joint3_limit_button,
 };
 
+static int32_t current_angles[7] = {
+    0,
+};
+
 static bool check_joint_limit_button(uint8_t joint) {
     if (!is_my_joint(joint)) {
         printk("Error: Joint %d is out of range\n", joint);
@@ -125,8 +130,15 @@ static void move_joint_step(uint8_t joint, enum JOINT_DIRECTION direction) {
 }
 
 static void move_joint(uint8_t joint, int32_t angle) {
-    // TODO: Find out how many steps to move
-    move_joint_step(joint, angle > 0 ? RIGHT : LEFT);
+    int32_t angle_diff = angle - current_angles[joint];
+    int32_t steps = (angle_diff * PPR) / 360;
+    if (steps < 0) {
+        steps *= -1;
+    }
+    for (int32_t i = 0; i < steps; i++) {
+        move_joint_step(joint, angle_diff > 0 ? RIGHT : LEFT);
+    }
+    current_angles[joint] = angle;
 }
 
 static void do_calibration(void) {
