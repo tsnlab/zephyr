@@ -19,9 +19,9 @@
 
 static inline bool is_my_joint(uint8_t joint) {
 #ifdef CONFIG_ROBOTARM_SLAVE_IS_FIRST
-    return joint == 1 || joint == 2 || joint == 3;
+    return joint == 1 || joint == 3 || joint == 5;
 #else
-    return joint == 4 || joint == 5 || joint == 6;
+    return joint == 2 || joint == 4 || joint == 6;
 #endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
 }
 
@@ -127,13 +127,6 @@ static void do_calibration(void) {
     }
 
     while (true) {
-        move_joint_step(2, LEFT);
-        if (check_joint_limit_button(2)) {
-            break;
-        }
-    }
-
-    while (true) {
         move_joint_step(3, RIGHT);
         if (check_joint_limit_button(3)) {
             break;
@@ -144,6 +137,13 @@ static void do_calibration(void) {
         move_joint_step(3, LEFT);
     }
 #else
+    while (true) {
+        move_joint_step(2, LEFT);
+        if (check_joint_limit_button(2)) {
+            break;
+        }
+    }
+
     while (true) {
         move_joint_step(4, LEFT);
         if (check_joint_limit_button(4)) {
