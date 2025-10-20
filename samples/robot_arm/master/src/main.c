@@ -46,7 +46,7 @@ static void move_command(struct tt_Node* node, uint64_t time, void* param) {
         move_joint(3, 5);
     }
 
-    tt_Node_schedule(node, time, move_command, (void*)(1 - idx));
+    tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)(1 - idx));
 }
 
 int main(void)
@@ -73,7 +73,7 @@ int main(void)
 
     initial_state();
 
-    tt_Node_schedule(&node, ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)0);
+    tt_Node_schedule(&node, tt_get_ns() + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)0);
 
     tt_Node_poll(&node);
 
