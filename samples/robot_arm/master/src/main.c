@@ -8,6 +8,8 @@
 #include <tickle/tickle.h>
 #include "Command.h"
 
+#define ROBOT_ARM_COMMAND_INTERVAL_NS (2 * NSEC_PER_SEC)
+
 static struct tt_Node node;
 static struct tt_Publisher pub;
 
@@ -31,6 +33,20 @@ static void initial_state(void) {
     move_joint(2, 20);
     move_joint(3, 10);
     k_msleep(1000);
+}
+
+static void move_command(struct tt_Node* node, uint64_t time, void* param) {
+    int64_t idx = (int64_t)param;
+
+    if (idx == 0) {
+        move_joint(1, 25);
+        move_joint(3, 25);
+    } else {
+        move_joint(1, 65);
+        move_joint(3, 5);
+    }
+
+    tt_Node_schedule(node, time, move_command, (void*)(1 - idx));
 }
 
 int main(void)
@@ -57,19 +73,7 @@ int main(void)
 
     initial_state();
 
-    int32_t angles[2][7] = {
-        {0, 25, 20, 25, 0, 0, 0},
-        {0, 65, 20, 5, 0, 0, 0},
-    };
-
-    while (true) {
-        for (int i = 0; i < 2; i++) {  /* Actions */
-            for (int j = 1; j <= 6; j++) {  /* Joints */
-                move_joint(j, angles[i][j]);
-            }
-            k_msleep(2000);
-        }
-    }
+    tt_Node_schedule(&node, ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)0);
 
     tt_Node_poll(&node);
 
