@@ -369,7 +369,6 @@ static void lan865x_int_callback(const struct device *dev, struct gpio_callback 
 	ARG_UNUSED(pins);
 
 	struct lan865x_data *ctx = CONTAINER_OF(cb, struct lan865x_data, gpio_int_callback);
-	printk("lan865x_int_callback\n");
 
 	k_sem_give(&ctx->int_sem);
 }
