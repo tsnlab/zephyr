@@ -48,26 +48,40 @@ static const struct gpio_dt_spec dummy_dt_spec = {
 
 static const struct gpio_dt_spec pulse_pins[] = {
     dummy_dt_spec,
-#ifndef CONFIG_ROBOTARM_SLAVE_IS_FIRST
-    dummy_dt_spec,
-    dummy_dt_spec,
-    dummy_dt_spec,
-#endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
+#ifdef CONFIG_ROBOTARM_SLAVE_IS_FIRST
     joint1_pulse,
+    dummy_dt_spec,
     joint2_pulse,
+    dummy_dt_spec,
     joint3_pulse,
+    dummy_dt_spec,
+#else
+    dummy_dt_spec,
+    joint1_pulse,
+    dummy_dt_spec,
+    joint2_pulse,
+    dummy_dt_spec,
+    joint3_pulse,
+#endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
 };
 
 static const struct gpio_dt_spec direction_pins[] = {
     dummy_dt_spec,
-#ifndef CONFIG_ROBOTARM_SLAVE_IS_FIRST
-    dummy_dt_spec,
-    dummy_dt_spec,
-    dummy_dt_spec,
-#endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
+#ifdef CONFIG_ROBOTARM_SLAVE_IS_FIRST
     joint1_direction,
+    dummy_dt_spec,
     joint2_direction,
+    dummy_dt_spec,
     joint3_direction,
+    dummy_dt_spec,
+#else
+    dummy_dt_spec,
+    joint1_direction,
+    dummy_dt_spec,
+    joint2_direction,
+    dummy_dt_spec,
+    joint3_direction,
+#endif /* CONFIG_ROBOTARM_SLAVE_IS_FIRST */
 };
 
 static const struct gpio_dt_spec limit_buttons[] = {
