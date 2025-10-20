@@ -26,6 +26,11 @@ static void initial_state(void) {
     for (uint8_t i = 1; i <= 6; i++) {
         move_joint(i, 0);
     }
+    k_msleep(2000);
+    move_joint(1, 45);
+    move_joint(2, 20);
+    move_joint(3, 10);
+    k_msleep(1000);
 }
 
 int main(void)
@@ -52,24 +57,17 @@ int main(void)
 
     initial_state();
 
-    k_msleep(1000);
-
-    int32_t angles[7][7] = {
-        {0, 0, 45, 0, 0, 0, 0},  /* Raise arm up */
-        {0, 30, 45, 0, 0, 0, 0},  /*  Wave left */
-        {0, -30, 45, 0, 0, 0, 0},  /* Wave right */
-        {0, 30, 45, 0, 0, 0, 0},  /*  Wave left again */
-        {0, -30, 45, 0, 0, 0, 0},  /* Wave right again */
-        {0, 0, 45, 0, 0, 0, 0},  /* Return to center */
-        {0, 0, 0, 0, 0, 0, 0},  /* Lower arm */
+    int32_t angles[2][7] = {
+        {0, 25, 20, 25, 0, 0, 0},
+        {0, 65, 20, 5, 0, 0, 0},
     };
 
     while (true) {
-        for (int i = 0; i < 7; i++) {  /* Actions */
+        for (int i = 0; i < 2; i++) {  /* Actions */
             for (int j = 1; j <= 6; j++) {  /* Joints */
                 move_joint(j, angles[i][j]);
             }
-            k_msleep(1000);
+            k_msleep(2000);
         }
     }
 
