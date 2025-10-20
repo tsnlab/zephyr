@@ -58,9 +58,7 @@ int32_t tt_get_node_id() {
     }
 
     uint8_t* _addr = iface->config.ip.ipv4->unicast[0].ipv4.address.in_addr.s4_addr;
-    printk("addr: %u.%u.%u.%u\n", _addr[0], _addr[1], _addr[2], _addr[3]);
     uint8_t* _linkaddr = iface->if_dev->link_addr.addr;
-    printk("linkaddr: %02x:%02x:%02x:%02x:%02x:%02x\n", _linkaddr[0], _linkaddr[1], _linkaddr[2], _linkaddr[3], _linkaddr[4], _linkaddr[5]);
 
     uint32_t addr = iface->config.ip.ipv4->unicast[0].ipv4.address.in_addr.s_addr;
     uint32_t netmask = iface->config.ip.ipv4->unicast[0].netmask.s_addr;
@@ -97,8 +95,7 @@ int32_t tt_bind(struct tt_Node* node) {
     timeout.tv_usec = TIMEOUT_IN_MICROSECONDS;
 
     if (setsockopt(node->hal.sock, SOL_SOCKET, SO_RCVTIMEO, (const void*)&timeout, sizeof(struct timeval)) < 0) {
-        // TT_LOG_ERROR("Cannot set socket receive timeout");
-        printk("Cannot set socket receive timeout");
+        TT_LOG_ERROR("Cannot set socket receive timeout");
         return tt_CANNOT_SET_TIMEOUT;
     }
 
