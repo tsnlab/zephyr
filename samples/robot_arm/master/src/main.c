@@ -7,13 +7,61 @@
 
 #include <tickle/tickle.h>
 #include "Command.h"
+#include "State.h"
 
-#define ROBOT_ARM_COMMAND_INTERVAL_NS (2 * NSEC_PER_SEC)
+#define ROBOT_ARM_COMMAND_INTERVAL_NS (1000ULL * NSEC_PER_USEC)
 
 static struct tt_Node node;
 static struct tt_Publisher pub;
+static struct tt_Subscriber sub;
+
+static int32_t states[7] = {-1, -1, -1, -1, -1, -1, -1};
+static int32_t desired[7] = {0, 0, 0, 0, 0, 0, 0};
+
+#define MOVE_COUNT 18
+
+static int32_t moves[MOVE_COUNT][2] = {
+    {1, 45},
+    {2, 15},
+    {3, 50},
+    {3, 80},
+    {3, 50},
+    {3, 80},
+    {3, 50},
+    {3, 80},
+    {3, 50},
+    /* return */
+    {1, 135},
+    {2, 25},
+    {3, 80},
+    {3, 50},
+    {3, 80},
+    {3, 50},
+    {3, 80},
+    {3, 50},
+    {3, 80},
+};
+
+static inline bool is_connected() {
+    for (uint8_t i = 1; i <= 6; i++) {
+        if (states[i] < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static inline bool is_ok() {
+    for (uint8_t i = 1; i <= 6; i++) {
+        if (states[i] != desired[i]) {
+            return false;
+        }
+    }
+    return true;
+}
 
 static void move_joint(uint8_t joint, int32_t angle) {
+    desired[joint] = angle;
     struct CommandData command = {
         .joint = joint,
         .angle = angle,
@@ -25,29 +73,51 @@ static void move_joint(uint8_t joint, int32_t angle) {
 }
 
 static void initial_state(void) {
-    for (uint8_t i = 1; i <= 6; i++) {
-        move_joint(i, 0);
-    }
-    k_msleep(2000);
-    move_joint(1, 45);
+    move_joint(1, 90);
     move_joint(2, 20);
     move_joint(3, 10);
-    k_msleep(1000);
+}
+
+static inline int64_t next_idx(int64_t idx) {
+    idx++;
+    if (idx == MOVE_COUNT) {
+        idx = 0;
+    }
+    return idx;
 }
 
 static void move_command(struct tt_Node* node, uint64_t time, void* param) {
     int64_t idx = (int64_t)param;
 
-    printk("move %lld\n", idx);
-    if (idx == 0) {
-        move_joint(1, 25);
-        move_joint(3, 25);
+    if (is_ok()) {
+        move_joint(moves[idx][0], moves[idx][1]);
+        idx = next_idx(idx);
+        // printk("move %lld %llu\n", idx, time);
     } else {
-        move_joint(1, 65);
-        move_joint(3, 5);
+        for (int i = 1; i <= 3; i++) {
+            if (states[i] != desired[i]) {
+                move_joint(i, desired[i]);
+            }
+        }
     }
 
-    tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)(1 - idx));
+    tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)idx);
+}
+
+static void initialize(struct tt_Node* node, uint64_t time, void* param) {
+    if (is_connected()) {
+        initial_state();
+        tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)0);
+    } else {
+        tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, initialize, NULL);
+    }
+}
+
+static void state_callback(struct tt_Subscriber* sub, uint64_t timestamp, uint16_t seq_no, struct StateData* data) {
+    if (data->id >= 1 && data->id <= 6) {
+        states[data->id] = data->status;
+    }
+    // printk("Received state: %u, %d, desired: %d\n", data->id, data->status, desired[data->id]);
 }
 
 int main(void)
@@ -70,11 +140,13 @@ int main(void)
         return ret;
     }
 
-    k_msleep(5000);  /* Wait for calibration,  TODO: Use services to check if calibration is done */
+    ret = tt_Node_create_subscriber(&node, &sub, &StateTopic, "state_topic", (tt_SUBSCRIBER_CALLBACK)state_callback);
+    if (ret != 0) {
+        printk("Failed to create subscriber: %d\n", ret);
+        return ret;
+    }
 
-    initial_state();
-
-    tt_Node_schedule(&node, tt_get_ns() + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command, (void*)0);
+    tt_Node_schedule(&node, tt_get_ns() + ROBOT_ARM_COMMAND_INTERVAL_NS, initialize, NULL);
 
     tt_Node_poll(&node);
 
