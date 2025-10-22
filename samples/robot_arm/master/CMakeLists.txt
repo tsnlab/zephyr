@@ -7,4 +7,4 @@ project(robot_arm_master)
 add_subdirectory(tickle)  # TODO: Include tickle as external module
 
 target_include_directories(app PRIVATE ${TICKLE_INCLUDE_DIRS})
-target_sources(app PRIVATE src/main.c src/Command.c ${TICKLE_SOURCES})
+target_sources(app PRIVATE src/main.c src/Command.c src/State.c ${TICKLE_SOURCES})

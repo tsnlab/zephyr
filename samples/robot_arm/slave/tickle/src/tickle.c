@@ -186,7 +186,7 @@ static void node_update(struct tt_Node* node, uint64_t time, void* param);
 static void node_flush(struct tt_Node* node, uint64_t time, void* param);
 
 int32_t tt_Node_create(struct tt_Node* node) {
-    tt_log_init(TT_LOG_DEBUG, stdout);
+    tt_log_init(TT_LOG_WARNING, stdout);
     node->id = 0;
     node->endpoint_count = 0;
 
