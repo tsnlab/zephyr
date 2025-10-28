@@ -15,7 +15,7 @@
 
 #define PPR 16000
 
-#define PULSE_COUNT 20
+#define PULSE_COUNT 2
 #define JOINT_COUNT 3
 
 #define JOINTS_NODE DT_ALIAS(joints0)
@@ -156,19 +156,16 @@ static void move_joint_step(uint8_t joint, enum JOINT_DIRECTION direction) {
             break;
     }
 
-    // for (int k = 0; k < ((joint == 1 || joint == 3 || joint == 4) ? 2 : 1); k++) {
-        //for (int i = 0; i < PULSE_COUNT; i++) {
-            gpio_pin_set_dt(&pulse_pins[joint], 0);
-            k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
-            gpio_pin_set_dt(&pulse_pins[joint], 1);
-            k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
-            gpio_pin_set_dt(&pulse_pins[joint], 0);
-            k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
-            gpio_pin_set_dt(&pulse_pins[joint], 1);
-            k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
-            // gpio_pin_set_dt(&pulse_pins[joint], 0);
-        //}
-    // }
+    for (int i = 0; i < PULSE_COUNT; i++) {
+        gpio_pin_set_dt(&pulse_pins[joint], 0);
+        k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
+        gpio_pin_set_dt(&pulse_pins[joint], 1);
+        k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
+        gpio_pin_set_dt(&pulse_pins[joint], 0);
+        k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
+        gpio_pin_set_dt(&pulse_pins[joint], 1);
+        k_busy_wait(((USEC_PER_SEC / speeds[joint]) / 2) * DELAY_MULTIPLIER);
+    }
 }
 
 static void move_joint(uint8_t joint, int32_t angle) {
@@ -231,6 +228,8 @@ static void do_calibration(void) {
         move_joint_step(2, RIGHT);
     }
 
+    /* Joint 4 is not used for now */
+
     /*
     while (true) {
         move_joint_step(4, LEFT);
@@ -245,7 +244,6 @@ static void do_calibration(void) {
 }
 
 static void command_callback(struct tt_Subscriber* sub, uint64_t timestamp, uint16_t seq_no, struct CommandData* data) {
-    // printk("Received command: %u, %d\n", data->joint, data->angle);
     if (is_my_joint(data->joint) && data->angle != current_angles[data->joint]) {
         move_joint(data->joint, data->angle);
     }
