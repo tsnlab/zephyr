@@ -250,9 +250,9 @@ static void set_macphy_registers(struct lan865x_data *ctx)
 		offset2 = (int8_t)value2;
 	}
 
-	cfgparam1 = (uint16_t)(((9 + offset1) & 0x3F) << 10) | (uint16_t)(((14 + offset1) & 0x3F) << 4) | 0x03;
+	cfgparam1 = (uint16_t)(((9 + offset1) & 0x3F) << 10) |
+		    (uint16_t)(((14 + offset1) & 0x3F) << 4) | 0x03;
 	cfgparam2 = (uint16_t)(((40 + offset2) & 0x3F) << 10);
-
 
 	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xD0), 0x3F31);
 	oa_tc6_reg_write(ctx->tc6, MMS_REG(0x4, 0xE0), 0xC000);

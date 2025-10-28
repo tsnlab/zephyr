@@ -3,3 +3,4 @@ source "Kconfig.zephyr"
 config ROBOTARM_SLAVE_IS_FIRST
 	bool "Robotarm slave number"
 	default y
+	
