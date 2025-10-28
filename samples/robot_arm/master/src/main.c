@@ -15,35 +15,23 @@ static struct tt_Node node;
 static struct tt_Publisher pub;
 static struct tt_Subscriber sub;
 
+/* Joints' current angles announced by the slave nodes */
 static int32_t states[7] = {-1, -1, -1, -1, -1, -1, -1};
+/* Joints' desired angles to be moved to */
 static int32_t desired[7] = {0, 0, 0, 0, 0, 0, 0};
 
 #define MOVE_COUNT 18
 
 static int32_t moves[MOVE_COUNT][2] = {
-	{1, 45},
-	{2, 15},
-	{3, 50},
-	{3, 80},
-	{3, 50},
-	{3, 80},
-	{3, 50},
-	{3, 80},
-	{3, 50},
-	/* return */
-	{1, 135},
-	{2, 25},
-	{3, 80},
-	{3, 50},
-	{3, 80},
-	{3, 50},
-	{3, 80},
-	{3, 50},
-	{3, 80},
+	/* {Joint, Angle} */
+	{1, 45},  {2, 15}, {3, 50}, {3, 80}, {3, 50}, {3, 80}, {3, 50}, {3, 80}, {3, 50},
+
+	{1, 135}, {2, 25}, {3, 80}, {3, 50}, {3, 80}, {3, 50}, {3, 80}, {3, 50}, {3, 80},
 };
 
 static inline bool is_connected()
 {
+	/* Check if the master received the state of all joints */
 	for (uint8_t i = 1; i <= 6; i++) {
 		if (states[i] < 0) {
 			return false;
@@ -54,6 +42,7 @@ static inline bool is_connected()
 
 static inline bool is_ok()
 {
+	/* Wait until the joints' current angles are the same as the desired angles */
 	for (uint8_t i = 1; i <= 6; i++) {
 		if (states[i] != desired[i]) {
 			return false;
@@ -96,9 +85,13 @@ static void move_command(struct tt_Node *node, uint64_t time, void *param)
 	int64_t idx = (int64_t)param;
 
 	if (is_ok()) {
+		/* The joints has finished their moves according to the command */
+		/* Send next command */
 		move_joint(moves[idx][0], moves[idx][1]);
 		idx = next_idx(idx);
 	} else {
+		/* The joints has not reached their desired angles yet */
+		/* The command might have been lost, so send it again */
 		for (int i = 1; i <= 3; i++) {
 			if (states[i] != desired[i]) {
 				move_joint(i, desired[i]);
@@ -111,11 +104,14 @@ static void move_command(struct tt_Node *node, uint64_t time, void *param)
 
 static void initialize(struct tt_Node *node, uint64_t time, void *param)
 {
+	/* Check if the master received the state of all joints */
 	if (is_connected()) {
+		/* Send the initial state */
 		initial_state();
 		tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, move_command,
 				 (void *)0);
 	} else {
+		/* Not connected yet, repeat */
 		tt_Node_schedule(node, time + ROBOT_ARM_COMMAND_INTERVAL_NS, initialize, NULL);
 	}
 }
@@ -123,6 +119,7 @@ static void initialize(struct tt_Node *node, uint64_t time, void *param)
 static void state_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_t seq_no,
 			   struct StateData *data)
 {
+	/* Update the joints' current angles */
 	if (data->id >= 1 && data->id <= 6) {
 		states[data->id] = data->status;
 	}
