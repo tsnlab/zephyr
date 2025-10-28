@@ -92,7 +92,6 @@ static void move_command(struct tt_Node* node, uint64_t time, void* param) {
     if (is_ok()) {
         move_joint(moves[idx][0], moves[idx][1]);
         idx = next_idx(idx);
-        // printk("move %lld %llu\n", idx, time);
     } else {
         for (int i = 1; i <= 3; i++) {
             if (states[i] != desired[i]) {
@@ -117,7 +116,6 @@ static void state_callback(struct tt_Subscriber* sub, uint64_t timestamp, uint16
     if (data->id >= 1 && data->id <= 6) {
         states[data->id] = data->status;
     }
-    // printk("Received state: %u, %d, desired: %d\n", data->id, data->status, desired[data->id]);
 }
 
 int main(void)
