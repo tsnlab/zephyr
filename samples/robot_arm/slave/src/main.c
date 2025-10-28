@@ -148,18 +148,25 @@ static void move_joint(uint8_t joint, int32_t angle)
 	if (joint == 3) {
 		angle_diff *= -1;
 	}
+
 	int32_t steps = (angle_diff * PPR) / 360;
 	if (steps < 0) {
 		steps *= -1;
 	}
+
 	for (int32_t i = 0; i < steps; i++) {
 		move_joint_step(joint, angle_diff > 0 ? RIGHT : LEFT);
 	}
+
 	current_angles[joint] = angle;
 	struct StateData state = {
 		.id = joint,
 		.status = angle,
 	};
+
+	/* Publish the state after the movement */
+	/* Angles during the movement do not matter */
+	/* It's either done or not */
 	int32_t ret = tt_Publisher_publish(&pub, (struct tt_Data *)&state);
 	if (ret != 0) {
 		printk("Failed to publish state: %d\n", ret);
@@ -169,7 +176,7 @@ static void move_joint(uint8_t joint, int32_t angle)
 static void do_calibration(void)
 {
 	printk("Starting calibration\n");
-	DELAY_MULTIPLIER = 2;
+	DELAY_MULTIPLIER = 2; /* Calibrate slower to be safe */
 
 #ifdef CONFIG_ROBOTARM_SLAVE_IS_FIRST
 	printk("Calibrating joint 1\n");
@@ -229,6 +236,7 @@ static void command_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint
 
 static void announce_state(struct tt_Node *node, uint64_t time, void *param)
 {
+	/* Announce the state of the joints */
 	struct StateData state;
 	int32_t ret;
 
