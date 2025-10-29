@@ -233,17 +233,25 @@ static void lan865x_write_macaddress(const struct device *dev)
 
 static void set_macphy_registers(struct lan865x_data *ctx)
 {
+	/*
+	 * These are required to configure lan865x,
+	 * according to the LAN8650/1 Configuration Application Note.
+	 * This configures the PHY transceiver,
+	 * configures the MAC to set time stamping at the end of the Start of Frame Delimiter (SFD)
+	 * and set the Timer Increment register to 40ns to be used as a 25MHz internal clock.
+	 * What these registers and values mean is not provided.
+	 */
 	uint32_t value1, value2;
 	int8_t offset1, offset2;
 	uint16_t cfgparam1, cfgparam2;
-	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x1f), &value1);
+	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x1F), &value1);
 	if ((value1 & 0x10) != 0) {
 		offset1 = (int8_t)((uint8_t)value1 - 0x20);
 	} else {
 		offset1 = (int8_t)value1;
 	}
 
-	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x4, 0x1F), &value2);
+	oa_tc6_reg_read(ctx->tc6, MMS_REG(0x8, 0x1F), &value2);
 	if ((value2 & 0x10) != 0) {
 		offset2 = (int8_t)((uint8_t)value2 - 0x20);
 	} else {
