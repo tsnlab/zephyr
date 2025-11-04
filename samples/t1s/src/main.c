@@ -185,9 +185,26 @@ static void perf_server() {
 
 static void udp_talker() {
 	printk("UDP Talker started\n");
+	uint8_t source_mac_addr[ETH_ALEN] = {0};
+	uint16_t source_port = 0;
+	uint8_t data[12] = {0};
+	uint16_t length = 0;
+	uint32_t seq = 0;
 	while (true) {
-		send_udp_packet(&spi_dev, my_mac_addr, my_ip_addr, target_mac_addr, target_ip_addr, 1234, 5678, "Hello, World!", 12);
+		int64_t send_time = k_uptime_get();
+		send_udp_packet(&spi_dev, sender_mac_addr, sender_ip_addr, receiver_mac_addr, receiver_ip_addr, 1234, 5678, (uint8_t *)&seq, sizeof(seq));
+		while (length == 0) {
+			receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
+		}
+		uint32_t received_seq = *(uint32_t *)data;
+		if (received_seq != seq) {
+			printk("Sequence number mismatch: expected %u, got %u\n", seq, received_seq);
+			continue;
+		}
+		int64_t receive_time = k_uptime_get();
+		printk("RTT: %lld us\n", receive_time - send_time);
 		k_busy_wait(1000000);
+		seq++;
 	}
 }
 
@@ -198,8 +215,13 @@ static void udp_listener() {
 	uint8_t data[12] = {0};
 	uint16_t length = 0;
 	while (true) {
-		receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
-		printk("Received message: %s\n", data);
+		while (length == 0) {
+			receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
+		}
+		uint32_t received_seq = *(uint32_t *)data;
+		printk("Received: %u\n", received_seq);
+		send_udp_packet(&spi_dev, receiver_mac_addr, receiver_ip_addr, sender_mac_addr, sender_ip_addr, 5678, 1234, (uint8_t *)&received_seq, sizeof(received_seq));
+		length = 0;
 	}
 }
 
