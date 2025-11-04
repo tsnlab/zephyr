@@ -76,7 +76,7 @@ int receive_udp_packet(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ET
 
 	*length = 0;
 
-	while (length == 0) {
+	while (*length == 0) {
 		if (receive_packet(spi, packet, length) < 0) {
 			printk("Failed to receive UDP packet\n");
 			return -1;
@@ -88,11 +88,11 @@ int receive_udp_packet(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ET
 	struct udphdr *udp = (struct udphdr *)(ipv4 + 1);
 
 	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) {
-		printk("Invalid IP packet\n");
+		printk("Invalid IP packet: 0x%04x\n", eth->h_proto);
 	}
 
 	if (ipv4->proto != IPPROTO_UDP) {
-		printk("Invalid UDP packet\n");
+		printk("Invalid UDP packet: 0x%04x\n", ipv4->proto);
 		return -1;
 	}
 

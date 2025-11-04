@@ -71,8 +71,9 @@ struct arp_entry {
 };
 
 struct ipv4hdr {
-	uint8_t version;
-	uint8_t ihl;
+	/* TODO: check endianness */
+	uint8_t ihl:4;
+	uint8_t version:4;
 	uint8_t tos;
 	uint16_t len;
 	uint16_t id;
