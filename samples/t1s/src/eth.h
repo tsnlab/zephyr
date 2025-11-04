@@ -15,6 +15,7 @@
 
 #define ETH_P_IP  0x0800 /* Internet Protocol packet	*/
 #define ETH_P_ARP 0x0806 /* Address Resolution packet	*/
+#define IPPROTO_UDP 0x11 /* User Datagram Protocol	*/
 
 #define ARPOP_REQUEST 1 /* ARP request.  */
 #define ARPOP_REPLY   2 /* ARP reply.  */
@@ -68,5 +69,26 @@ struct arp_entry {
 	uint8_t ip[IP_LEN];
 	uint8_t mac[ETH_ALEN];
 };
+
+struct ipv4hdr {
+	uint8_t version;
+	uint8_t ihl;
+	uint8_t tos;
+	uint16_t len;
+	uint16_t id;
+	uint16_t frag_off;
+	uint8_t ttl;
+	uint8_t proto;
+	uint16_t chksum;
+	uint32_t src;
+	uint32_t dst;
+} __attribute__((packed));
+
+struct udphdr {
+	uint16_t source_port;
+	uint16_t dest_port;
+	uint16_t length;
+	uint16_t checksum;
+} __attribute__((packed));
 
 #endif /* ETH_H */

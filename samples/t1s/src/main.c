@@ -8,6 +8,7 @@
 #include "lan8651.h"
 #include "arp.h"
 #include "perf.h"
+#include "udp.h"
 
 #define THROUGHPUT_DURATION     10
 #define THROUGHPUT_WARMUP       0
@@ -182,6 +183,26 @@ static void perf_server() {
 	}
 }
 
+static void udp_talker() {
+	printk("UDP Talker started\n");
+	while (true) {
+		send_udp_packet(&spi_dev, my_mac_addr, my_ip_addr, target_mac_addr, target_ip_addr, 1234, 5678, "Hello, World!", 12);
+		k_busy_wait(1000000);
+	}
+}
+
+static void udp_listener() {
+	printk("UDP Listener started\n");
+	uint8_t source_mac_addr[ETH_ALEN] = {0};
+	uint16_t source_port = 0;
+	uint8_t data[12] = {0};
+	uint16_t length = 0;
+	while (true) {
+		receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
+		printk("Received message: %s\n", data);
+	}
+}
+
 int main(void)
 {
 	spi_dev.bus = DEVICE_DT_GET(SPI_NODE);
@@ -196,7 +217,8 @@ int main(void)
 	// latency_test();
 	// arp_sender();
 	// arp_receiver();
-	perf_server();
+	// perf_server();
+	udp_talker();
 
 	return 0;
 }
