@@ -246,7 +246,7 @@ static void set_macphy_register(const struct spi_dt_spec *spi_dev)
 	write_register(spi_dev, MMS4, 0x0050, 0x0002);
 }
 
-int set_register(const struct spi_dt_spec *spi_dev, int mode)
+int set_register(const struct spi_dt_spec *spi_dev, uint16_t node_count, uint16_t node_id, const uint8_t* mac_address)
 {
 	uint32_t regval;
 
@@ -267,25 +267,19 @@ int set_register(const struct spi_dt_spec *spi_dev, int mode)
 	// PLCA Configuration based on mode
 	// TODO: This process is temporary and assumes that there are only two nodes.
 	// TODO: Should be changed to get node info. from the command line.
-	if (mode == PLCA_MODE_COORDINATOR) {
-		write_register(spi_dev, MMS4, PLCA_CTRL1,
-			       0x00000800); // Coordinator(node 0), 2 nodes
-		write_register(spi_dev, MMS1, MAC_SAB1, 0x00ccbbaa); // Configure MAC Address (Temporary)
-		write_register(spi_dev, MMS1, MAC_SAT1, 0x00004400); // Configure MAC Address (Temporary)
-		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
-		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
-		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
-	} else if (mode == PLCA_MODE_FOLLOWER) {
-		write_register(spi_dev, MMS4, PLCA_CTRL1, 0x00000801); // Follower, node 1
-		write_register(spi_dev, MMS1, MAC_SAB1, 0x00ccbbaa); // Configure MAC Address (Temporary)
-		write_register(spi_dev, MMS1, MAC_SAT1, 0x00003300); // Configure MAC Address (Temporary)
-		// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
-		// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
-		// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
-	} else {
-		printk("Invalid mode: %d\n", mode);
-		return false;
-	}
+	
+	write_register(spi_dev, MMS4, PLCA_CTRL1,
+				((uint32_t)node_id) | ((uint32_t)node_count << 16));
+	write_register(spi_dev, MMS1, MAC_SAB1,
+				((uint32_t)*(mac_address + 0)) | ((uint32_t)*(mac_address + 1) << 8) |
+				((uint32_t)*(mac_address + 2) << 16) | ((uint32_t)*(mac_address + 3) << 24);
+	write_register(spi_dev, MMS1, MAC_SAT1,
+				((uint32_t)*(mac_address + 4)) | ((uint32_t)*(mac_address + 5) << 8);
+
+	// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
+	// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
+	// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
+
 	set_macphy_register(spi_dev); // AN_LAN865x-Configuration
 
 	write_register(spi_dev, MMS4, PLCA_CTRL0, 0x00008000); // Enable PLCA
