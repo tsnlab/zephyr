@@ -10,6 +10,8 @@
 #include "encoding.h"
 #include "log.h"
 
+#include <zephyr/kernel.h>
+
 #define UNUSED(x) (void)(x)
 
 static struct tt_SubmessageHeader *start_encode(struct tt_Node *node, uint8_t type,
@@ -1206,7 +1208,7 @@ int32_t tt_Node_poll(struct tt_Node *node)
 		if (len == -1) {      // Timeout
 			;             // Do nothing
 		} else if (len < 0) { // I/O error
-			printk("Cannot receive data");
+			TT_LOG_ERROR("Cannot receive data");
 			break;
 		} else {
 			TT_LOG_DEBUG("Process packet from addr: %d.%d.%d.%d:%d len: %d",
