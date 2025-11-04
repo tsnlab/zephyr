@@ -3,7 +3,7 @@
 #include <zephyr/arch/common/sys_io.h>
 #include <zephyr/arch/arm64/misc.h>
 
-#include "spi.h"
+#include <lan8651/spi.h>
 
 static inline void get_ths(uint32_t *wth, uint32_t *rth)
 {

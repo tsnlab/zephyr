@@ -9,6 +9,9 @@
 #if defined(__linux__)
 #define TT_PLATFORM_LINUX
 #define TT_PLATFORM_NAME "linux"
+#elif defined(__ZEPHYR__)
+#define TT_PLATFORM_ZEPHYR
+#define TT_PLATFORM_NAME "zephyr"
 #else
 #define TT_PLATFORM_GENERIC
 #define TT_PLATFORM_NAME "generic"
@@ -44,8 +47,10 @@ struct tt_Node;
 struct tt_Header;
 
 // Platform-specific HAL structure inclusion
-#ifdef TT_PLATFORM_LINUX
+#if defined(TT_PLATFORM_LINUX)
 #include <tickle/hal_linux.h>
+#elif defined(TT_PLATFORM_ZEPHYR)
+#include <tickle/hal_zephyr.h>
 #elif defined(TT_PLATFORM_GENERIC)
 #include <tickle/hal_generic.h>
 #endif

@@ -16,9 +16,9 @@ set(TICKLE_SOURCES
 set(LAN8651_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../lan8651)
 set(LAN8651_INCLUDE_DIRS ${LAN8651_DIR}/include)
 set(LAN8651_SOURCES
-  ${LAN8651_DIR}/lan8651.c
-  ${LAN8651_DIR}/spi.c
+  ${LAN8651_DIR}/src/lan8651.c
+  ${LAN8651_DIR}/src/spi.c
 )
 
-target_include_directories(app PRIVATE ${TICKLE_INCLUDE_DIRS} ${LAN865X_INCLUDE_DIRS})
-target_sources(app PRIVATE src/main.c src/Command.c src/State.c ${TICKLE_SOURCES} ${LAN865X_SOURCES})
+target_include_directories(app PRIVATE ${TICKLE_INCLUDE_DIRS} ${LAN8651_INCLUDE_DIRS})
+target_sources(app PRIVATE src/main.c src/Command.c src/State.c ${TICKLE_SOURCES} ${LAN8651_SOURCES})

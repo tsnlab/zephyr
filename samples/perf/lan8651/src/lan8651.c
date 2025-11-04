@@ -4,8 +4,8 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 
-#include "lan8651.h"
-#include "spi.h"
+#include <lan8651/lan8651.h>
+#include <lan8651/spi.h>
 
 /* FIXME: These are borrowed from our T1S demo */
 

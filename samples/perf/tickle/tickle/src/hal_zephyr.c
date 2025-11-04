@@ -12,7 +12,10 @@
 
 #include <tickle/config.h>
 #include <tickle/hal.h>
+#include <tickle/hal_zephyr.h>
 #include <tickle/tickle.h>
+
+#include <lan8651/lan8651.h>
 
 #include "consts.h"
 #include "log.h"
@@ -58,6 +61,14 @@ int32_t tt_send(struct tt_Node *node, const void *buf, size_t len)
 
 int32_t tt_receive(struct tt_Node *node, void *buf, size_t len, uint32_t *ip, uint16_t *port)
 {
-	/* TODO: call receive_block */
-	return 0;
+	int ret = receive_packet(&node->hal.spi, buf, len);
+
+	if (ret != 0) {
+		return -1;
+	}
+
+	*ip = 0;
+	*port = 0;
+
+	return ret;
 }
