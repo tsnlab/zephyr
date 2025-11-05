@@ -16,6 +16,8 @@
 
 #define SPI_NODE DT_ALIAS(spi0)
 
+static const struct device *uart1 = DEVICE_DT_GET(DT_NODELABEL(zephyr_console));
+
 struct spi_dt_spec spi_dev;
 
 const uint8_t my_mac_addr[ETH_ALEN] = {
@@ -41,6 +43,15 @@ const uint8_t receiver_mac_addr[ETH_ALEN] = {0xaa, 0xbb, 0xcc, 0x00, 0x00, 0x44,
 // const uint8_t receiver_mac_addr[ETH_ALEN] = {0xd0, 0xd1, 0x95, 0x30, 0x23, 0x00, };
 const uint8_t sender_ip_addr[IP_LEN] = { 10, 1, 1, 1, };
 const uint8_t receiver_ip_addr[IP_LEN] = { 10, 1, 1, 2, };
+
+static void print_help() {
+	printk("Available commands:\n");
+	printk("help\n");
+	printk("udp_echo_client <source_port> <interval_ms>\n");
+	printk("udp_echo_server\n");
+	printk("udp_throughput_client <source_port> <duration_ms>\n");
+	printk("udp_throughput_server\n");
+}
 
 static void arp_test()
 {
@@ -227,21 +238,69 @@ static void udp_listener() {
 
 int main(void)
 {
+char command_buffer[256] = {0};
+	char command_char = '\0';
+	int index = 0;
+
+	if (!device_is_ready(uart1)) {
+		printk("Error: UART %s is not ready\n", uart1->name);
+		return -1;
+	}
+
 	spi_dev.bus = DEVICE_DT_GET(SPI_NODE);
 	spi_dev.config.frequency = 25000000;
 	spi_dev.config.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(32) | SPI_HOLD_ON_CS;
+	set_register(&spi_dev, NODE_COUNT, NODE_ID, my_mac_addr);
 
-	set_register(&spi_dev, PLCA_MODE_COORDINATOR);
-	// set_register(&spi_dev, PLCA_MODE_FOLLOWER);
+	printk("Ready");
 
-	// arp_test();
-	// throughput_test();
-	// latency_test();
-	// arp_sender();
-	// arp_receiver();
-	// perf_server();
-	udp_talker();
-	// udp_listener();
+	while(1) {
+
+		/* Read Command */
+		index = 0;
+		memset(command_buffer, '\0', sizeof(command_buffer));
+
+		while (index < (sizeof(command_buffer) - 1)) {
+			int ret = uart_poll_in(uart1, &command_char);
+			if (ret == 0) {
+				if (command_char == '\n' || command_char == '\r') {
+					break;
+				}
+				if (index == (sizeof(command_buffer) - 1)) {
+					printk("Command buffer is full: %s\n", command_buffer);
+					break;
+				}
+
+				command_buffer[index++] = command_char;
+			}
+		}
+		
+		command_buffer[index] = '\0';
+		if (index > 0) {
+			printk("Command: %s\n", command_buffer);
+		}
+
+		/* Process Command */
+		if (strcmp(command_buffer, "help") == 0) {
+			print_help();
+		} else if (strncmp(command_buffer, "udp_echo_client", 15) == 0) {
+			uint16_t source_port = 0;
+			uint32_t interval_ms = 0;
+			sscanf(command_buffer + 16, "%hu %u", &source_port, &interval_ms);
+			udp_echo_client(source_port, interval_ms);
+		} else if (strcmp(command_buffer, "udp_echo_server") == 0) {
+			udp_echo_server();
+		} else if (strncmp(command_buffer, "udp_throughput_client", 21) == 0) {
+			uint16_t source_port = 0;
+			uint32_t duration_ms = 0;
+			sscanf(command_buffer + 22, "%hu %u", &source_port, &duration_ms);
+			udp_throughput_client(source_port, duration_ms);
+		} else if (strcmp(command_buffer, "udp_throughput_server") == 0) {
+			udp_throughput_server();
+		} else {
+			printk("Unknown command: %s\n", command_buffer);
+		}
+	}
 
 	return 0;
 }
