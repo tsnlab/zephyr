@@ -272,10 +272,9 @@ int set_register(const struct spi_dt_spec *spi_dev, uint16_t node_count, uint16_
 				((uint32_t)node_id) | ((uint32_t)node_count << 16));
 	write_register(spi_dev, MMS1, MAC_SAB1,
 				((uint32_t)*(mac_address + 0)) | ((uint32_t)*(mac_address + 1) << 8) |
-				((uint32_t)*(mac_address + 2) << 16) | ((uint32_t)*(mac_address + 3) << 24);
+				((uint32_t)*(mac_address + 2) << 16) | ((uint32_t)*(mac_address + 3) << 24));
 	write_register(spi_dev, MMS1, MAC_SAT1,
-				((uint32_t)*(mac_address + 4)) | ((uint32_t)*(mac_address + 5) << 8);
-
+				((uint32_t)*(mac_address + 4)) | ((uint32_t)*(mac_address + 5) << 8));
 	// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
 	// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
 	// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));

@@ -69,7 +69,7 @@ void make_udp_perf_data_packet(uint8_t *udp_payload);
 int send_udp_perf_req_packet(const struct spi_dt_spec *spi, const uint8_t *udp_packet, uint16_t packet_length);
 int send_udp_perf_data_packet(const struct spi_dt_spec *spi, const uint8_t *udp_packet, uint16_t packet_length);
 int recv_udp_perf_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], 
-    uint8_t source_ip_addr[IP_LEN], uint16_t* source_port, uint32_t *duration);
+    uint8_t source_ip_addr[IP_LEN], uint16_t* source_port, uint32_t *requested_duration_ms);
 int recv_udp_perf_data(const struct spi_dt_spec *spi, uint16_t req_source_port, uint32_t *id);
 
 #endif /* PERF_H */

@@ -24,7 +24,7 @@ void make_udp_perf_data_packet(uint8_t *udp_payload)
     perf->op = PERF_DATA;
 }
 
-int send_udp_perf_req_packet(const struct spi_dt_spec *spi, uint8_t *udp_packet, uint16_t packet_length)
+int send_udp_perf_req_packet(const struct spi_dt_spec *spi, const uint8_t *udp_packet, uint16_t packet_length)
 {
 	return send_packet(spi, udp_packet, packet_length);
 }

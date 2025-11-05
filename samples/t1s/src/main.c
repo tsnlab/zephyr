@@ -24,7 +24,7 @@
 
 #define SPI_NODE DT_ALIAS(spi0)
 
-static const struct device *uart1 = DEVICE_DT_GET(DT_NODELABEL(zephyr_console));
+static const struct device *uart1 = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
 struct spi_dt_spec spi_dev;
 
@@ -262,9 +262,10 @@ static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
 	printk("UDP Throughput Client started\n");
 	
 	uint8_t packet[MAX_PERF_PAYLOAD] = {0};
+	uint16_t udp_packet_length = 0;
 
 	/* Send Perf Request */
-	make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
+	udp_packet_length = make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
 								receiver_mac_addr, receiver_ip_addr, 
 								source_port, UDP_THROUGHPUT_SERVER_PORT, 
 								NULL, 0);
@@ -276,7 +277,7 @@ static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
     k_busy_wait(wait_server_init_time_ms);
 
 	/* Send Perf Data */
-	make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
+	udp_packet_length = make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
 		receiver_mac_addr, receiver_ip_addr, 
 		source_port, UDP_THROUGHPUT_SERVER_PORT, 
 		NULL, 0);
@@ -335,7 +336,7 @@ static void udp_throughput_server() {
 			printk("%us: %lld pps, %lld bps, loss: %.2f%%\n", elapsed_seconds, 
 				received_packets, received_bits, ((double)lost_packets / (lost_packets + received_packets)) * 100);
 			elapsed_seconds++;
-			if (elapsed_seconds > duration) {
+			if (elapsed_seconds > requested_duration_ms / 1000) {
 				break;
 			}
 			start_time = current_time;

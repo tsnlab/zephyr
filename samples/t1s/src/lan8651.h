@@ -376,7 +376,7 @@ uint8_t get_parity(uint32_t valueToCalculateParity);
 uint32_t write_register(const struct spi_dt_spec *spi_dev, uint8_t mms, uint16_t address,
 			uint32_t data);
 uint32_t read_register(const struct spi_dt_spec *spi_dev, uint8_t mms, uint16_t address);
-int set_register(const struct spi_dt_spec *spi_dev, int mode);
+int set_register(const struct spi_dt_spec *spi_dev, uint16_t node_count, uint16_t node_id, const uint8_t* mac_address);
 
 int send_packet(const struct spi_dt_spec *spi_dev, const uint8_t *data, uint16_t length);
 int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *length);
