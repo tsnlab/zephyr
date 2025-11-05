@@ -30,10 +30,12 @@ static const struct device *uart1 = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
 struct spi_dt_spec spi_dev;
 
-static uint8_t my_mac_addr[ETH_ALEN];
-static uint8_t target_mac_addr[ETH_ALEN];
-static uint8_t my_ip_addr[IP_LEN];
-static uint8_t target_ip_addr[IP_LEN];
+uint8_t my_mac_addr[ETH_ALEN];
+uint8_t target_mac_addr[ETH_ALEN];
+uint8_t my_ip_addr[IP_LEN];
+uint8_t target_ip_addr[IP_LEN];
+
+uint8_t tickle_node_id = 0;
 
 static void print_help() {
 	printk("Available commands:\n");
@@ -43,6 +45,8 @@ static void print_help() {
 	printk("udp_echo_server\n");
 	printk("udp_throughput_client <source_port> <duration_ms>\n");
 	printk("udp_throughput_server\n");
+	printk("tickle_ping\n");
+	printk("tickle_pong\n");
 }
 
 static int parse_uint8(const char *str, uint8_t *out) {
@@ -525,6 +529,7 @@ int main(void)
 			}
 
 			t1s_init(node_id);
+			tickle_node_id = (node_id == 255 ? 0: node_id + 1);
 		} else if (strncmp(command_buffer, "udp_echo_client", strlen("udp_echo_client")) == 0) {
 			char *arg_start = command_buffer + strlen("udp_echo_client");
 			char *token;
@@ -593,6 +598,10 @@ int main(void)
 			udp_throughput_client(source_port, duration_ms);
 		} else if (strcmp(command_buffer, "udp_throughput_server") == 0) {
 			udp_throughput_server();
+		} else if (strcmp(command_buffer, "tickle_ping") == 0) {
+			ping_main();
+		} else if (strcmp(command_buffer, "tickle_pong") == 0) {
+			pong_main();
 		} else {
 			printk("Unknown command: %s\n", command_buffer);
 		}

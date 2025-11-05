@@ -46,10 +46,11 @@ static uint16_t csum16(const void *data, size_t len) {
     return (uint16_t)(~sum);
 }
 
-extern const uint8_t sender_mac_addr[ETH_ALEN];
-extern const uint8_t receiver_mac_addr[ETH_ALEN];
-extern const uint8_t sender_ip_addr[IP_LEN];
-extern const uint8_t receiver_ip_addr[IP_LEN];
+extern uint8_t my_mac_addr[ETH_ALEN];
+extern uint8_t target_mac_addr[ETH_ALEN];
+extern uint8_t my_ip_addr[IP_LEN];
+extern uint8_t target_ip_addr[IP_LEN];
+extern uint8_t tickle_node_id;
 
 uint64_t tt_get_ns()
 {
@@ -62,7 +63,7 @@ uint64_t tt_get_ns()
 int32_t tt_get_node_id()
 {
 	/* TODO: use zephyr config */
-	return 2;
+	return tickle_node_id;
 }
 
 int32_t tt_bind(struct tt_Node *node)
