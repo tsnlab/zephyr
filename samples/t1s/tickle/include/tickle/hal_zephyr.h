@@ -5,5 +5,5 @@
 
 struct tt_hal {
     /* FIXME: This is used since network feature does not work on VCP-G yet */
-    struct spi_dt_spec spi;
+    struct spi_dt_spec* spi;
 };

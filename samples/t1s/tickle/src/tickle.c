@@ -209,7 +209,7 @@ static void node_flush(struct tt_Node *node, uint64_t time, void *param);
 
 int32_t tt_Node_create(struct tt_Node *node)
 {
-	tt_log_init(TT_LOG_WARNING, stdout);
+	tt_log_init(TT_LOG_NONE, stdout);
 	node->id = 0;
 	node->endpoint_count = 0;
 
@@ -372,7 +372,7 @@ static void call_retry(struct tt_Node *node, uint64_t time, void *param)
 
 		_tt_memcpy(buf, submessage_header, submessage_header->length);
 
-		end_encode(node, buf, false);
+		end_encode(node, buf, true);
 
 		uint32_t retry_interval;
 		if (client->service->call_retry_interval == 0) {
@@ -446,7 +446,7 @@ int32_t tt_Client_call(struct tt_Client *client, struct tt_Request *request)
 	cache->length = length;
 
 	// Flush tx
-	if (!end_encode(node, submessage_header, false)) {
+	if (!end_encode(node, submessage_header, true)) {
 		_tt_free(cache);
 		rollback(node, submessage_header);
 		return -3;
@@ -514,18 +514,15 @@ int32_t tt_Publisher_publish(struct tt_Publisher *pub, struct tt_Data *data)
 		rollback(node, submessage_header);
 		return -1;
 	}
-
 	// CallRequestHeader
 	struct tt_DataHeader *data_header = encode(node, sizeof(struct tt_DataHeader));
 	if (data_header == NULL) {
 		rollback(node, submessage_header);
 		return -1;
 	}
-
 	data_header->id = endpoint->id;
 	data_header->seq_no = pub->seq_no + 1;
 	data_header->timestamp = tt_get_ns();
-
 	// DataBody
 	int32_t cdr_len = pub->topic->data_encode_size(data);
 	void *cdr = encode(node, cdr_len);
@@ -533,18 +530,15 @@ int32_t tt_Publisher_publish(struct tt_Publisher *pub, struct tt_Data *data)
 		rollback(node, submessage_header);
 		return -1;
 	}
-
 	int32_t encoded_len = pub->topic->data_encode(data, cdr, cdr_len);
 	if (encoded_len < 0) {
 		rollback(node, submessage_header);
 		return -2;
 	}
-
 	if (!end_encode(node, submessage_header, true)) {
 		rollback(node, submessage_header);
 		return -3;
 	}
-
 	pub->seq_no++;
 
 	return 0;
@@ -657,7 +651,7 @@ static void node_update(struct tt_Node *node, uint64_t time, void *param)
 
 	update_header->entity_count = entity_count;
 
-	if (!end_encode(node, submessage_header, false)) {
+	if (!end_encode(node, submessage_header, true)) {
 		TT_LOG_ERROR("Lack of tx_buffer");
 		rollback(node, submessage_header);
 		goto done;
@@ -690,12 +684,12 @@ static bool process_update(struct tt_Node *node, struct tt_Header *header, uint8
 	struct tt_UpdateHeader *update_header =
 		decode(node, buffer, &head, tail, sizeof(struct tt_UpdateHeader));
 	if (update_header == NULL) {
-		TT_LOG_ERROR("Illegal UpdateHeader");
+		printk("Illegal UpdateHeader");
 		return false;
 	}
 
-	TT_LOG_DEBUG("  update->last_modified = %lu", update_header->last_modified);
-	TT_LOG_DEBUG("  update->entity_count = %u", update_header->entity_count);
+	printk("  update->last_modified = %lu", update_header->last_modified);
+	printk("  update->entity_count = %u", update_header->entity_count);
 
 	if (node->updates[header->source] != NULL &&
 	    node->updates[header->source]->last_modified == update_header->last_modified) {
@@ -704,7 +698,7 @@ static bool process_update(struct tt_Node *node, struct tt_Header *header, uint8
 
 	struct tt_UpdateHeader *new_update = _tt_malloc(length);
 	if (new_update == NULL) {
-		TT_LOG_ERROR("Out of memory!");
+		printk("Out of memory!");
 		return false;
 	}
 
@@ -742,20 +736,20 @@ static bool process_update(struct tt_Node *node, struct tt_Header *header, uint8
 		uint16_t type_len = 0;
 		char *type = NULL;
 		if (!decode_string(node, buffer, &head, tail, &type_len, &type)) {
-			TT_LOG_ERROR("Cannot decode type");
+			printk("Cannot decode type");
 			return false;
 		}
 
-		TT_LOG_DEBUG("  update_entity->type: (%d)\"%s\"", type_len, type);
+		printk("  update_entity->type: (%d)\"%s\"", type_len, type);
 
 		uint16_t name_len = 0;
 		char *name = NULL;
 		if (!decode_string(node, buffer, &head, tail, &name_len, &name)) {
-			TT_LOG_ERROR("Cannot decode name");
+			printk("Cannot decode name");
 			return false;
 		}
 
-		TT_LOG_DEBUG("  update_entity->name: (%d)\"%s\"", name_len, name);
+		printk("  update_entity->name: (%d)\"%s\"", name_len, name);
 	}
 
 	return true;
@@ -1017,7 +1011,7 @@ static bool process_callrequest(struct tt_Node *node, struct tt_Header *header, 
 	}
 
 	// Flush
-	if (!end_encode(node, submessage_header, false)) {
+	if (!end_encode(node, submessage_header, true)) {
 		rollback(node, submessage_header);
 		return false;
 	}
@@ -1095,6 +1089,7 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		return false;
 	}
 
+	printk("process_packet 1\n");
 	bool is_native_endian = false;
 	if (tt_is_native_endian(header)) {
 		is_native_endian = true;
@@ -1105,6 +1100,7 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		return false;
 	}
 
+	printk("process_packet 2\n");
 	TT_LOG_DEBUG("magic: 0x%04x (%c%c)", header->magic_value, header->magic[0],
 		     header->magic[1]);
 
@@ -1113,16 +1109,19 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		TT_LOG_ERROR("Illegal version: %d < %d", header->version, tt_VERSION);
 		return false;
 	}
+	printk("process_packet 3\n");
 
 	// Self sent message
 	if (header->source == node->id) {
 		TT_LOG_DEBUG("Self sent packet");
 		return true;
 	}
+	printk("process_packet 4\n");
 	TT_LOG_DEBUG("header->source: %d", header->source);
 
 	// Parse submessage
 	while (true) {
+	printk("process_packet 5\n");
 		// Decode submessage header
 		struct tt_SubmessageHeader *submessage_header =
 			decode(node, buffer, &head, tail, sizeof(struct tt_SubmessageHeader));
@@ -1131,15 +1130,14 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 			break;
 		}
 
-		TT_LOG_DEBUG("submessage->type: %d", submessage_header->type);
-		TT_LOG_DEBUG("submessage->receiver: %d", submessage_header->receiver);
-		TT_LOG_DEBUG("submessage->length: %d / %ld", submessage_header->length,
-			     tail - head + sizeof(struct tt_SubmessageHeader));
+		printk("submessage->type: %d\n", submessage_header->type);
+		printk("submessage->receiver: %d\n", submessage_header->receiver);
+		printk("submessage->length: %d / %ld\n", submessage_header->length, tail - head + sizeof(struct tt_SubmessageHeader));
 
 		// Decode submessage body
 		if (submessage_header->length < sizeof(struct tt_SubmessageHeader) ||
 		    submessage_header->length > tail - head + sizeof(struct tt_SubmessageHeader)) {
-			TT_LOG_ERROR("Illegal submessage length: %d < %ld || %d > %ld",
+			printk("Illegal submessage length: %d < %ld || %d > %ld",
 				     submessage_header->length, sizeof(struct tt_SubmessageHeader),
 				     submessage_header->length,
 				     tail - head + sizeof(struct tt_SubmessageHeader));
@@ -1150,41 +1148,46 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		    submessage_header->receiver == node->id) {
 			switch (submessage_header->type) {
 			case tt_SUBMESSAGE_TYPE_UPDATE:
+				printk("update\n");
 				if (!process_update(node, header, buffer, head,
 						    head + submessage_header->length -
 							    sizeof(struct tt_SubmessageHeader))) {
-					TT_LOG_ERROR("ERROR on update");
+					printk("ERROR on update");
 				}
 				break;
 			case tt_SUBMESSAGE_TYPE_DATA:
+				printk("data\n");
 				if (!process_data(node, header, buffer, head,
 						  head + submessage_header->length -
 							  sizeof(struct tt_SubmessageHeader))) {
-					TT_LOG_ERROR("ERROR on data");
+					printk("ERROR on data");
 				}
 				break;
 			case tt_SUBMESSAGE_TYPE_ACKNACK:
-				TT_LOG_ERROR("Not supported submessage type: %02x",
+
+				printk("Not supported submessage type: %02x",
 					     submessage_header->type);
 				return false;
 			case tt_SUBMESSAGE_TYPE_CALLREQUEST:
+				printk("callrequest\n");
 				if (!process_callrequest(
 					    node, header, buffer, head,
 					    head + submessage_header->length -
 						    sizeof(struct tt_SubmessageHeader))) {
-					TT_LOG_ERROR("ERROR on call request");
+					printk("ERROR on call request");
 				}
 				break;
 			case tt_SUBMESSAGE_TYPE_CALLRESPONSE:
+				printk("callresponse\n");
 				if (!process_callresponse(
 					    node, header, buffer, head,
 					    head + submessage_header->length -
 						    sizeof(struct tt_SubmessageHeader))) {
-					TT_LOG_ERROR("ERROR on call response");
+					printk("ERROR on call response");
 				}
 				break;
 			default:
-				TT_LOG_ERROR("Illegal submessage type: %d, len: %02x",
+				printk("Illegal submessage type: %d, len: %02x\n",
 					     submessage_header->type, tail - head);
 				return false;
 			}
@@ -1204,10 +1207,10 @@ int32_t tt_Node_poll(struct tt_Node *node)
 		uint32_t ip = 0;
 		uint16_t port = 0;
 		int32_t len = tt_receive(node, buffer, tt_MAX_BUFFER_LENGTH, &ip, &port);
-
 		if (len == -1) {      // Timeout
 			;             // Do nothing
 		} else if (len < 0) { // I/O error
+			printk("Cannot receive data\n");
 			TT_LOG_ERROR("Cannot receive data");
 			break;
 		} else {
@@ -1217,6 +1220,7 @@ int32_t tt_Node_poll(struct tt_Node *node)
 				     len);
 
 			if (!process_packet(node, buffer, 0, len)) {
+				printk("Cannot process packet\n");
 				TT_LOG_ERROR("Cannot process packet");
 			}
 		}
@@ -1229,7 +1233,7 @@ int32_t tt_Node_poll(struct tt_Node *node)
 			tcb->function(node, time, tcb->param);
 			pop_scheduler(node);
 		}
-		k_yield();
+		// k_yield();
 	}
 
 	return 0;

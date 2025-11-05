@@ -9,6 +9,7 @@
 #include "arp.h"
 #include "perf.h"
 #include "udp.h"
+#include "pubsub/pingpong.h"
 
 #define THROUGHPUT_DURATION     10
 #define THROUGHPUT_WARMUP       0
@@ -231,8 +232,8 @@ int main(void)
 	spi_dev.config.frequency = 25000000;
 	spi_dev.config.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(32) | SPI_HOLD_ON_CS;
 
-	set_register(&spi_dev, PLCA_MODE_COORDINATOR);
-	// set_register(&spi_dev, PLCA_MODE_FOLLOWER);
+	// set_register(&spi_dev, PLCA_MODE_COORDINATOR);
+	set_register(&spi_dev, PLCA_MODE_FOLLOWER);
 
 	// arp_test();
 	// throughput_test();
@@ -240,8 +241,10 @@ int main(void)
 	// arp_sender();
 	// arp_receiver();
 	// perf_server();
-	udp_talker();
+	// udp_talker();
 	// udp_listener();
+	ping_main();
+	// pong_main();
 
 	return 0;
 }
