@@ -421,14 +421,14 @@ int receive_packet(const struct spi_dt_spec *spi_dev, uint8_t *data, uint16_t *l
 			}
 
 			if (footer.rx_footer_bits.sv == SV_START_INVALID) {
-				printk("Invalid start of the packet\n");
+				//printk("Invalid start of the packet\n");
 				return -1;
 			}
 
 			data_offset = (footer.rx_footer_bits.swo * 4); /* 4 bytes per word */
 		} else {
 			if (footer.rx_footer_bits.sv == SV_START_VALID) {
-				printk("Unexpected start of the packet\n");
+				//printk("Unexpected start of the packet\n");
 				return -1;
 			}
 		}
