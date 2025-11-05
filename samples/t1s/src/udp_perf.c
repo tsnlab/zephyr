@@ -7,7 +7,7 @@
 
 void make_udp_perf_req_packet(uint8_t *udp_payload, uint32_t duration_ms, uint32_t warmup_ms)
 {
-	struct perf_startreq_header *startreq = (struct perf_startreq_header *)(udp_payload + 1);
+	struct perf_startreq_header *startreq = (struct perf_startreq_header *)(udp_payload);
 
 	startreq->header.id = sys_cpu_to_be32(0xdeadbeef);
 	startreq->header.op = PERF_REQ_START;
@@ -18,9 +18,9 @@ void make_udp_perf_req_packet(uint8_t *udp_payload, uint32_t duration_ms, uint32
 
 void make_udp_perf_data_packet(uint8_t *udp_payload)
 {
-    struct perf_header *perf = (struct perf_header *)(udp_payload + 1);
+    struct perf_header *perf = (struct perf_header *)(udp_payload);
 
-    perf->id = sys_cpu_to_be32(0x0);
+    perf->id = sys_cpu_to_be32(0xbeef);
     perf->op = PERF_DATA;
 }
 
@@ -100,8 +100,8 @@ int recv_udp_perf_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH
 	}
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
-	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) { /* Ignore Non-Perf packets */
-		printk("Non-Perf packet received %d\n", eth->h_proto);
+	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) {
+		printk("Non-IP packet received %d\n", eth->h_proto);
 		return -1;
 	}
     memcpy(source_mac_addr, eth->h_source, ETH_ALEN);
@@ -144,9 +144,9 @@ int recv_udp_perf_data(const struct spi_dt_spec *spi, uint16_t req_source_port, 
 	}
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
-	if (eth->h_proto != sys_cpu_to_be16(PERF_ETHERTYPE)) {
+	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) {
 		printk("Non-IP packet received %d\n", eth->h_proto);
-		return 0;
+		return -1;
 	}
 
     struct ipv4hdr *ipv4 = (struct ipv4hdr *)(eth + 1);
@@ -167,7 +167,6 @@ int recv_udp_perf_data(const struct spi_dt_spec *spi, uint16_t req_source_port, 
     }
 
 	struct perf_header *perf = (struct perf_header *)(udp + 1);
-
 	if (perf->op != PERF_DATA) {
 		printk("Non-Data packet received %d\n", perf->op);
 		return -1;

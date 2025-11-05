@@ -55,6 +55,11 @@ uint16_t make_udp_packet(uint8_t *packet, const uint8_t my_mac_addr[ETH_ALEN],
 	udp->length = sys_cpu_to_be16(sizeof(struct udphdr) + data_length);
 	udp->checksum = 0;  /* UDP checksum is optional for IPv4 */
 
+	// Copy UDP payload data
+	if (data != NULL && data_length > 0) {
+		memcpy((uint8_t *)udp + sizeof(struct udphdr), data, data_length);
+	}
+
 	return sizeof(struct ethhdr) + sizeof(struct ipv4hdr) + sizeof(struct udphdr) + data_length;
 }
 
@@ -68,7 +73,7 @@ int send_udp_packet(const struct spi_dt_spec *spi, const uint8_t my_mac_addr[ETH
 	return send_packet(spi, packet, packet_length);
 }
 
-int receive_udp_packet(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint16_t *source_port, uint8_t *data, uint16_t *length)
+int receive_udp_packet(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH_ALEN], uint8_t source_ip_addr[IP_LEN], uint16_t *source_port, uint8_t *data, uint16_t *length)
 {
 	uint8_t packet[MAX_PACKET_SIZE] = {
 		0,
@@ -97,12 +102,10 @@ int receive_udp_packet(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ET
 	}
 
 	memcpy(source_mac_addr, eth->h_source, ETH_ALEN);
+	memcpy(source_ip_addr, &ipv4->src, IP_LEN);
 	*source_port = sys_be16_to_cpu(udp->source_port);
 	*length = sys_be16_to_cpu(udp->length) - sizeof(struct udphdr);
 	memcpy(data, (uint8_t *)udp + sizeof(struct udphdr), *length);
-
-	printk("UDP Packet Received from %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d:%d)\n", eth->h_source[0], eth->h_source[1], eth->h_source[2],
-	       eth->h_source[3], eth->h_source[4], eth->h_source[5], (ipv4->src >> 24) & 0xFF, (ipv4->src >> 16) & 0xFF, (ipv4->src >> 8) & 0xFF, ipv4->src & 0xFF, *source_port);
-
+	
 	return 0;
 }
