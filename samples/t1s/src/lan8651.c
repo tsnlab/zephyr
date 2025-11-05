@@ -246,67 +246,67 @@ static void set_macphy_register(const struct spi_dt_spec *spi_dev)
 	write_register(spi_dev, MMS4, 0x0050, 0x0002);
 }
 
-int set_register(const struct spi_dt_spec *spi_dev, uint16_t node_count, uint16_t node_id, const uint8_t* mac_address)
+int set_register(const struct spi_dt_spec *spi_dev, uint8_t node_count, uint8_t node_id, const uint8_t* mac_address)
 {
 	uint32_t regval;
 
 	/* Read OA_STATUS0 */
 	regval = read_register(spi_dev, MMS0, OA_STATUS0);
-	// printk("OA_STATUS0: 0x%08x\n", regval);
+	printk("OA_STATUS0: 0x%08x\n", regval);
 
 	/* Write 1 to RESETC bit of OA_STATUS0 */
 	regval |= (1 << 6);
 	write_register(spi_dev, MMS0, OA_STATUS0, regval);
-	// printk("OA_STATUS0: 0x%08x\n", regval);
+	printk("OA_STATUS0: 0x%08x\n", regval);
 
 	regval = read_register(spi_dev, MMS4, CDCTL0);
 	write_register(spi_dev, MMS4, CDCTL0,
 		       regval | (1 << 15)); // Initial logic (disable collision detection)
-	// printk("CDCTL0: 0x%08x\n", regval);
+	printk("CDCTL0: 0x%08x\n", regval);
 
 	// PLCA Configuration based on mode
 	// TODO: This process is temporary and assumes that there are only two nodes.
 	// TODO: Should be changed to get node info. from the command line.
 	
 	write_register(spi_dev, MMS4, PLCA_CTRL1,
-				((uint32_t)node_id) | ((uint32_t)node_count << 16));
+				((uint32_t)node_id) | ((uint32_t)node_count << 8));
 	write_register(spi_dev, MMS1, MAC_SAB1,
 				((uint32_t)*(mac_address + 0)) | ((uint32_t)*(mac_address + 1) << 8) |
 				((uint32_t)*(mac_address + 2) << 16) | ((uint32_t)*(mac_address + 3) << 24));
 	write_register(spi_dev, MMS1, MAC_SAT1,
 				((uint32_t)*(mac_address + 4)) | ((uint32_t)*(mac_address + 5) << 8));
-	// printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
-	// printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
-	// printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
+	printk("PLCA_CTRL1: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL1));
+	printk("MAC_SAB1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAB1));
+	printk("MAC_SAT1: 0x%08x\n", read_register(spi_dev, MMS1, MAC_SAT1));
 
 	set_macphy_register(spi_dev); // AN_LAN865x-Configuration
 
 	write_register(spi_dev, MMS4, PLCA_CTRL0, 0x00008000); // Enable PLCA
 	write_register(spi_dev, MMS1, MAC_NCFGR, 0x000000C0);  // Enable unicast, multicast
 	write_register(spi_dev, MMS1, MAC_NCR, 0x0000000C);    // Enable MACPHY TX, RX
-	// printk("PLCA_CTRL0: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL0));
-	// printk("MAC_NCFGR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCFGR));
-	// printk("MAC_NCR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCR));
+	printk("PLCA_CTRL0: 0x%08x\n", read_register(spi_dev, MMS4, PLCA_CTRL0));
+	printk("MAC_NCFGR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCFGR));
+	printk("MAC_NCR: 0x%08x\n", read_register(spi_dev, MMS1, MAC_NCR));
 
 	/* Read OA_CONFIG0 */
 	regval = read_register(spi_dev, MMS0, OA_CONFIG0);
-	// printk("OA_CONFIG0: 0x%08x\n", regval);
+	printk("OA_CONFIG0: 0x%08x\n", regval);
 
 	/* Set SYNC bit of OA_CONFIG0 */
 	regval |= (1 << 15);
 	regval &= ~(0x7);
 	regval |= (0x6);
 	write_register(spi_dev, MMS0, OA_CONFIG0, regval);
-	// printk("OA_CONFIG0: 0x%08x\n", regval);
+	printk("OA_CONFIG0: 0x%08x\n", regval);
 
 	/* Read OA_STATUS0 */
 	regval = read_register(spi_dev, MMS0, OA_STATUS0);
-	// printk("OA_STATUS0: 0x%08x\n", regval);
+	printk("OA_STATUS0: 0x%08x\n", regval);
 
 	/* Clear RESETC bit of OA_STATUS0 */
 	regval &= ~(1UL << 6);
 	write_register(spi_dev, MMS0, OA_STATUS0, regval);
-	// printk("OA_STATUS0: 0x%08x\n", regval);
+	printk("OA_STATUS0: 0x%08x\n", regval);
 
 	return true;
 }
