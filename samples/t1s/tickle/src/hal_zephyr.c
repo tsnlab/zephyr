@@ -96,7 +96,7 @@ int32_t tt_send(struct tt_Node *node, const void *buf, size_t len)
 	// struct ipv4hdr *ipv4 = (struct ipv4hdr *)(eth + 1);
 	// struct udphdr *udp = (struct udphdr *)(ipv4 + 1);
 
-	memcpy(eth->h_dest, target_mac_addr, ETH_ALEN);
+	memset(eth->h_dest, 0xFF, ETH_ALEN); // Broadcast
 	memcpy(eth->h_source, my_mac_addr, ETH_ALEN);
 	eth->h_proto = sys_cpu_to_be16(0x1337);
 	// ipv4->version = 4;
