@@ -1,6 +1,8 @@
 #include <stdint.h>
+#include <string.h>
 
 #include <zephyr/drivers/spi.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/arch/cpu.h>
 
@@ -10,9 +12,15 @@
 #include "perf.h"
 #include "udp.h"
 
+#define UDP_ECHO_SERVER_PORT 0x0007
+#define UDP_THROUGHPUT_SERVER_PORT 0x1337
+
 #define THROUGHPUT_DURATION     10
 #define THROUGHPUT_WARMUP       0
 #define THROUGHPUT_PAYLOAD_SIZE 1500
+
+#define NODE_COUNT 0x08
+#define NODE_ID 0x00  /* NODE_ID 0 is the coordinator, NODE_ID > 0 is the follower */
 
 #define SPI_NODE DT_ALIAS(spi0)
 
@@ -21,7 +29,7 @@ static const struct device *uart1 = DEVICE_DT_GET(DT_NODELABEL(zephyr_console));
 struct spi_dt_spec spi_dev;
 
 const uint8_t my_mac_addr[ETH_ALEN] = {
-	0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0xCC, 0x00, 0xFF, 0xEE, 0x00, 0x11, NODE_ID,
 };
 const uint8_t target_mac_addr[ETH_ALEN] = {0xd0, 0xd1, 0x95, 0x30, 0x23, 0x01};
 const uint8_t my_ip_addr[IP_LEN] = {
@@ -130,9 +138,6 @@ static void arp_sender() {
 		uint64_t end_cycle = sys_clock_cycle_get_32();
 		printk("Seq: %u, RTT: %llu ns\n", seq, (end_cycle - start_cycle) * 83);
 		seq++;
-		// for (int i = 0; i < 100000000; i++) {
-		// 	arch_nop();
-		// }
 		k_busy_wait(50000);
 	}
 }
@@ -194,51 +199,158 @@ static void perf_server() {
 	}
 }
 
-static void udp_talker() {
-	printk("UDP Talker started\n");
-	uint8_t source_mac_addr[ETH_ALEN] = {0};
-	uint16_t source_port = 0;
-	uint8_t data[12] = {0};
-	uint16_t length = 0;
-	uint32_t seq = 0;
+static void udp_echo_client(uint16_t source_port, uint32_t interval_ms) {
+	uint32_t send_seq = 0;
+	uint16_t received_udp_packet_length = 0;
+	uint8_t received_udp_src_mac_addr[ETH_ALEN] = {0};
+	uint16_t received_udp_src_port = 0;
+	uint8_t received_data[12];
+
+	printk("UDP Echo Client started\n");
+
 	while (true) {
 		int64_t send_time = k_uptime_get();
-		send_udp_packet(&spi_dev, sender_mac_addr, sender_ip_addr, receiver_mac_addr, receiver_ip_addr, 1234, 5678, (uint8_t *)&seq, sizeof(seq));
-		while (length == 0) {
-			receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
+
+		send_udp_packet(&spi_dev, sender_mac_addr, sender_ip_addr, 
+								receiver_mac_addr, receiver_ip_addr, 
+								source_port, UDP_ECHO_SERVER_PORT, 
+								(uint8_t *)&send_seq, sizeof(send_seq));
+		printk("Sent Sequence Number: %u\n", send_seq);
+
+		while (received_udp_packet_length == 0) {
+			receive_udp_packet(&spi_dev, received_udp_src_mac_addr, &received_udp_src_port, 
+									received_data, &received_udp_packet_length);
 		}
-		uint32_t received_seq = *(uint32_t *)data;
-		if (received_seq != seq) {
-			printk("Sequence number mismatch: expected %u, got %u\n", seq, received_seq);
+		uint32_t received_seq = *(uint32_t *)received_data;
+		if (received_seq != send_seq) {
+			printk("Sequence number mismatch: expected %u, got %u\n", send_seq, received_seq);
 			continue;
 		}
+		printk("Received Sequence Number: %u\n", received_seq);
+
 		int64_t receive_time = k_uptime_get();
 		printk("RTT: %lld us\n", receive_time - send_time);
-		k_busy_wait(1000000);
-		seq++;
+		k_busy_wait(interval_ms * 1000);
+		send_seq++;
 	}
 }
 
-static void udp_listener() {
-	printk("UDP Listener started\n");
-	uint8_t source_mac_addr[ETH_ALEN] = {0};
-	uint16_t source_port = 0;
-	uint8_t data[12] = {0};
-	uint16_t length = 0;
+static void udp_echo_server() {
+	uint8_t received_udp_src_mac_addr[ETH_ALEN] = {0};
+	uint16_t received_udp_src_port = 0;
+	uint8_t received_data[12] = {0};
+	uint16_t received_udp_packet_length = 0;
+
+	printk("UDP Echo Server started\n");
+
 	while (true) {
-		while (length == 0) {
-			receive_udp_packet(&spi_dev, source_mac_addr, &source_port, data, &length);
+		while (received_udp_packet_length == 0) {
+			receive_udp_packet(&spi_dev, received_udp_src_mac_addr, &received_udp_src_port, 
+									received_data, &received_udp_packet_length);
 		}
-		uint32_t received_seq = *(uint32_t *)data;
-		printk("Received: %u\n", received_seq);
-		send_udp_packet(&spi_dev, receiver_mac_addr, receiver_ip_addr, sender_mac_addr, sender_ip_addr, 5678, 1234, (uint8_t *)&received_seq, sizeof(received_seq));
-		length = 0;
+		uint32_t received_seq = *(uint32_t *)received_data;
+		printk("Received Sequence Number: %u\n", received_seq);
+		send_udp_packet(&spi_dev, receiver_mac_addr, receiver_ip_addr, 
+								sender_mac_addr, sender_ip_addr, 
+								UDP_ECHO_SERVER_PORT, received_udp_src_port, 
+								(uint8_t *)&received_seq, sizeof(received_seq));
+		received_udp_packet_length = 0;
 	}
+}
+
+static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
+	printk("UDP Throughput Client started\n");
+	
+	uint8_t packet[MAX_PERF_PAYLOAD] = {0};
+
+	/* Send Perf Request */
+	make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
+								receiver_mac_addr, receiver_ip_addr, 
+								source_port, UDP_THROUGHPUT_SERVER_PORT, 
+								NULL, 0);
+	make_udp_perf_req_packet(packet + udp_packet_length, duration_ms, 0);
+	send_udp_perf_req_packet(&spi_dev, packet, sizeof(packet));
+
+	printk("Waiting for server to initialize\n");
+    uint32_t wait_server_init_time_ms = 1000 * 1000; // 1 second
+    k_busy_wait(wait_server_init_time_ms);
+
+	/* Send Perf Data */
+	make_udp_packet(packet, sender_mac_addr, sender_ip_addr, 
+		receiver_mac_addr, receiver_ip_addr, 
+		source_port, UDP_THROUGHPUT_SERVER_PORT, 
+		NULL, 0);
+	make_udp_perf_data_packet(packet + udp_packet_length);
+
+	int64_t start_time = k_uptime_get();
+	while(true) {
+		send_udp_perf_data_packet(&spi_dev, packet, sizeof(packet));
+		int64_t current_time = k_uptime_get();
+		int64_t elapsed_time = current_time - start_time;
+		if (elapsed_time > duration_ms * 1000) {
+			break;
+		}
+	}
+
+	printk("UDP Throughput Client finished\n");
+}
+
+static void udp_throughput_server() {
+	printk("UDP Throughput Server started\n");
+
+	uint8_t source_mac_addr[ETH_ALEN] = {0};
+	uint8_t source_ip_addr[IP_LEN] = {0};
+	uint16_t source_port = 0;
+	uint32_t requested_duration_ms = 0;
+	
+	while (requested_duration_ms == 0) {
+		recv_udp_perf_req(&spi_dev, source_mac_addr, source_ip_addr, &source_port, &requested_duration_ms);
+	}
+	printk("Receiving from %02x:%02x:%02x:%02x:%02x:%02x (%d.%d.%d.%d:%d)\n", 
+		source_mac_addr[0], source_mac_addr[1], source_mac_addr[2], source_mac_addr[3], source_mac_addr[4], source_mac_addr[5], 
+		source_ip_addr[0], source_ip_addr[1], source_ip_addr[2], source_ip_addr[3], source_port);
+
+	uint64_t received_bits = 0;
+	uint64_t received_packets = 0;
+	uint32_t last_id = 0;
+	uint64_t lost_packets = 0;
+
+	int64_t start_time = k_uptime_get();
+
+	uint32_t elapsed_seconds = 1;
+	int received_length = 0;
+	while (true) {
+		uint32_t id = 0;
+		received_length = recv_udp_perf_data(&spi_dev, source_port, &id);
+		if (received_length != 0) {
+			lost_packets += (id - last_id) - 1;
+			last_id = id;
+			received_bits += received_length * 8;
+			received_packets++;
+		}
+
+		int64_t current_time = k_uptime_get();
+		int64_t elapsed_time = current_time - start_time;
+		if (elapsed_time > 1000) {
+			printk("%us: %lld pps, %lld bps, loss: %.2f%%\n", elapsed_seconds, 
+				received_packets, received_bits, ((double)lost_packets / (lost_packets + received_packets)) * 100);
+			elapsed_seconds++;
+			if (elapsed_seconds > duration) {
+				break;
+			}
+			start_time = current_time;
+			received_bits = 0;
+			received_packets = 0;
+			lost_packets = 0;
+		}
+	}
+
+	printk("UDP Throughput Server finished\n");
 }
 
 int main(void)
 {
-char command_buffer[256] = {0};
+	char command_buffer[256] = {0};
 	char command_char = '\0';
 	int index = 0;
 
