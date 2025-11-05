@@ -19,8 +19,7 @@
 #define THROUGHPUT_WARMUP       0
 #define THROUGHPUT_PAYLOAD_SIZE 1500
 
-#define NODE_COUNT 0x08
-#define NODE_ID 0x00  /* NODE_ID 0 is the coordinator, NODE_ID > 0 is the follower */
+#define T1S_PLCA_NODE_COUNT 0x08
 
 #define SPI_NODE DT_ALIAS(spi0)
 
@@ -28,8 +27,8 @@ static const struct device *uart1 = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
 struct spi_dt_spec spi_dev;
 
-const uint8_t my_mac_addr[ETH_ALEN] = {
-	0xCC, 0x00, 0xFF, 0xEE, 0x00, 0x11, NODE_ID,
+uint8_t my_mac_addr[ETH_ALEN] = {
+	0xCC, 0x00, 0xFF, 0xEE, 0x00, 0x00, 0x00,
 };
 const uint8_t target_mac_addr[ETH_ALEN] = {0xd0, 0xd1, 0x95, 0x30, 0x23, 0x01};
 const uint8_t my_ip_addr[IP_LEN] = {
@@ -55,10 +54,27 @@ const uint8_t receiver_ip_addr[IP_LEN] = { 10, 1, 1, 2, };
 static void print_help() {
 	printk("Available commands:\n");
 	printk("help\n");
+	printk("t1s_init <node_id>\n");
 	printk("udp_echo_client <source_port> <interval_ms>\n");
 	printk("udp_echo_server\n");
 	printk("udp_throughput_client <source_port> <duration_ms>\n");
 	printk("udp_throughput_server\n");
+}
+
+static void t1s_init(uint8_t node_id)
+{
+	spi_dev.bus = DEVICE_DT_GET(SPI_NODE);
+	spi_dev.config.frequency = 25000000;
+	spi_dev.config.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(32) | SPI_HOLD_ON_CS;
+
+	/* Set MAC Address */
+	my_mac_addr[5] = node_id;
+
+	/* Initialize T1S */
+	set_register(&spi_dev, T1S_PLCA_NODE_COUNT, node_id, my_mac_addr);
+
+	printk("T1S initialized with node ID: %u(%s), MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n", node_id, node_id == 0 ? "coordinator" : "follower", 
+		my_mac_addr[0], my_mac_addr[1], my_mac_addr[2], my_mac_addr[3], my_mac_addr[4], my_mac_addr[5]);
 }
 
 static void arp_test()
@@ -360,11 +376,6 @@ int main(void)
 		return -1;
 	}
 
-	spi_dev.bus = DEVICE_DT_GET(SPI_NODE);
-	spi_dev.config.frequency = 25000000;
-	spi_dev.config.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(32) | SPI_HOLD_ON_CS;
-	set_register(&spi_dev, NODE_COUNT, NODE_ID, my_mac_addr);
-
 	printk("Ready");
 
 	while(1) {
@@ -396,6 +407,10 @@ int main(void)
 		/* Process Command */
 		if (strcmp(command_buffer, "help") == 0) {
 			print_help();
+		} else if (strncmp(command_buffer, "t1s_init", 8) == 0) {
+			uint8_t node_id = 0;
+			sscanf(command_buffer + 9, "%hhu", &node_id);
+			t1s_init(node_id);
 		} else if (strncmp(command_buffer, "udp_echo_client", 15) == 0) {
 			uint16_t source_port = 0;
 			uint32_t interval_ms = 0;
