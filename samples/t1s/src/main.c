@@ -13,6 +13,7 @@
 #include "arp.h"
 #include "perf.h"
 #include "udp.h"
+#include "pubsub/pingpong.h"
 
 #define UDP_ECHO_SERVER_PORT 0x0007
 #define UDP_THROUGHPUT_SERVER_PORT 0x1337
