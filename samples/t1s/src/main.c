@@ -274,27 +274,19 @@ static void udp_echo_client(uint16_t source_port, uint32_t interval_ms) {
 
 	while (true) {
 		uint32_t start_clock = sys_clock_cycle_get_32();
-		uint32_t send_start_clock, send_end_clock;
-		uint32_t recv_start_clock, recv_end_clock;
 		uint32_t end_clock;
 
 		// Send UDP packet
-		send_start_clock = sys_clock_cycle_get_32();
 		send_udp_packet(&spi_dev, my_mac_addr, my_ip_addr, 
 								target_mac_addr, target_ip_addr, 
 								source_port, UDP_ECHO_SERVER_PORT, 
 								(uint8_t *)&send_seq, sizeof(send_seq));
-		send_end_clock = sys_clock_cycle_get_32();
-		uint32_t send_time_ns = (send_end_clock - send_start_clock) * 83;
 
 		// Receive UDP packet
-		recv_start_clock = sys_clock_cycle_get_32();
 		while (received_data_length == 0) {
 			receive_udp_packet(&spi_dev, received_udp_src_mac_addr, received_udp_src_ip_addr, &received_udp_src_port, 
 									received_data, &received_data_length);
 		}
-		recv_end_clock = sys_clock_cycle_get_32();
-		uint32_t recv_time_ns = (recv_end_clock - recv_start_clock) * 83;
 
 		uint32_t received_seq = *(uint32_t *)received_data;
 		if (received_seq != send_seq) {
@@ -305,8 +297,7 @@ static void udp_echo_client(uint16_t source_port, uint32_t interval_ms) {
 
 		end_clock = sys_clock_cycle_get_32();
 		uint32_t total_rtt_ns = (end_clock - start_clock) * 83;
-		printk("[Seq %u] Total RTT: %u ns (send: %u ns, recv: %u ns)\n", 
-		       send_seq, total_rtt_ns, send_time_ns, recv_time_ns);
+		printk("Seq [%u] Total RTT: %u ns, Oneway Latency: %u ns\n", send_seq, total_rtt_ns, total_rtt_ns / 2);
 
 		k_busy_wait(interval_ms * 1000);
 		send_seq++;
