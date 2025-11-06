@@ -8,7 +8,7 @@
 #include <tickle/tickle.h>
 #include "type/Perf.h"
 
-#define PING_INTERVAL_NS (2000ULL * NSEC_PER_MSEC)
+#define PING_INTERVAL_NS (500ULL * NSEC_PER_MSEC)
 #define PONG_COUNT 6 /* TODO: Make this as a parameter */
 #define PONG_NODE_START 2
 #define PONG_NODE_END (PONG_NODE_START + PONG_COUNT - 1)
