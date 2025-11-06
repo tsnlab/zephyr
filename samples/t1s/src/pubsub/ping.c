@@ -19,22 +19,13 @@ static struct tt_Subscriber sub;
 
 uint32_t last_id = 0;
 uint64_t last_cycle = 0;
-uint8_t pong_id = PONG_NODE_START;
-
-static inline void next_pong(void) {
-	pong_id++;
-	if (pong_id > PONG_NODE_END) {
-		pong_id = PONG_NODE_START;
-	}
-}
 
 static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 {
 	struct PerfData data = {
 		.id = last_id + 1,
-		.op = pong_id,
+		.op = TICKLE_PERF_PING,
 	};
-	last_id = data.id;
 	last_cycle = sys_clock_cycle_get_32();
 	int ret = tt_Publisher_publish(&pub, &data);
 	if (ret != 0) {
@@ -47,7 +38,7 @@ static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 
 static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_t seq_no, struct PerfData *data)
 {
-	if (data->op != sub->node->id) {
+	if (data->op != TICKLE_PERF_PONG) {
 		return;
 	}
 
@@ -57,8 +48,8 @@ static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_
 	}
 
 	uint64_t rtt = (sys_clock_cycle_get_32() - last_cycle) * 83;
-	printk("Seq [%u](Node %u) Total RTT: %llu ns, Oneway Latency: %llu ns\n", data->id, pong_id - 1, rtt, rtt / 2);
-	next_pong();
+	printk("Seq [%u](Node %u) Total RTT: %llu ns, Oneway Latency: %llu ns\n", data->id, (data->id - 1) % 6 + 1, rtt, rtt / 2);
+	last_id = data->id + 1;
 }
 
 int ping_main(void)

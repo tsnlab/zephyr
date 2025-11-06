@@ -16,11 +16,15 @@ static struct tt_Subscriber sub;
 
 static void ping_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_t seq_no, struct PerfData *data)
 {
-	if (data->op != sub->node->id) {
+	if (data->op != TICKLE_PERF_PING) {
 		return;
 	}
 
-	data->op = 1;
+	if ((data->id - 1) % 6 + 1 != sub->node->id - 1) {
+		return;
+	}
+
+	data->op = TICKLE_PERF_PONG;
 	int ret = tt_Publisher_publish(&pub, data);
 	if (ret != 0) {
 		printk("Failed to publish pong: %d\n", ret);
