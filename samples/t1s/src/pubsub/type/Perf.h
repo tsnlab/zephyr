@@ -2,9 +2,12 @@
 
 #include <tickle/tickle.h>
 
+#define TICKLE_PERF_PING 0x1
+#define TICKLE_PERF_PONG 0x2
+
 struct PerfData {
     uint32_t id;
-    uint64_t timestamp;
+    uint8_t op;
 };
 
 extern struct tt_Topic PerfTopic;

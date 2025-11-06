@@ -16,8 +16,11 @@ static struct tt_Subscriber sub;
 
 static void ping_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_t seq_no, struct PerfData *data)
 {
-	printk("Ping received: id=%d, timestamp=%lld\n", data->id, data->timestamp);
-	data->timestamp = timestamp;
+	if (data->op != TICKLE_PERF_PING) {
+		return;
+	}
+
+	data->op = TICKLE_PERF_PONG;
 	int ret = tt_Publisher_publish(&pub, data);
 	if (ret != 0) {
 		printk("Failed to publish pong: %d\n", ret);

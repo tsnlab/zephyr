@@ -14,7 +14,7 @@ struct tt_Topic PerfTopic = {
 
 int32_t PerfData_encode_size(struct PerfData *data)
 {
-	return sizeof(uint32_t) + sizeof(uint64_t);
+	return sizeof(uint32_t) + sizeof(uint8_t);
 }
 
 int32_t PerfData_encode(struct PerfData *data, uint8_t *payload, const int32_t len)
@@ -30,13 +30,13 @@ int32_t PerfData_encode(struct PerfData *data, uint8_t *payload, const int32_t l
 	encoded += sizeof(uint32_t);
 	payload += sizeof(uint32_t);
 
-	if (encoded + sizeof(uint64_t) > len) {
+	if (encoded + sizeof(uint8_t) > len) {
 		return -1;
 	}
 
-	*(uint64_t *)payload = sys_cpu_to_be64(data->timestamp);
-	encoded += sizeof(uint64_t);
-	payload += sizeof(uint64_t);
+	*(uint8_t *)payload = data->op;
+	encoded += sizeof(uint8_t);
+	payload += sizeof(uint8_t);
 
 	return encoded;
 }
@@ -55,14 +55,14 @@ int32_t PerfData_decode(struct PerfData *data, const uint8_t *payload, const int
 	decoded += sizeof(uint32_t);
 	payload += sizeof(uint32_t);
 
-	if (decoded + sizeof(uint64_t) > len) {
+	if (decoded + sizeof(uint8_t) > len) {
 		return -1;
 	}
 
-	data->timestamp = sys_be64_to_cpu(*(uint64_t *)payload);
+	data->op = *(uint8_t *)payload;
 
-	decoded += sizeof(uint64_t);
-	payload += sizeof(uint64_t);
+	decoded += sizeof(uint8_t);
+	payload += sizeof(uint8_t);
 
 	return decoded;
 }
