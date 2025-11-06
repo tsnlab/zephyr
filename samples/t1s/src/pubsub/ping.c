@@ -22,8 +22,9 @@ uint64_t last_cycle = 0;
 
 static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 {
+	last_id++;
 	struct PerfData data = {
-		.id = last_id + 1,
+		.id = last_id,
 		.op = TICKLE_PERF_PING,
 	};
 	last_cycle = sys_clock_cycle_get_32();
@@ -49,7 +50,6 @@ static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_
 
 	uint64_t rtt = (sys_clock_cycle_get_32() - last_cycle) * 83;
 	printk("Seq [%u](Node %u) Total RTT: %llu ns, Oneway Latency: %llu ns\n", data->id, (data->id - 1) % 6 + 1, rtt, rtt / 2);
-	last_id = data->id + 1;
 }
 
 int ping_main(void)
