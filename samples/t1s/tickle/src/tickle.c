@@ -1143,11 +1143,12 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		    submessage_header->receiver == node->id) {
 			switch (submessage_header->type) {
 			case tt_SUBMESSAGE_TYPE_UPDATE:
-				if (!process_update(node, header, buffer, head,
-						    head + submessage_header->length -
-							    sizeof(struct tt_SubmessageHeader))) {
-					TT_LOG_ERROR("ERROR on update");
-				}
+				/* FIXME: This uses malloc, but it's not supported by VCP-G */
+				// if (!process_update(node, header, buffer, head,
+				// 		    head + submessage_header->length -
+				// 			    sizeof(struct tt_SubmessageHeader))) {
+				// 	TT_LOG_ERROR("ERROR on update");
+				// }
 				break;
 			case tt_SUBMESSAGE_TYPE_DATA:
 				if (!process_data(node, header, buffer, head,
