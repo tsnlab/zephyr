@@ -1132,10 +1132,11 @@ static bool process_packet(struct tt_Node *node, uint8_t *buffer, uint32_t head,
 		// Decode submessage body
 		if (submessage_header->length < sizeof(struct tt_SubmessageHeader) ||
 		    submessage_header->length > tail - head + sizeof(struct tt_SubmessageHeader)) {
-			TT_LOG_ERROR("Illegal submessage length: %d < %ld || %d > %ld",
-				     submessage_header->length, sizeof(struct tt_SubmessageHeader),
-				     submessage_header->length,
-				     tail - head + sizeof(struct tt_SubmessageHeader));
+			/* FIXME: For some reason a bit of bytes are added at the end of the packet */
+			// TT_LOG_ERROR("Illegal submessage length: %d < %ld || %d > %ld",
+			// 	     submessage_header->length, sizeof(struct tt_SubmessageHeader),
+			// 	     submessage_header->length,
+			// 	     tail - head + sizeof(struct tt_SubmessageHeader));
 			return false;
 		}
 
