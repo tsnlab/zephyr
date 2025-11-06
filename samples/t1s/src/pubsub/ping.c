@@ -9,6 +9,7 @@
 #include "type/Perf.h"
 
 #define PING_INTERVAL_NS (1000ULL * NSEC_PER_MSEC)
+#define PONG_COUNT 6  /* TODO: Make this as a parameter */
 
 static struct tt_Node node;
 static struct tt_Publisher pub;
@@ -16,6 +17,8 @@ static struct tt_Subscriber sub;
 
 uint32_t last_id = 0;
 uint64_t last_cycle = 0;
+uint64_t rtts[PONG_COUNT + 1];
+uint8_t pong_id = 0;
 
 static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 {
@@ -44,7 +47,16 @@ static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_
 		return;
 	}
 
-	printk("RTT[%u]: %llu ns\n", data->id, ((uint64_t)sys_clock_cycle_get_32() - last_cycle) * 83);
+	uint64_t callback_start = sys_clock_cycle_get_32();
+	pong_id++;
+	rtts[pong_id] = (callback_start - last_cycle) * 83;
+
+	if (pong_id == PONG_COUNT) {
+		for (int i = 1; i <= PONG_COUNT; i++) {
+			printk("RTT[%u.%u]: %llu ns\n", data->id, i, rtts[i]);
+		}
+		pong_id = 0;
+	}
 }
 
 int ping_main(void)
