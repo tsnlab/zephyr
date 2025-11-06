@@ -405,7 +405,7 @@ static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
 		}
 
 		/* Transmission Interval Adjustment */
-		k_busy_wait(408);
+		k_busy_wait(405);
 	}
 
 	printk("UDP Throughput Client finished\n");
