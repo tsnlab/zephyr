@@ -9,7 +9,9 @@
 #include "type/Perf.h"
 
 #define PING_INTERVAL_NS (2000ULL * NSEC_PER_MSEC)
-#define PONG_COUNT 6  /* TODO: Make this as a parameter */
+#define PONG_COUNT 6 /* TODO: Make this as a parameter */
+#define PONG_NODE_START 2
+#define PONG_NODE_END (PONG_NODE_START + PONG_COUNT - 1)
 
 static struct tt_Node node;
 static struct tt_Publisher pub;
@@ -17,14 +19,20 @@ static struct tt_Subscriber sub;
 
 uint32_t last_id = 0;
 uint64_t last_cycle = 0;
-uint64_t rtts[PONG_COUNT + 1];
-uint8_t pong_id = 0;
+uint8_t pong_id = PONG_NODE_START;
+
+static inline void next_pong(void) {
+	pong_id++;
+	if (pong_id > PONG_NODE_END) {
+		pong_id = PONG_NODE_START;
+	}
+}
 
 static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 {
 	struct PerfData data = {
 		.id = last_id + 1,
-		.op = TICKLE_PERF_PING,
+		.op = pong_id,
 	};
 	last_id = data.id;
 	last_cycle = sys_clock_cycle_get_32();
@@ -33,12 +41,13 @@ static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 		printk("Failed to publish ping: %d\n", ret);
 		return;
 	}
+
 	tt_Node_schedule(node, time + PING_INTERVAL_NS, send_ping, NULL);
 }
 
 static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_t seq_no, struct PerfData *data)
 {
-	if (data->op != TICKLE_PERF_PONG) {
+	if (data->op != sub->node->id) {
 		return;
 	}
 
@@ -47,16 +56,9 @@ static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_
 		return;
 	}
 
-	uint64_t callback_start = sys_clock_cycle_get_32();
-	pong_id++;
-	rtts[pong_id] = (callback_start - last_cycle) * 83;
-
-	if (pong_id == PONG_COUNT) {
-		for (int i = 1; i <= PONG_COUNT; i++) {
-			printk("RTT[%u.%u]: %llu ns\n", data->id, i, rtts[i]);
-		}
-		pong_id = 0;
-	}
+	uint64_t rtt = (sys_clock_cycle_get_32() - last_cycle) * 83;
+	printk("Seq [%u](Node %u) Total RTT: %llu ns, Oneway Latency: %llu ns\n", data->id, pong_id - 1, rtt, rtt / 2);
+	next_pong();
 }
 
 int ping_main(void)
