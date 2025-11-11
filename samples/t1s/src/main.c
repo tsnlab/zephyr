@@ -43,7 +43,7 @@ static void print_help() {
 	printk("t1s_init <node_id>\n");
 	printk("udp_echo_client <source_port> <interval_ms>\n");
 	printk("udp_echo_server\n");
-	printk("udp_throughput_client <source_port> <duration_ms>\n");
+	printk("udp_throughput_client <source_port> <duration_ms> <interval_us>\n");
 	printk("udp_throughput_server\n");
 	printk("tickle_ping\n");
 	printk("tickle_pong\n");
@@ -353,7 +353,7 @@ static void udp_echo_server() {
 	}
 }
 
-static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
+static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms, uint32_t interval_us) {
 	printk("UDP Throughput Client started\n");
 	
 	uint8_t packet[MAX_PERF_PAYLOAD] = {0};
@@ -396,7 +396,7 @@ static void udp_throughput_client(uint16_t source_port, uint32_t duration_ms) {
 		}
 
 		/* Transmission Interval Adjustment */
-		k_busy_wait(405);
+		k_busy_wait(interval_us);
 	}
 
 	printk("UDP Throughput Client finished\n");
@@ -561,6 +561,7 @@ int main(void)
 			char *saveptr;
 			uint16_t source_port = 0;
 			uint32_t duration_ms = 0;
+			uint32_t interval_us = 0;
 
 			// Skip whitespace
 			while (*arg_start == ' ' || *arg_start == '\t') {
@@ -586,7 +587,14 @@ int main(void)
 				continue;
 			}
 
-			udp_throughput_client(source_port, duration_ms);
+			// Parse third argument (interval_us)
+			token = strtok_r(NULL, " \t", &saveptr);
+			if (token == NULL || parse_uint32(token, &interval_us) != 0) {
+				printk("Error: Invalid duration_ms format\n");
+				continue;
+			}
+
+			udp_throughput_client(source_port, duration_ms, interval_us);
 		} else if (strcmp(command_buffer, "udp_throughput_server") == 0) {
 			udp_throughput_server();
 		} else if (strcmp(command_buffer, "tickle_ping") == 0) {
