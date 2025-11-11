@@ -42,9 +42,17 @@ extern uint8_t tickle_node_id;
 uint64_t tt_get_ns()
 {
 	struct timespec ts;
+	static uint64_t last_ns = 0;
+	static int overflow_count = 0;
 	sys_clock_gettime(SYS_CLOCK_REALTIME, &ts);
+	uint64_t ns = ((uint64_t)ts.tv_sec * SEC_NS) + ts.tv_nsec;
+	if (ns < last_ns) {
+		overflow_count++;
+	}
+	last_ns = ns;
+	return ns + overflow_count * 357913000000ULL;
 
-	return ((uint64_t)ts.tv_sec * SEC_NS) + ts.tv_nsec;
+	// return ((uint64_t)ts.tv_sec * SEC_NS) + ts.tv_nsec;
 }
 
 int32_t tt_get_node_id()

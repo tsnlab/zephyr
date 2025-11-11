@@ -20,6 +20,17 @@ static struct tt_Subscriber sub;
 uint32_t last_id = 0;
 uint64_t last_cycle = 0;
 
+static uint64_t get_cycle(void) {
+	static int overflow_count = 0;
+	static uint64_t last_sys_cycle = 0;
+	uint64_t cycle = sys_clock_cycle_get_32();
+	if (cycle < last_sys_cycle) {
+		overflow_count++;
+	}
+	last_sys_cycle = cycle;
+	return cycle + overflow_count * 0xFFFFFFFFULL;
+}
+
 static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 {
 	last_id++;
@@ -27,7 +38,7 @@ static void send_ping(struct tt_Node *node, uint64_t time, void *param)
 		.id = last_id,
 		.op = TICKLE_PERF_PING,
 	};
-	last_cycle = sys_clock_cycle_get_32();
+	last_cycle = get_cycle();
 	int ret = tt_Publisher_publish(&pub, &data);
 	if (ret != 0) {
 		printk("Failed to publish ping: %d\n", ret);
@@ -48,7 +59,7 @@ static void pong_callback(struct tt_Subscriber *sub, uint64_t timestamp, uint16_
 		return;
 	}
 
-	uint64_t rtt = (sys_clock_cycle_get_32() - last_cycle) * 83;
+	uint64_t rtt = (get_cycle() - last_cycle) * 83;
 	printk("Seq [%u](Node %u) Total RTT: %llu ns, Oneway Latency: %llu ns\n", data->id, (data->id - 1) % 6 + 1, rtt, rtt / 2);
 }
 
