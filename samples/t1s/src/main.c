@@ -450,8 +450,8 @@ static void udp_throughput_server() {
 		int64_t current_time = k_uptime_get();
 		int64_t elapsed_time = current_time - start_time;
 		if (elapsed_time > 1000) {
-			printk("%us: %lld pps, %lld bps, loss: %.2f%%\n", elapsed_seconds, 
-				received_packets, received_bits, ((double)lost_packets / (lost_packets + received_packets)) * 100);
+			printk("%us: %lld pps, %lld bps\n", elapsed_seconds, 
+				received_packets, received_bits);
 			elapsed_seconds++;
 			start_time = current_time;
 			received_bits = 0;

@@ -94,35 +94,35 @@ int recv_udp_perf_req(const struct spi_dt_spec *spi, uint8_t source_mac_addr[ETH
 
 	while (length == 0) {
 		if (receive_packet(spi, packet, &length) < 0) {
-			printk("Failed to receive Perf request\n");
+			//printk("Failed to receive Perf request\n");
 			return -1;
 		}
 	}
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
 	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) {
-		printk("Non-IP packet received %d\n", eth->h_proto);
+		//printk("Non-IP packet received %d\n", eth->h_proto);
 		return -1;
 	}
     memcpy(source_mac_addr, eth->h_source, ETH_ALEN);
 
     struct ipv4hdr *ipv4 = (struct ipv4hdr *)(eth + 1);
     if (ipv4->proto != IPPROTO_UDP) {
-        printk("Non-UDP packet received %d\n", ipv4->proto);
+        //printk("Non-UDP packet received %d\n", ipv4->proto);
         return -1;
     }
     memcpy(source_ip_addr, ipv4->src, IP_LEN);
 
     struct udphdr *udp = (struct udphdr *)(ipv4 + 1);
     if (udp->dest_port != sys_cpu_to_be16(PERF_UDP_PORT)) {
-        printk("Non-Perf UDP packet received %d\n", udp->dest_port);
+        //printk("Non-Perf UDP packet received %d\n", udp->dest_port);
         return -1;
     }
     *source_port = sys_be16_to_cpu(udp->source_port);
 
 	struct perf_startreq_header *perf = (struct perf_startreq_header *)(eth + 1);
 	if (perf->header.op != PERF_REQ_START) {
-		printk("Non-Req packet received %d\n", perf->header.op);
+		//printk("Non-Req packet received %d\n", perf->header.op);
 		return -1;
 	}
 
@@ -138,26 +138,26 @@ int recv_udp_perf_data(const struct spi_dt_spec *spi, uint16_t req_source_port, 
 
 	while (length == 0) {
 		if (receive_packet(spi, packet, &length) < 0) {
-			printk("Failed to receive Perf data\n");
+			//printk("Failed to receive Perf data\n");
 			return -1;
 		}
 	}
 
 	struct ethhdr *eth = (struct ethhdr *)packet;
 	if (eth->h_proto != sys_cpu_to_be16(ETH_P_IP)) {
-		printk("Non-IP packet received %d\n", eth->h_proto);
+		//printk("Non-IP packet received %d\n", eth->h_proto);
 		return -1;
 	}
 
     struct ipv4hdr *ipv4 = (struct ipv4hdr *)(eth + 1);
     if (ipv4->proto != IPPROTO_UDP) {
-        printk("Non-UDP packet received %d\n", ipv4->proto);
+        //printk("Non-UDP packet received %d\n", ipv4->proto);
         return -1;
     }
 
     struct udphdr *udp = (struct udphdr *)(ipv4 + 1);
     if (udp->dest_port != sys_cpu_to_be16(PERF_UDP_PORT)) {
-        printk("Non-Perf UDP packet received %d\n", udp->dest_port);
+        //printk("Non-Perf UDP packet received %d\n", udp->dest_port);
         return -1;
     }
 
