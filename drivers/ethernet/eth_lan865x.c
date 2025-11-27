@@ -374,7 +374,7 @@ static void lan865x_int_thread(const struct device *dev)
 
 		k_sched_unlock();
 
-		k_yield();
+		k_usleep(1);
 	}
 }
 
