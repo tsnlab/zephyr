@@ -55,6 +55,7 @@ static const uint8_t target_mac_addr[ETH_ALEN] = {
 static int initialize(void);
 static int init_uart(void);
 static void init_t1s(uint32_t frequency, spi_operation_t operation, enum PLCA_MODE mode);
+int send_control(uint8_t command, uint8_t slave_id);
 
 /*#########################################################################################
 #                                    Main                                                 #
@@ -90,104 +91,79 @@ int main(void)
 			case '0':
 				joint_num = 0xff;
 				printk("Send to Calibration Message\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id, CONTROL_MSG_COMMAND_CALIBRATE);
+				send_control(slave_id, CONTROL_MSG_COMMAND_CALIBRATE);
 				break;
 
 			/* Joint 1 Commands */
 			case '1':
 				joint_num = 1;
 				printk("Joint 1 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_1_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_1_LEFT);
 				break;
 			case '2':
 				joint_num = 1;
 				printk("Joint 1 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_1_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_1_RIGHT);
 				break;
 
 			/* Joint 2 Commands */
 			case 'q':
 				joint_num = 2;
 				printk("Joint 2 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_2_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_2_LEFT);
 				break;
 			case 'w':
 				joint_num = 2;
 				printk("Joint 2 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_2_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_2_RIGHT);
 				break;
 
 			/* Joint 3 Commands */
 			case 'a':
 				joint_num = 3;
 				printk("Joint 3 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_3_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_3_LEFT);
 				break;
 			case 's':
 				joint_num = 3;
 				printk("Joint 3 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_3_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_3_RIGHT);
 				break;
 
 			/* Joint 4 Commands */
 			case 'z':
 				joint_num = 4;
 				printk("Joint 4 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_4_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_4_LEFT);
 				break;
 			case 'x':
 				joint_num = 4;
 				printk("Joint 4 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_4_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_4_RIGHT);
 				break;
 
 			/* Joint 5 Commands */
 			case '3':
 				joint_num = 5;
 				printk("Joint 5 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_5_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_5_LEFT);
 				break;
 			case '4':
 				joint_num = 5;
 				printk("Joint 5 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_5_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_5_RIGHT);
 				break;
 
 			/* Joint 6 Commands */
 			case 'e':
 				joint_num = 6;
 				printk("Joint 6 Direction Left\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_6_LEFT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_6_LEFT);
 				break;
 			case 'r':
 				joint_num = 6;
 				printk("Joint 6 Direction Right\n");
-				send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr,
-							 slave_id,
-							 CONTROL_MSG_COMMAND_MOVE_JOINT_6_RIGHT);
+				send_control(slave_id, CONTROL_MSG_COMMAND_MOVE_JOINT_6_RIGHT);
 				break;
 
 			/* Default Commands */
@@ -295,4 +271,10 @@ void init_t1s(uint32_t frequency, spi_operation_t operation, enum PLCA_MODE mode
 	t1s_spi_dev.config.operation = operation;
 
 	set_register(&t1s_spi_dev, mode);
+}
+
+int send_control(uint8_t slave_id, uint8_t command)
+{
+	return send_control_msg_request(&t1s_spi_dev, my_mac_addr, target_mac_addr, slave_id,
+					command);
 }
