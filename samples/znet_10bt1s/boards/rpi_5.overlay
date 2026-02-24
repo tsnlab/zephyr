@@ -1,0 +1,74 @@
+/* boards/rpi_5.overlay */
+
+ / {
+	chosen {
+		zephyr,console = &uart10;
+		zephyr,shell-uart = &uart10;
+	};
+};
+
+/* =========================
+ * Enable RP1 GPIO controllers
+ * ========================= */
+
+&gpio0_0 {
+	status = "okay";
+};
+
+&gpio0_1 {
+	status = "okay";
+};
+
+&gpio0_2 {
+	status = "okay";
+};
+
+
+/* =========================
+ * RP1 SPI0 + LAN8651
+ * ========================= */
+
+&rp1_spi0 {
+	status = "okay";
+
+	cs-gpios = <&gpio0_0 8 GPIO_ACTIVE_LOW>;
+
+	lan865x: ethernet@0 {
+		compatible = "microchip,lan865x";
+		reg = <0>;
+
+		spi-cpol;
+		spi-cpha;
+
+		spi-max-frequency = <4000000>;
+
+		/* Zephyr LAN865x GPIOs */
+		rst-gpios = <&gpio0_0 22 GPIO_ACTIVE_HIGH>;
+		int-gpios = <&gpio0_0 23 GPIO_ACTIVE_LOW>;
+
+		status = "okay";
+
+		lan865x_mdio: lan865x-mdio {
+			compatible = "microchip,lan865x-mdio";
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			local-mac-address = [ d0 d1 95 30 23 00 ];
+
+			ethernet-phy@0 {
+				compatible = "microchip,t1s-phy";
+				reg = <0>;
+
+				plca-enable;
+				plca-node-id = <0>;
+				plca-node-count = <8>;
+				plca-burst-count = <0>;
+				plca-burst-timer = <0x80>;
+				plca-to-timer = <0x20>;
+
+				status = "okay";
+			};
+		};
+	};
+};

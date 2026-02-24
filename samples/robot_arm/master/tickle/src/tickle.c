@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <zephyr/kernel.h>
+
 #include <tickle/config.h>
 #include <tickle/hal.h>
 #include <tickle/tickle.h>
