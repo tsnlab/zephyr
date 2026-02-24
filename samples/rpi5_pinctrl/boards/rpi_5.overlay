@@ -1,0 +1,20 @@
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pinctrl/rp1-pinctrl.h>
+
+/ {
+    chosen {
+        zephyr,console = &uart10;
+        zephyr,shell-uart = &uart10;
+    };
+};
+
+/* =========================
+ * Enable RP1 GPIO controllers
+ * ========================= */
+&gpio0_0 { status = "okay"; };
+&gpio0_1 { status = "okay"; };
+&gpio0_2 { status = "okay"; };
+
+&rp1_pinctrl {
+    status = "okay";
+};

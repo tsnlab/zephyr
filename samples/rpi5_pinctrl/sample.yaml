@@ -1,0 +1,18 @@
+sample:
+  description: Raspberry Pi 5 RP1 pinctrl sample application (ALT mode cycling + CTRL readback)
+  name: rpi5_pinctrl
+
+common:
+  min_ram: 2
+  min_flash: 16
+  tags: rpi5_pinctrl pinctrl rp1 rpi5
+  integration_platforms:
+    - rpi_5
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "=== RP1 PINCTRL MODE CYCLING TEST ==="
+      - "RP1 pinctrl mapped: gpio=.* pads=.*"
+      - "Setting GPIO17 -> ALT[0-5]"
+      - "CTRL = 0x[0-9a-fA-F]{8}"
