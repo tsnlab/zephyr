@@ -1,0 +1,23 @@
+# Copyright (c) 2026
+# TSNLab sb.cho@tsn.com
+# SPDX-License-Identifier: Apache-2.0
+
+description: >
+  Raspberry Pi RP1 internal bus container. RP1 is exposed via PCIe but contains
+  a set of internal MMIO peripherals (I2C/SPI/GPIO, etc.) that are described as
+  children of this node.
+
+compatible: "raspberrypi,rp1-bus"
+
+include: [base.yaml]
+
+# Mark this node as a bus provider so children are considered "on-bus: rp1"
+# instead of being treated as directly on the PCIe bus.
+bus: rp1
+
+properties:
+  ranges:
+    type: array
+    required: false
+    description: >
+      Bus address translation for RP1 internal peripheral address space.

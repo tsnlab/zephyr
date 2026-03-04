@@ -1,0 +1,50 @@
+# DesignWare SPI driver configuration options
+
+# Copyright (c) 2015-2016 Intel Corporation
+# Copyright (c) 2023 Meta Platforms
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig SPI_DW
+	bool "DesignWare SPI controller driver"
+	default y
+	depends on DT_HAS_SNPS_DESIGNWARE_SPI_ENABLED
+	select PINCTRL if $(dt_compat_any_has_prop,$(DT_COMPAT_SNPS_DESIGNWARE_SPI),pinctrl-0)
+	help
+	  Enable support for DesignWare SPI controllers.
+
+if SPI_DW
+
+config SPI_DW_ACCESS_WORD_ONLY
+	bool "DesignWare SPI only allows word access"
+	help
+	  In some case, e.g. ARC HS Development kit, the peripheral space of
+	  DesignWare SPI only allows word access, byte access will raise
+	  exception.
+
+config SPI_DW_HSSI
+	bool "DesignWare SPI HSSI variant"
+	help
+	  Use register layout compatible with the SPI DW HSSI variant of the
+	  peripheral.
+
+config SPI_DW_USE_IRQ
+	bool "Use DesignWare SPI IRQ mode"
+	default n
+	help
+	  When enabled, SPI transfers are completed using
+	  interrupt-driven TX/RX FIFO handling.
+	  When disabled, SPI operates in polling mode.
+
+config SPI_DW_POLLING_TIMEOUT_US
+	int "DesignWare SPI polling timeout (us)"
+	default 1000
+	depends on SPI
+	help
+	  Timeout for DesignWare SPI controller when operating
+	  in polling mode. Unit is microseconds.
+
+	  This value limits how long the driver will poll
+	  TX/RX FIFO status before returning -ETIMEDOUT.
+
+
+endif # SPI_DW

@@ -11,7 +11,11 @@ compatible: "raspberrypi,rp1-pinctrl"
 
 include:
   - base.yaml
+<<<<<<< HEAD
   - pinctrl-controller.yaml
+=======
+  - pinctrl-device.yaml
+>>>>>>> 2b5f9985220 (feat: update pinctrl to support PAD control)
 
 properties:
   reg:
@@ -37,9 +41,13 @@ child-binding:
       type: array
       required: true
       description: |
+<<<<<<< HEAD
         Array of encoded pinmux values. Each value encodes:
           - Pin number
           - Function select (FSEL)
+=======
+        Array of encoded pinmux values.
+>>>>>>> 2b5f9985220 (feat: update pinctrl to support PAD control)
 
     drive-strength:
       type: int

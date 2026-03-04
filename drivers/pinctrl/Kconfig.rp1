@@ -1,0 +1,19 @@
+# Copyright (c) 2026 TSNLab
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig PINCTRL_RP1
+	bool "Raspberry Pi 5 RP1 pin controller driver"
+	depends on PINCTRL
+	depends on SOC_BCM2712
+	default y if BOARD_RPI_5
+	help
+	  Enable pin control driver for Raspberry Pi RP1 GPIO block
+	  used on Raspberry Pi 5.
+
+if PINCTRL_RP1
+
+module = PINCTRL_RP1
+module-str = PINCTRL_RP1
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # PINCTRL_RP1
