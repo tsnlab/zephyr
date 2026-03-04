@@ -4,38 +4,14 @@
 title: Raspberry Pi 5 RP1 Pin Controller
 
 description: |
-  Singleton node responsible for controlling RP1 GPIO pin function
-  selection and pad configuration on Raspberry Pi 5.
-
-  The node has the 'pinctrl' node label set in the SoC devicetree.
-
-  Example:
-
-    #include <dt-bindings/pinctrl/rpi5-rp1-pinctrl.h>
-
-    &pinctrl {
-      spi0_default: spi0_default {
-        group1 {
-          pinmux = <RP1_SPI0_SCLK_P7>,
-                   <RP1_SPI0_MOSI_P8>,
-                   <RP1_SPI0_MISO_P9>,
-                   <RP1_SPI0_CS0_P10>;
-          bias-disable;
-          drive-strength = <8>;
-          slew-rate = <1>;
-        };
-      };
-    };
-
-    &spi0 {
-      pinctrl-0 = <&spi0_default>;
-      pinctrl-names = "default";
-    };
+  Node responsible for controlling RP1 GPIO pin function selection
+  and pad configuration on Raspberry Pi 5.
 
 compatible: "raspberrypi,rp1-pinctrl"
 
 include:
   - base.yaml
+  - pinctrl-controller.yaml
 
 properties:
   reg:
@@ -43,39 +19,34 @@ properties:
 
 child-binding:
   description: |
-    Definitions for a pinctrl state.
+    Pinctrl state node.
 
-  child-binding:
+  include:
+    - name: pincfg-node.yaml
+      property-allowlist:
+        - bias-disable
+        - bias-pull-down
+        - bias-pull-up
+        - input-enable
+        - input-schmitt-enable
+        - drive-strength
+        - slew-rate
 
-    include:
-      - name: pincfg-node.yaml
-        property-allowlist:
-          - bias-disable
-          - bias-pull-down
-          - bias-pull-up
-          - input-enable
-          - input-schmitt-enable
-          - drive-strength
-          - slew-rate
+  properties:
+    pinmux:
+      type: array
+      required: true
+      description: |
+        Array of encoded pinmux values. Each value encodes:
+          - Pin number
+          - Function select (FSEL)
 
-    properties:
-      pinmux:
-        required: true
-        type: array
-        description: |
-          Array of encoded pinmux values.
-          Each value encodes:
-            - Pin number
-            - Function select (FSEL)
+    drive-strength:
+      type: int
+      enum: [2, 4, 8, 12]
+      default: 4
 
-      drive-strength:
-        enum: [2, 4, 8, 12]
-        default: 4
-        description: |
-          Drive strength in mA.
-
-      slew-rate:
-        enum: [0, 1]
-        default: 0
-        description: |
-          Slew rate. 0 = slow, 1 = fast.
+    slew-rate:
+      type: int
+      enum: [0, 1]
+      default: 0

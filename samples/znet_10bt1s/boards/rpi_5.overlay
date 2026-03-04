@@ -1,49 +1,96 @@
+
 /* boards/rpi_5.overlay */
 
- / {
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pinctrl/rp1-pinctrl.h>
+
+/ {
 	chosen {
 		zephyr,console = &uart10;
 		zephyr,shell-uart = &uart10;
 	};
 };
 
-/* =========================
- * Enable RP1 GPIO controllers
- * ========================= */
+/* -------------------------------------------------------------------------- */
+/* Enable RP1 GPIO controllers                                                */
+/* -------------------------------------------------------------------------- */
 
-&gpio0_0 {
-	status = "okay";
+&gpio0_0 { status = "okay"; };
+&gpio0_1 { status = "okay"; };
+&gpio0_2 { status = "okay"; };
+
+/* -------------------------------------------------------------------------- */
+/* RP1 pinctrl: SPI0 pinmux                                                   */
+/* -------------------------------------------------------------------------- */
+
+&rp1_pinctrl {
+
+	spi0_lan865x: spi0_lan865x {
+		pinmux = <
+			RP1_PINMUX(9,  RP1_FSEL_ALT0)  /* SPI0_SCLK */
+			RP1_PINMUX(10, RP1_FSEL_ALT0)  /* SPI0_MOSI */
+			RP1_PINMUX(11, RP1_FSEL_ALT0)  /* SPI0_MISO */
+		>;
+	};
+
+	i2c1_default: i2c1_default {
+		pinmux = <
+			RP1_PINMUX(2, RP1_FSEL_ALT0)  /* I2C1_SDA */
+			RP1_PINMUX(3, RP1_FSEL_ALT0)  /* I2C1_SCL */
+		>;
+	};
 };
 
-&gpio0_1 {
-	status = "okay";
+/* -------------------------------------------------------------------------- */
+/* RP1 I2C1 + FXL6408 GPIO expander                                           */
+/* -------------------------------------------------------------------------- */
+
+&rp1_i2c1 {
+    status = "disabled";
+    pinctrl-0 = <&i2c1_default>;
+    pinctrl-names = "default";
+
+	clock-frequency = <100000>;
+
+    /* fxl6408 GPIO */
+	fxl6408: gpio@43 {
+		compatible = "fcs,fxl6408";
+		reg = <0x43>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+
+		status = "okay";
+	};
 };
 
-&gpio0_2 {
-	status = "okay";
-};
-
-
-/* =========================
- * RP1 SPI0 + LAN8651
- * ========================= */
+/* -------------------------------------------------------------------------- */
+/* RP1 SPI0 + LAN865x                                                         */
+/* -------------------------------------------------------------------------- */
 
 &rp1_spi0 {
 	status = "okay";
 
+	pinctrl-0 = <&spi0_lan865x>;
+	pinctrl-names = "default";
+
+	/* Chip-select as GPIO for bring-up and easy scope visibility */
 	cs-gpios = <&gpio0_0 8 GPIO_ACTIVE_LOW>;
 
 	lan865x: ethernet@0 {
 		compatible = "microchip,lan865x";
 		reg = <0>;
 
+		/* SPI mode 3 (CPOL=1, CPHA=1) */
 		spi-cpol;
 		spi-cpha;
 
-		spi-max-frequency = <4000000>;
+		/* Conservative speed for initial bring-up */
+		spi-max-frequency = <25000000>;
 
-		/* Zephyr LAN865x GPIOs */
-		rst-gpios = <&gpio0_0 22 GPIO_ACTIVE_HIGH>;
+		/* LAN865x control GPIOs */
+		rst-gpios = <&gpio0_0 22 GPIO_ACTIVE_LOW>;
 		int-gpios = <&gpio0_0 23 GPIO_ACTIVE_LOW>;
 
 		status = "okay";
