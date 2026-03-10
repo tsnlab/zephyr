@@ -21,6 +21,8 @@ LOG_MODULE_REGISTER(eth_lan865x, CONFIG_ETHERNET_LOG_LEVEL);
 #include "eth_lan865x_priv.h"
 
 static int lan865x_default_config(const struct device *dev);
+static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
+                                        struct net_pkt *pkt);
 
 int eth_lan865x_mdio_c22_read(const struct device *dev, uint8_t prtad, uint8_t regad,
 			      uint16_t *data)
@@ -221,9 +223,10 @@ static int lan865x_gpio_reset(const struct device *dev)
 	/* Perform (GPIO based) HW reset */
 	/* assert RESET_N low for 10 µs (5 µs min) */
 	gpio_pin_set_dt(&cfg->reset, 1);
-	k_busy_wait(10U);
+	 k_msleep(1);
 	/* deassert - end of reset indicated by IRQ_N low  */
 	gpio_pin_set_dt(&cfg->reset, 0);
+	k_msleep(10);
 
 	return lan865x_wait_for_reset(dev);
 }
@@ -371,6 +374,9 @@ static void lan865x_read_chunks(const struct device *dev)
 		return;
 	}
 
+    /* application RX callback */
+    lan865x_rx_callback_handler(ctx, pkt);
+
 	/* Feed buffer frame to IP stack */
 	ret = net_recv_data(ctx->iface, pkt);
 	if (ret < 0) {
@@ -449,6 +455,8 @@ static int lan865x_init(const struct device *dev)
 	const struct lan865x_config *cfg = dev->config;
 	struct lan865x_data *ctx = dev->data;
 	int ret;
+
+	LOG_ERR("LAN865x iface init called");
 
 	__ASSERT(cfg->spi.config.frequency <= LAN865X_SPI_MAX_FREQUENCY,
 		 "SPI frequency exceeds supported maximum\n");
@@ -541,11 +549,115 @@ static int lan865x_init(const struct device *dev)
 		return ret;
 	}
 
-	return lan865x_gpio_reset(dev);
+	/* initialize RX callback */
+	ctx->rx_cb = NULL;
+	ctx->rx_cb_user_data = NULL;
+
+    /* TEMP: skip hardware reset for bring-up */
+    ctx->reset = true;
+	return 0;
+
+//	return lan865x_gpio_reset(dev);
+}
+
+int lan865x_register_rx_callback(const struct device *dev,
+				 lan865x_rx_cb_t cb,
+				 void *user_data)
+{
+	struct lan865x_data *ctx = dev->data;
+
+	ctx->rx_cb = cb;
+	ctx->rx_cb_user_data = user_data;
+
+	return 0;
+}
+
+int lan865x_tx_frame(const struct device *dev, const uint8_t *data, size_t len)
+{
+    struct lan865x_data *ctx = dev->data;
+    struct oa_tc6 *tc6 = ctx->tc6;
+    struct net_pkt *pkt;
+    uint32_t ftr = 0;
+    int ret, sret;
+
+    if (!ctx->iface) {
+        LOG_ERR("LAN865x iface not initialized");
+        return -ENODEV;
+    }
+
+    pkt = net_pkt_alloc_with_buffer(ctx->iface,
+                                    len,
+                                    AF_UNSPEC,
+                                    0,
+                                    K_MSEC(100));
+    if (!pkt) {
+        LOG_ERR("TX pkt alloc failed");
+        return -ENOMEM;
+    }
+
+    ret = net_pkt_write(pkt, data, len);
+    if (ret) {
+        LOG_ERR("pkt write failed %d", ret);
+        net_pkt_unref(pkt);
+        return ret;
+    }
+
+    net_pkt_cursor_init(pkt);
+
+    k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
+
+    sret = oa_tc6_read_status(tc6, &ftr);
+    LOG_ERR("TX pre-status: sret=%d ftr=0x%08x sync=%u txc=%u rca=%u protected=%d",
+            sret, ftr, tc6->sync, tc6->txc, tc6->rca, tc6->protected);
+
+    LOG_INF("LAN865x TX frame len=%d", len);
+
+    ret = oa_tc6_send_chunks(tc6, pkt);
+
+    LOG_ERR("TX result: ret=%d sync=%u txc=%u rca=%u",
+            ret, tc6->sync, tc6->txc, tc6->rca);
+
+    k_sem_give(&ctx->tx_rx_sem);
+
+    net_pkt_unref(pkt);
+
+    return ret;
+}
+
+static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
+                                         struct net_pkt *pkt)
+{
+    struct net_pkt *clone;
+    struct net_buf *frag;
+
+    if (!ctx->rx_cb) {
+        return;
+    }
+
+    clone = net_pkt_clone(pkt, K_NO_WAIT);
+    if (!clone) {
+        LOG_WRN("LAN865x RX: pkt clone failed");
+        return;
+    }
+
+    frag = clone->buffer;
+
+    while (frag) {
+
+        ctx->rx_cb(frag->data,
+                   frag->len,
+                   ctx->rx_cb_user_data);
+
+        frag = frag->frags;
+    }
+
+    net_pkt_unref(clone);
 }
 
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
+	LOG_ERR("LAN865x TX packet len=%d", net_pkt_get_len(pkt));
+
 	struct lan865x_data *ctx = dev->data;
 	struct oa_tc6 *tc6 = ctx->tc6;
 	int ret;
