@@ -82,6 +82,8 @@
 		compatible = "microchip,lan865x";
 		reg = <0>;
 
+		local-mac-address = [ d0 d1 95 30 23 00 ];
+
 		/* SPI mode 3 (CPOL=1, CPHA=1) */
 		spi-cpol;
 		spi-cpha;
@@ -100,8 +102,6 @@
 			status = "okay";
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			local-mac-address = [ d0 d1 95 30 23 00 ];
 
 			ethernet-phy@0 {
 				compatible = "microchip,t1s-phy";

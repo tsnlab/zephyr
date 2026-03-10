@@ -1,120 +1,102 @@
 #include <zephyr/kernel.h>
-#include <zephyr/sys/sys_io.h>
-#include <zephyr/kernel/mm.h>
+#include <zephyr/device.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/ethernet.h>
 
-/* RP1 base */
-#define RP1_GPIO_PHYS   0x1f000d0000ULL
-#define RP1_SPI0_PHYS   0x1f00050000ULL
+#include <zephyr/drivers/ethernet/eth_lan865x.h>
 
-#define MAP_SIZE        0x1000
+#define TX_INTERVAL_MS 1000
 
-/* SPI registers */
-#define DW_CTRLR0   0x00
-#define DW_SSIENR   0x08
-#define DW_SER      0x10
-#define DW_BAUDR    0x14
-#define DW_SR       0x28
-#define DW_DR       0x60
-
-/* SR bits */
-#define SR_TFNF (1 << 1)
-#define SR_RFNE (1 << 3)
-
-/* GPIO (RP1 simplified offsets) */
-#define GPIO_DIR   0x04
-#define GPIO_OUT   0x08
-
-static inline void gpio_set_output(uint8_t *gpio, int pin)
+static void rx_callback(const uint8_t *data, size_t len, void *user_data)
 {
-    uint32_t v = sys_read32((uintptr_t)gpio + GPIO_DIR);
-    v |= (1 << pin);
-    sys_write32(v, (uintptr_t)gpio + GPIO_DIR);
-}
+    ARG_UNUSED(user_data);
 
-static inline void gpio_set(uint8_t *gpio, int pin)
-{
-    uint32_t v = sys_read32((uintptr_t)gpio + GPIO_OUT);
-    v |= (1 << pin);
-    sys_write32(v, (uintptr_t)gpio + GPIO_OUT);
-}
+    printk("RX fragment len=%u\n", len);
 
-static inline void gpio_clear(uint8_t *gpio, int pin)
-{
-    uint32_t v = sys_read32((uintptr_t)gpio + GPIO_OUT);
-    v &= ~(1 << pin);
-    sys_write32(v, (uintptr_t)gpio + GPIO_OUT);
-}
+    for (size_t i = 0; i < len; i++) {
 
-void main(void)
-{
-    uint8_t *gpio;
-    uint8_t *spi;
+        printk("%02x ", data[i]);
 
-    printk("\n=== LAN865x Raw SPI Test ===\n");
-
-    /* MMIO map */
-    k_mem_map_phys_bare(&gpio, RP1_GPIO_PHYS, MAP_SIZE,
-                        K_MEM_PERM_RW | K_MEM_CACHE_NONE);
-
-    k_mem_map_phys_bare(&spi, RP1_SPI0_PHYS, MAP_SIZE,
-                        K_MEM_PERM_RW | K_MEM_CACHE_NONE);
-
-    printk("GPIO VA = %p\n", gpio);
-    printk("SPI VA  = %p\n", spi);
-
-    /* GPIO8 = CS */
-    gpio_set_output(gpio, 8);
-
-    /* GPIO22 = Reset */
-    gpio_set_output(gpio, 22);
-
-    /* Reset sequence */
-    printk("Reset LOW\n");
-    gpio_clear(gpio, 22);
-    k_msleep(200);
-
-    printk("Reset HIGH\n");
-    gpio_set(gpio, 22);
-    k_msleep(1000);   // 중요: 충분히 대기
-
-    /* SPI Disable */
-    sys_write32(0x0, (uintptr_t)spi + DW_SSIENR);
-
-    /* Mode 0, 8-bit */
-    sys_write32(0x00070000, (uintptr_t)spi + DW_CTRLR0);
-
-    /* 4MHz (divider=50 가정) */
-    sys_write32(50, (uintptr_t)spi + DW_BAUDR);
-
-    /* Enable SPI */
-    sys_write32(0x1, (uintptr_t)spi + DW_SSIENR);
-
-    printk("SPI configured\n");
-
-    /* CS LOW */
-    printk("CS LOW\n");
-    gpio_clear(gpio, 8);
-    k_msleep(10);
-
-    for (int i = 0; i < 10; i++) {
-
-        /* TX FIFO empty wait */
-        while (!(sys_read32((uintptr_t)spi + DW_SR) & SR_TFNF));
-
-        /* Send dummy */
-        sys_write32(0xFF, (uintptr_t)spi + DW_DR);
-
-        /* RX available wait */
-        while (!(sys_read32((uintptr_t)spi + DW_SR) & SR_RFNE));
-
-        uint32_t rx = sys_read32((uintptr_t)spi + DW_DR);
-
-        printk("RX[%d] = 0x%02x\n", i, rx & 0xFF);
+        if ((i & 0x0f) == 0x0f)
+            printk("\n");
     }
 
-    /* CS HIGH */
-    printk("CS HIGH\n");
-    gpio_set(gpio, 8);
+    printk("\n");
+}
 
-    printk("=== Test Done ===\n");
+static void build_test_frame(uint8_t *frame, uint16_t counter)
+{
+    memset(frame, 0, 60);
+
+    /* destination = broadcast */
+    frame[0] = 0xff;
+    frame[1] = 0xff;
+    frame[2] = 0xff;
+    frame[3] = 0xff;
+    frame[4] = 0xff;
+    frame[5] = 0xff;
+
+    /* source MAC (example) */
+    frame[6]  = 0xd0;
+    frame[7]  = 0xd1;
+    frame[8]  = 0x95;
+    frame[9]  = 0x30;
+    frame[10] = 0x23;
+    frame[11] = 0x00;
+
+    /* Ethertype */
+    frame[12] = 0x88;
+    frame[13] = 0xb5;
+
+    /* payload test pattern */
+    frame[14] = 0x86;
+    frame[15] = 0x51;
+
+    frame[16] = counter >> 8;
+    frame[17] = counter & 0xff;
+}
+
+int main(void)
+{
+    const struct device *dev;
+    struct net_if *iface;
+
+    uint8_t frame[60];
+    uint16_t counter = 0;
+
+    printk("LAN865x raw broadcast TX/RX test\n");
+
+    dev = DEVICE_DT_GET(DT_NODELABEL(lan865x));
+
+    if (!device_is_ready(dev)) {
+        printk("LAN865x device not ready\n");
+        return 0;
+    }
+
+    iface = net_if_get_default();
+
+    if (!iface) {
+        printk("No network interface\n");
+        return 0;
+    }
+
+    printk("Register RX callback\n");
+
+    lan865x_register_rx_callback(dev, rx_callback, NULL);
+
+    printk("Start TX loop\n");
+
+    while (1) {
+
+        build_test_frame(frame, counter);
+
+        int ret = lan865x_tx_frame(dev, frame, sizeof(frame));
+
+        printk("broadcast TX counter=%u ret=%d\n", counter, ret);
+
+        counter++;
+
+        k_sleep(K_MSEC(TX_INTERVAL_MS));
+    }
 }
