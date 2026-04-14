@@ -21,8 +21,10 @@ LOG_MODULE_REGISTER(eth_lan865x, CONFIG_ETHERNET_LOG_LEVEL);
 #include "eth_lan865x_priv.h"
 
 static int lan865x_default_config(const struct device *dev);
+#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
 static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
                                         struct net_pkt *pkt);
+#endif
 
 int eth_lan865x_mdio_c22_read(const struct device *dev, uint8_t prtad, uint8_t regad,
 			      uint16_t *data)
@@ -92,6 +94,14 @@ static void lan865x_iface_init(struct net_if *iface)
 	const struct device *dev = net_if_get_device(iface);
 	struct lan865x_data *ctx = dev->data;
 	int ret;
+	const struct net_linkaddr *ll;
+
+	LOG_DBG("iface_init enter: dev=%s iface=%p ctx=%p ctx->iface=%p",
+		dev->name, iface, ctx, ctx->iface);
+
+	LOG_INF("ctx->mac_address = %02x:%02x:%02x:%02x:%02x:%02x",
+		ctx->mac_address[0], ctx->mac_address[1], ctx->mac_address[2],
+		ctx->mac_address[3], ctx->mac_address[4], ctx->mac_address[5]);
 
 	ret = lan865x_enable_sync(dev);
 	if (ret) {
@@ -99,7 +109,21 @@ static void lan865x_iface_init(struct net_if *iface)
 		return;
 	}
 
+	LOG_DBG("LAN865x sync enabled");
+
 	net_if_set_link_addr(iface, ctx->mac_address, sizeof(ctx->mac_address), NET_LINK_ETHERNET);
+
+	ll = net_if_get_link_addr(iface);
+	if (!ll) {
+		LOG_ERR("net_if_get_link_addr() returned NULL");
+	} else if (ll->len < 6) {
+		LOG_ERR("link addr length too short: %u", ll->len);
+	} else {
+		LOG_INF("iface link addr = %02x:%02x:%02x:%02x:%02x:%02x len=%u type=%u",
+			ll->addr[0], ll->addr[1], ll->addr[2],
+			ll->addr[3], ll->addr[4], ll->addr[5],
+			ll->len, ll->type);
+	}
 
 	if (ctx->iface == NULL) {
 		ctx->iface = iface;
@@ -109,6 +133,8 @@ static void lan865x_iface_init(struct net_if *iface)
 
 	net_eth_carrier_on(iface);
 	ctx->iface_initialized = true;
+
+	LOG_DBG("iface_init done: iface_initialized=%d", ctx->iface_initialized);
 }
 
 static enum ethernet_hw_caps lan865x_port_get_capabilities(const struct device *dev)
@@ -352,6 +378,32 @@ static void lan865x_dump_pkt(struct net_pkt *pkt)
 	printk("\n");
 }
 
+struct eth_hdr_dbg {
+	uint8_t dst[6];
+	uint8_t src[6];
+	uint16_t type;
+} __packed;
+
+static void dump_eth_hdr(struct net_pkt *pkt)
+{
+	uint8_t buf[14];
+	int ret;
+
+	ret = net_pkt_read(pkt, buf, sizeof(buf));
+	if (ret < 0) {
+		LOG_ERR("net_pkt_read failed: %d", ret);
+		return;
+	}
+
+	LOG_INF("ETH dst=%02x:%02x:%02x:%02x:%02x:%02x "
+		"src=%02x:%02x:%02x:%02x:%02x:%02x type=0x%02x%02x",
+		buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+		buf[6], buf[7], buf[8], buf[9], buf[10], buf[11],
+		buf[12], buf[13]);
+
+	net_pkt_cursor_init(pkt);
+}
+
 static void lan865x_read_chunks(const struct device *dev)
 {
 	struct lan865x_data *ctx = dev->data;
@@ -375,14 +427,50 @@ static void lan865x_read_chunks(const struct device *dev)
 	}
 
     /* application RX callback */
-    lan865x_rx_callback_handler(ctx, pkt);
+    // lan865x_rx_callback_handler(ctx, pkt);
+
+	// dump_eth_hdr(pkt);
 
 	/* Feed buffer frame to IP stack */
 	ret = net_recv_data(ctx->iface, pkt);
 	if (ret < 0) {
-		LOG_ERR("OA RX: Could not process packet (%d)!", ret);
+		// LOG_ERR("OA RX: Could not process packet (%d)!", ret);
 		net_pkt_unref(pkt);
 	}
+	k_sem_give(&ctx->tx_rx_sem);
+}
+
+static void lan865x_read_chunks_burst(const struct device *dev)
+{
+	struct lan865x_data *ctx = dev->data;
+	struct oa_tc6 *tc6 = ctx->tc6;
+	struct net_pkt *pkt;
+	int ret;
+
+	pkt = net_pkt_rx_alloc(K_MSEC(CONFIG_ETH_LAN865X_TIMEOUT));
+	if (!pkt) {
+		// LOG_ERR("OA RX burst: Could not allocate packet!");
+		return;
+	}
+
+	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
+
+	ret = oa_tc6_read_chunks_burst(tc6, pkt);
+	if (ret < 0) {
+		eth_stats_update_errors_rx(ctx->iface);
+		net_pkt_unref(pkt);
+		k_sem_give(&ctx->tx_rx_sem);
+		return;
+	}
+
+	/* application RX callback */
+	/* lan865x_rx_callback_handler(ctx, pkt); */
+	ret = net_recv_data(ctx->iface, pkt);
+	if (ret < 0) {
+		// LOG_ERR("OA RX burst: Could not process packet (%d)!", ret);
+		net_pkt_unref(pkt);
+	}
+
 	k_sem_give(&ctx->tx_rx_sem);
 }
 
@@ -399,7 +487,8 @@ static void lan865x_int_thread(const struct device *dev)
 #if defined(CONFIG_ETH_LAN865X_USE_IRQ)
 		k_sem_take(&ctx->int_sem, K_FOREVER);
 #else
-		k_sleep(K_MSEC(CONFIG_ETH_LAN865X_POLL_INTERVAL_MS));
+		//k_sleep(K_MSEC(CONFIG_ETH_LAN865X_POLL_INTERVAL_MS));
+		k_sleep(K_USEC(100));
 #endif
 		if (!ctx->reset) {
 			oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
@@ -436,7 +525,11 @@ static void lan865x_int_thread(const struct device *dev)
 		 * Hence, it is mandatory to ALWAYS read at least one data chunk!
 		 */
 		do {
-			lan865x_read_chunks(dev);
+			if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1) {
+				lan865x_read_chunks_burst(dev);
+			} else {
+				lan865x_read_chunks(dev);
+			}
 #if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
 			/* Yield to avoid starving other threads in cooperative mode */
     		k_yield();
@@ -456,7 +549,7 @@ static int lan865x_init(const struct device *dev)
 	struct lan865x_data *ctx = dev->data;
 	int ret;
 
-	LOG_ERR("LAN865x iface init called");
+	LOG_DBG("LAN865x iface init called");
 
 	__ASSERT(cfg->spi.config.frequency <= LAN865X_SPI_MAX_FREQUENCY,
 		 "SPI frequency exceeds supported maximum\n");
@@ -511,7 +604,7 @@ static int lan865x_init(const struct device *dev)
 		K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
 	k_thread_name_set(ctx->tid_int, "lan865x_interrupt");
 #else
-	LOG_INF("LAN865x IRQ disabled, using polling mode");
+	LOG_DBG("LAN865x IRQ disabled, using polling mode");
 	/* Start poll thread */
 	// ctx->tid_int = k_thread_create(
 	// 	&ctx->thread, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
@@ -523,7 +616,7 @@ static int lan865x_init(const struct device *dev)
 		(k_thread_entry_t)lan865x_int_thread, (void *)dev, NULL, NULL,
 		K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
 
-	LOG_ERR("lan865x thread created: tid=%p stack=%p size=%u prio=%d",
+	LOG_DBG("lan865x thread created: tid=%p stack=%p size=%u prio=%d",
         ctx->tid_int, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
         CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO);
 	k_thread_name_set(ctx->tid_int, "lan865x_poll");
@@ -553,8 +646,20 @@ static int lan865x_init(const struct device *dev)
 	ctx->rx_cb = NULL;
 	ctx->rx_cb_user_data = NULL;
 
+	/* TEMP: skip hardware reset for bring-up */
+	oa_tc6_set_protected_ctrl(ctx->tc6, true);
+
+	ret = lan865x_default_config(dev);
+	if (ret < 0) {
+		LOG_ERR("lan865x_default_config failed: %d", ret);
+		return ret;
+	}
+
+	LOG_DBG("default config applied in bring-up path");
+
     /* TEMP: skip hardware reset for bring-up */
     ctx->reset = true;
+
 	return 0;
 
 //	return lan865x_gpio_reset(dev);
@@ -624,6 +729,7 @@ int lan865x_tx_frame(const struct device *dev, const uint8_t *data, size_t len)
     return ret;
 }
 
+#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
 static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
                                          struct net_pkt *pkt)
 {
@@ -653,24 +759,23 @@ static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
 
     net_pkt_unref(clone);
 }
+#endif
 
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
-	LOG_ERR("LAN865x TX packet len=%d", net_pkt_get_len(pkt));
-
 	struct lan865x_data *ctx = dev->data;
 	struct oa_tc6 *tc6 = ctx->tc6;
 	int ret;
 
 	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
+
+#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
+	ret = oa_tc6_send_chunks_burst(tc6, pkt);
+#else
 	ret = oa_tc6_send_chunks(tc6, pkt);
-
-	/* Check if rca > 0 during half-duplex TX transmission */
-	if (tc6->rca > 0) {
-		k_sem_give(&ctx->int_sem);
-	}
-
+#endif
 	k_sem_give(&ctx->tx_rx_sem);
+
 	if (ret < 0) {
 		LOG_ERR("TX transmission error, %d", ret);
 		eth_stats_update_errors_tx(net_pkt_iface(pkt));

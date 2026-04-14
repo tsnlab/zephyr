@@ -151,8 +151,8 @@ static void rp1_set_alt(const struct device *dev, uint32_t pin, uint32_t func)
     uintptr_t ctrl = (uintptr_t)data->gpio + 0x4 + (pin * 8);
 
     uint32_t val = sys_read32(ctrl);
-    val &= ~0x1F;          // func field clear (예: 하위 5비트)
-    val |= func & 0x1F;    // 새 func
+    val &= ~0x1F;          // func field clear
+    val |= func & 0x1F;    // new func
     sys_write32(val, ctrl);
 }
 

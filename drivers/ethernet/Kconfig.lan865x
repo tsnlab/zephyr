@@ -35,7 +35,7 @@ config ETH_LAN865X_IRQ_THREAD_STACK_SIZE
 
 config ETH_LAN865X_IRQ_THREAD_PRIO
 	int "Priority for internal incoming packet handler"
-	default 2
+	default 10
 	help
 	  Priority level for internal thread which is ran for LAN
 	  INT IRQ and Polling processing.
@@ -62,5 +62,17 @@ config ETH_LAN865X_USE_IRQ
 	help
 	  Enable GPIO interrupt based RX handling for LAN865X.
 	  If disabled, the driver operates in polling mode.
+
+config ETH_LAN865X_BURST_CHUNKS
+	int "LAN865x burst chunk count"
+	default 1
+	range 1 128
+	help
+	  Number of data chunks transferred in one SPI transaction
+	  for both RX and TX paths of the LAN865x driver.
+
+	  Each chunk carries 64 bytes of payload.
+	  Value 1 keeps the legacy single-chunk behavior.
+	  Larger values increase burst size and may improve throughput.
 
 endif # ETH_LAN865X
