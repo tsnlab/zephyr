@@ -1,0 +1,90 @@
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	joints0: joints0 {
+		compatible = "zephyr,h-bridge-stepper";
+
+		gpios = <&{/soc/gpio@fe200000/gpio@0} 17 GPIO_ACTIVE_HIGH>,
+			<&{/soc/gpio@fe200000/gpio@0} 27 GPIO_ACTIVE_HIGH>,
+			<&{/soc/gpio@fe200000/gpio@0} 0 GPIO_ACTIVE_HIGH>,
+			<&{/soc/gpio@fe200000/gpio@0} 5 GPIO_ACTIVE_HIGH>,
+			<&{/soc/gpio@fe200000/gpio@0} 13 GPIO_ACTIVE_HIGH>,
+			<&{/soc/gpio@fe200000/gpio@0} 19 GPIO_ACTIVE_HIGH>;
+	};
+
+	buttons: buttons {
+		compatible = "gpio-keys";
+
+		buttons0: buttons0 {
+			gpios = <&{/soc/gpio@fe200000/gpio@0} 22 GPIO_ACTIVE_HIGH>,
+				<&{/soc/gpio@fe200000/gpio@0} 6 GPIO_ACTIVE_HIGH>,
+				<&{/soc/gpio@fe200000/gpio@0} 26 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	aliases {
+		joints0 = &joints0;
+		buttons0 = &buttons0;
+	};
+};
+
+&{/soc/gpio@fe200000/gpio@0} {
+	status = "okay";
+};
+
+&{/soc} {
+	spi0: spi@fe204000 {
+		compatible = "brcm,bcm2711-spi";
+		reg = <0xfe204000 0x18>;
+		status = "okay";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		clk-gpios = <&{/soc/gpio@fe200000/gpio@0} 11 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&{/soc/gpio@fe200000/gpio@0} 10 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&{/soc/gpio@fe200000/gpio@0} 9 GPIO_ACTIVE_HIGH>;
+		cs-gpios = <&{/soc/gpio@fe200000/gpio@0} 8 GPIO_ACTIVE_LOW>;
+
+		lan8651: lan865x@0 {
+			compatible = "microchip,lan865x";
+			reg = <0>;
+			spi-max-frequency = <25000000>;
+			int-gpios = <&{/soc/gpio@fe200000/gpio@0} 21 GPIO_ACTIVE_LOW>;
+			rst-gpios = <&{/soc/gpio@fe200000/gpio@0} 4 GPIO_ACTIVE_LOW>;
+
+#if defined(CONFIG_ROBOTARM_SLAVE_IS_FIRST)
+			local-mac-address = [aa bb cc 00 00 11];
+#else
+			local-mac-address = [aa bb cc 00 00 22];
+#endif
+
+			status = "okay";
+
+			lan865x_mdio: lan865x_mdio {
+				compatible = "microchip,lan865x-mdio";
+				status = "okay";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ethernet0: ethernet-phy@0 {
+					compatible = "microchip,t1s-phy";
+					reg = <0>;
+
+					plca-enable;
+#if defined(CONFIG_ROBOTARM_SLAVE_IS_FIRST)
+					plca-node-id = <1>;
+#else
+					plca-node-id = <2>;
+#endif
+					plca-node-count = <3>;
+					plca-burst-count = <0>;
+					plca-burst-timer = <0x80>;
+					plca-to-timer = <0x20>;
+
+					status = "okay";
+				};
+			};
+		};
+	};
+};

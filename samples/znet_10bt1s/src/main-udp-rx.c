@@ -1,3 +1,4 @@
+
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/net_if.h>
@@ -10,15 +11,12 @@
 #include <stdbool.h>
 #include <fcntl.h>
 
-#define UDP_PORT         5000
-#define BUF_SIZE         1600
-#define TX_SIZE          1472
+#define UDP_PORT        5000
+#define BUF_SIZE        1600
+#define MY_IPV4_ADDR    "10.1.1.5"
+#define MY_IPV4_MASK    "255.255.255.0"
 
-#define MY_IPV4_ADDR     "10.1.1.5"
-#define MY_IPV4_MASK     "255.255.255.0"
-#define PEER_IPV4_ADDR   "10.1.1.10"
-
-static uint8_t tx_buf[BUF_SIZE];
+static uint8_t rx_buf[BUF_SIZE];
 
 static void print_mac(struct net_if *iface)
 {
@@ -117,20 +115,18 @@ int main(void)
     int64_t last_time;
     uint64_t bytes = 0;
     uint32_t packets = 0;
-    uint32_t eagain_cnt = 0;
-    bool first_send = true;
-    struct sockaddr_in peer_addr;
-    struct in_addr peer_ip;
+    struct sockaddr_in local_addr;
+    struct sockaddr_in src_addr;
+    socklen_t src_len;
+    bool first_packet = true;
 
-    printk("LAN865x UDP TX bandwidth test\n");
+    printk("LAN865x UDP RX bandwidth test\n");
 
     ret = setup_ipv4_on_lan865x();
     if (ret < 0) {
         printk("IPv4 setup failed: %d\n", ret);
         return 0;
     }
-
-    memset(tx_buf, 0xA5, TX_SIZE);
 
     sock = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock < 0) {
@@ -154,64 +150,64 @@ int main(void)
 
     printk("Socket set to non-blocking mode\n");
 
-    memset(&peer_addr, 0, sizeof(peer_addr));
-    peer_addr.sin_family = AF_INET;
-    peer_addr.sin_port = htons(UDP_PORT);
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_port = htons(UDP_PORT);
+    local_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (net_addr_pton(AF_INET, PEER_IPV4_ADDR, &peer_ip) < 0) {
-        printk("Invalid peer IPv4 address string\n");
+    ret = zsock_bind(sock, (struct sockaddr *)&local_addr, sizeof(local_addr));
+    if (ret < 0) {
+        printk("bind failed %d\n", errno);
         zsock_close(sock);
         return 0;
     }
 
-    peer_addr.sin_addr = peer_ip;
-
-    printk("UDP TX target %s:%d payload=%d bytes\n",
-           PEER_IPV4_ADDR, UDP_PORT, TX_SIZE);
+    printk("UDP RX listening on port %d\n", UDP_PORT);
 
     last_time = k_uptime_get();
 
     while (1) {
-        len = zsock_sendto(sock,
-                           tx_buf,
-                           TX_SIZE,
-                           0,
-                           (struct sockaddr *)&peer_addr,
-                           sizeof(peer_addr));
+        src_len = sizeof(src_addr);
+
+        len = zsock_recvfrom(sock,
+                             rx_buf,
+                             sizeof(rx_buf),
+                             0,
+                             (struct sockaddr *)&src_addr,
+                             &src_len);
 
         if (len < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                eagain_cnt++;
+                int64_t now = k_uptime_get();
 
-                {
-                    int64_t now = k_uptime_get();
+                if (now - last_time >= 1000) {
+                    double mbps = (bytes * 8.0) / 1000000.0;
 
-                    if (now - last_time >= 1000) {
-                        double mbps = (bytes * 8.0) / 1000000.0;
+                    printk("RX rate %.2f Mbps packets=%u bytes=%llu\n",
+                           mbps, packets, bytes);
 
-                        printk("TX rate %.2f Mbps packets=%u bytes=%llu eagain=%u\n",
-                               mbps, packets, bytes, eagain_cnt);
-
-                        bytes = 0;
-                        packets = 0;
-                        eagain_cnt = 0;
-                        last_time = now;
-                    }
+                    bytes = 0;
+                    packets = 0;
+                    last_time = now;
                 }
 
-                // k_sleep(K_MSEC(1));
+                k_sleep(K_MSEC(10));
                 continue;
             }
 
-            printk("sendto error %d\n", errno);
+            printk("recv error %d\n", errno);
             k_sleep(K_MSEC(10));
             continue;
         }
 
-        if (first_send) {
-            printk("First packet sent to %s:%d len=%d\n",
-                   PEER_IPV4_ADDR, UDP_PORT, len);
-            first_send = false;
+        if (first_packet) {
+            char src_ip[NET_IPV4_ADDR_LEN];
+
+            net_addr_ntop(AF_INET, &src_addr.sin_addr, src_ip, sizeof(src_ip));
+            printk("First packet from %s:%d len=%d\n",
+                   src_ip, ntohs(src_addr.sin_port), len);
+
+            first_packet = false;
         }
 
         packets++;
@@ -223,17 +219,16 @@ int main(void)
             if (now - last_time >= 1000) {
                 double mbps = (bytes * 8.0) / 1000000.0;
 
-                printk("TX rate %.2f Mbps packets=%u bytes=%llu eagain=%u\n",
-                       mbps, packets, bytes, eagain_cnt);
+                printk("RX rate %.2f Mbps packets=%u bytes=%llu\n",
+                       mbps, packets, bytes);
 
                 bytes = 0;
                 packets = 0;
-                eagain_cnt = 0;
                 last_time = now;
             }
         }
     }
 
-    zsock_close(sock);
     return 0;
 }
+

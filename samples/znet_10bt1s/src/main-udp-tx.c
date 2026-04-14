@@ -199,7 +199,7 @@ int main(void)
                     }
                 }
 
-                // k_sleep(K_MSEC(1));
+                k_sleep(K_MSEC(1));
                 continue;
             }
 
