@@ -135,6 +135,11 @@ static int i2c_dw_error_chk(const struct device *dev)
 			dw->state |= I2C_DW_SDA_STUCK;
 			LOG_ERR("SDA Stuck Low on %s", dev->name);
 		}
+		/* check if user abort the transmit */
+		if (ic_txabrt_src.bits.USRABRT) {
+			dw->state |= I2C_DW_USER_ABRT;
+			LOG_ERR("User Abort on %s", dev->name);
+		}
 		/* clear RTS5912_INTR_STAT_TX_ABRT */
 		value = read_clr_tx_abrt(reg_base);
 	}
@@ -605,6 +610,15 @@ static void i2c_dw_isr(const struct device *port)
 						i2c_dw_write_byte_non_blocking(port, data);
 					}
 				}
+			}
+		}
+
+		if (intr_stat.bits.stop_det) {
+			read_clr_stop_det(reg_base);
+			dw->state = I2C_DW_STATE_READY;
+			dw->read_in_progress = false;
+			if (slave_cb->stop) {
+				slave_cb->stop(dw->slave_cfg);
 			}
 		}
 #endif
@@ -1296,6 +1310,11 @@ static int i2c_dw_initialize(const struct device *dev)
 	uint32_t reg_base = get_regs(dev);
 
 	clear_bit_enable_en(reg_base);
+	/*
+	 * depending on the IP configuration, we may have to disable block mode in
+	 * controller mode
+	 */
+	clear_bit_enable_block(reg_base);
 
 	/* verify that we have a valid DesignWare register first */
 	if (read_comp_type(reg_base) != I2C_DW_MAGIC_KEY) {

@@ -27,4 +27,24 @@ config SPI_DW_HSSI
 	  Use register layout compatible with the SPI DW HSSI variant of the
 	  peripheral.
 
+config SPI_DW_USE_IRQ
+	bool "Use DesignWare SPI IRQ mode"
+	default n
+	help
+	  When enabled, SPI transfers are completed using
+	  interrupt-driven TX/RX FIFO handling.
+	  When disabled, SPI operates in polling mode.
+
+config SPI_DW_POLLING_TIMEOUT_US
+	int "DesignWare SPI polling timeout (us)"
+	default 1000
+	depends on SPI
+	help
+	  Timeout for DesignWare SPI controller when operating
+	  in polling mode. Unit is microseconds.
+
+	  This value limits how long the driver will poll
+	  TX/RX FIFO status before returning -ETIMEDOUT.
+
+
 endif # SPI_DW

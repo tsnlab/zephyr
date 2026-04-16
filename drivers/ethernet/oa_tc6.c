@@ -7,8 +7,12 @@
 #include <zephyr/net/mdio.h>
 #include "oa_tc6.h"
 
+#include <zephyr/drivers/spi/spi_dw_burst.h>
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(oa_tc6, CONFIG_ETHERNET_LOG_LEVEL);
+
+#define OA_TC6_BURST_CHUNKS CONFIG_ETH_LAN865X_BURST_CHUNKS
 
 /*
  * When IPv6 support enabled - the minimal size of network buffer
@@ -232,6 +236,159 @@ int oa_tc6_set_protected_ctrl(struct oa_tc6 *tc6, bool prote)
 	}
 
 	tc6->protected = prote;
+	return 0;
+}
+
+int oa_tc6_send_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt)
+{
+	uint8_t *tx_buf;
+	size_t pkt_len = net_pkt_get_len(pkt);
+	size_t remaining = pkt_len;
+	uint8_t chunk_idx = 0U;
+	uint8_t cached_txc;
+	uint8_t bursts_since_status = 0U;
+	int ret;
+
+	/*
+	 * Adaptive status refresh tuning:
+	 *
+	 * - max_bursts_without_status:
+	 *   hard upper bound for how long status can stay stale
+	 *
+	 * - cached_txc_low_watermark:
+	 *   refresh early when cached TX credits become low
+	 */
+	const uint8_t max_bursts_without_status = 8U;
+	const uint8_t cached_txc_low_watermark = 4U;
+
+	if ((tc6 == NULL) || (pkt == NULL)) {
+		return -EINVAL;
+	}
+
+	if (pkt_len == 0U) {
+		return -ENODATA;
+	}
+
+	/*
+	 * Reuse the persistent burst TX buffer from struct oa_tc6.
+	 * This avoids large stack allocation in the TX path.
+	 */
+	tx_buf = tc6->spi_data_tx_buf;
+
+	/*
+	 * Start from the last known device credit.
+	 * A local cached copy is used between explicit status refresh points.
+	 */
+	cached_txc = tc6->txc;
+
+	while (remaining > 0U) {
+		uint8_t needed_chunks;
+		uint8_t burst_chunks;
+		uint8_t i;
+		bool need_status_refresh = false;
+
+		/*
+		 * Refresh status when:
+		 * - no cached credit is left
+		 * - cached credit is getting low
+		 * - too many bursts were sent without a refresh
+		 */
+		if (cached_txc == 0U) {
+			need_status_refresh = true;
+		} else if (cached_txc <= cached_txc_low_watermark) {
+			need_status_refresh = true;
+		} else if (bursts_since_status >= max_bursts_without_status) {
+			need_status_refresh = true;
+		}
+
+		if (need_status_refresh) {
+			uint32_t ftr = 0U;
+
+			ret = oa_tc6_read_status(tc6, &ftr);
+			if (ret < 0) {
+				LOG_ERR("OA TX burst: status read failed (%d)", ret);
+				return ret;
+			}
+
+			cached_txc = tc6->txc;
+			bursts_since_status = 0U;
+
+			/*
+			 * If credit is still unavailable, wait briefly and retry.
+			 */
+			if (cached_txc == 0U) {
+				k_busy_wait(50);
+				continue;
+			}
+		}
+
+		needed_chunks = DIV_ROUND_UP(remaining, tc6->cps);
+
+		burst_chunks = MIN(needed_chunks,
+				   (uint8_t)CONFIG_ETH_LAN865X_BURST_CHUNKS);
+		burst_chunks = MIN(burst_chunks, cached_txc);
+
+		if (burst_chunks == 0U) {
+			k_busy_wait(50);
+			continue;
+		}
+
+		memset(tx_buf, 0, burst_chunks * OA_TC6_TX_CHUNK_SIZE);
+
+		for (i = 0U; i < burst_chunks; i++) {
+			uint8_t *chunk_ptr = &tx_buf[i * OA_TC6_TX_CHUNK_SIZE];
+			uint8_t *payload_ptr = chunk_ptr + OA_TC6_HDR_SIZE;
+			size_t copy_len = MIN(remaining, (size_t)tc6->cps);
+			uint32_t hdr = 0U;
+
+			/*
+			 * Keep the normal OA TC6 chunk format.
+			 * NORX stays enabled for the TX-focused benchmark path.
+			 */
+			hdr |= FIELD_PREP(OA_DATA_HDR_DNC, 1);
+			hdr |= FIELD_PREP(OA_DATA_HDR_DV, 1);
+			hdr |= FIELD_PREP(OA_DATA_HDR_NORX, 1);
+
+			if (chunk_idx == 0U) {
+				hdr |= FIELD_PREP(OA_DATA_HDR_SV, 1);
+			}
+
+			if (remaining <= tc6->cps) {
+				hdr |= FIELD_PREP(OA_DATA_HDR_EV, 1);
+				hdr |= FIELD_PREP(OA_DATA_HDR_EBO, copy_len - 1U);
+			}
+
+			hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
+
+			sys_put_be32(hdr, chunk_ptr);
+
+			ret = net_pkt_read(pkt, payload_ptr, copy_len);
+			if (ret < 0) {
+				LOG_ERR("OA TX burst: failed to read packet data (%d)", ret);
+				return ret;
+			}
+
+			remaining -= copy_len;
+			chunk_idx++;
+		}
+
+		ret = spi_dw_write_burst_dt(tc6->spi,
+					      tx_buf,
+					      burst_chunks * OA_TC6_TX_CHUNK_SIZE);
+		if (ret < 0) {
+			LOG_ERR("OA TX burst: SPI transfer failed (%d)", ret);
+			return ret;
+		}
+
+		/*
+		 * Consume the local cached credit budget.
+		 * Actual device state will be synchronized at the next refresh point.
+		 */
+		cached_txc -= burst_chunks;
+		tc6->txc = cached_txc;
+		bursts_since_status++;
+	}
+
 	return 0;
 }
 
@@ -509,5 +666,296 @@ int oa_tc6_read_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt)
 
 unref_buf:
 	net_buf_unref(buf_rx);
+	return ret;
+}
+
+// #define OA_TC6_TX_CHUNK_SIZE  (4 + 64)
+// #define OA_TC6_RX_CHUNK_SIZE  (64 + 4)
+static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_rx,
+					      uint32_t *ftrs, uint8_t chunks)
+{
+	struct spi_buf tx_buf;
+	struct spi_buf rx_buf;
+	struct spi_buf_set tx;
+	struct spi_buf_set rx;
+	uint32_t hdr;
+	size_t total_len;
+	int ret;
+	int i;
+
+	hdr = FIELD_PREP(OA_DATA_HDR_DNC, 1);
+	hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
+
+	for (i = 0; i < chunks; i++) {
+		uint8_t *txp = &tc6->spi_data_tx_buf[i * OA_TC6_TX_CHUNK_SIZE];
+		uint32_t hdr_be = sys_cpu_to_be32(hdr);
+
+		memcpy(txp, &hdr_be, sizeof(hdr_be));
+		memset(txp + sizeof(hdr_be), 0, tc6->cps);
+	}
+
+	total_len = chunks * OA_TC6_TX_CHUNK_SIZE;
+
+	tx_buf.buf = tc6->spi_data_tx_buf;
+	tx_buf.len = total_len;
+
+	rx_buf.buf = tc6->spi_data_rx_buf;
+	rx_buf.len = total_len;
+
+	tx.buffers = &tx_buf;
+	tx.count = 1;
+	rx.buffers = &rx_buf;
+	rx.count = 1;
+
+	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
+	if (ret < 0) {
+		return ret;
+	}
+
+	for (i = 0; i < chunks; i++) {
+		uint8_t *rxp = &tc6->spi_data_rx_buf[i * OA_TC6_RX_CHUNK_SIZE];
+		uint32_t chunk_ftr;
+
+		if (buf_rx) {
+			memcpy(buf_rx + (i * tc6->cps), rxp, tc6->cps);
+		}
+
+		memcpy(&chunk_ftr, rxp + tc6->cps, sizeof(chunk_ftr));
+		chunk_ftr = sys_be32_to_cpu(chunk_ftr);
+		ftrs[i] = chunk_ftr;
+
+		ret = oa_tc6_update_status(tc6, chunk_ftr);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+int oa_tc6_read_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt)
+{
+	const uint16_t buf_rx_size = CONFIG_NET_BUF_DATA_SIZE;
+	struct net_buf *buf_rx = NULL;
+	uint32_t buf_rx_used = 0;
+	int ret = 0;
+
+	uint8_t temp_rx_data[CONFIG_ETH_LAN865X_BURST_CHUNKS * 64];
+	uint32_t ftrs[CONFIG_ETH_LAN865X_BURST_CHUNKS];
+	uint8_t chunks_to_read;
+	uint8_t i;
+
+	/*
+	 * Special case - append already received data (extracted from previous
+	 * chunk) to new packet.
+	 */
+	if (tc6->concat_buf) {
+		net_pkt_append_buffer(pkt, tc6->concat_buf);
+		tc6->concat_buf = NULL;
+	}
+
+	while (true) {
+		uint8_t start_idx = 0;
+		uint8_t chunk_cnt = 0;
+		uint8_t *rx_data_src = NULL;
+		uint32_t *ftr_src = NULL;
+
+		/* 1) Consume pending chunks first if any are available. */
+		if (tc6->pending_idx < tc6->pending_cnt) {
+			start_idx = tc6->pending_idx;
+			chunk_cnt = tc6->pending_cnt;
+			rx_data_src = tc6->pending_rx_data;
+			ftr_src = tc6->pending_ftrs;
+		} else {
+			/* Clear the pending state before fetching a new burst. */
+			tc6->pending_idx = 0;
+			tc6->pending_cnt = 0;
+
+			chunks_to_read = MIN((uint8_t)tc6->rca,
+					     (uint8_t)CONFIG_ETH_LAN865X_BURST_CHUNKS);
+
+			if (chunks_to_read == 0) {
+				break;
+			}
+
+			ret = oa_tc6_chunk_spi_rx_transfer_burst(tc6, temp_rx_data, ftrs,
+							      chunks_to_read);
+			if (ret < 0) {
+				LOG_ERR("OA RX burst: transmission error: %d!", ret);
+				goto unref_buf;
+			}
+
+			start_idx = 0;
+			chunk_cnt = chunks_to_read;
+			rx_data_src = temp_rx_data;
+			ftr_src = ftrs;
+		}
+
+		for (i = start_idx; i < chunk_cnt; i++) {
+			uint32_t ftr = ftr_src[i];
+			uint8_t *chunk_ptr = rx_data_src + (i * tc6->cps);
+			uint8_t sbo, ebo;
+			uint8_t copy_offset = 0;
+			uint8_t copy_len = tc6->cps;
+			bool sv, ev;
+
+			if (!buf_rx) {
+				buf_rx = net_pkt_get_frag(pkt, buf_rx_size,
+							  OA_TC6_BUF_ALLOC_TIMEOUT);
+				if (!buf_rx) {
+					LOG_ERR("OA RX: Can't allocate RX buffer for data!");
+					return -ENOMEM;
+				}
+			}
+
+			ret = -EIO;
+			if (oa_tc6_get_parity(ftr)) {
+				LOG_ERR("OA RX: Footer parity error!");
+				goto unref_buf;
+			}
+
+			if (!FIELD_GET(OA_DATA_FTR_SYNC, ftr)) {
+				LOG_ERR("OA RX: Configuration not SYNC'ed!");
+				goto unref_buf;
+			}
+
+			if (!FIELD_GET(OA_DATA_FTR_DV, ftr)) {
+				LOG_DBG("OA RX: Data chunk not valid, skip!");
+				goto unref_buf;
+			}
+
+			sv = FIELD_GET(OA_DATA_FTR_SV, ftr);
+			ev = FIELD_GET(OA_DATA_FTR_EV, ftr);
+			sbo = FIELD_GET(OA_DATA_FTR_SWO, ftr) * sizeof(uint32_t);
+			ebo = FIELD_GET(OA_DATA_FTR_EBO, ftr) + 1;
+
+			if (sv) {
+				/*
+				* Apply the start offset unless two frames are concatenated
+				* within the same chunk.
+				*/
+				if (!(ev && (ebo <= sbo))) {
+					copy_offset = sbo;
+					copy_len = tc6->cps - copy_offset;
+				}
+			}
+
+			if (ev) {
+				/*
+				* Drop the frame if the MAC requested frame discard.
+				*/
+				if (FIELD_GET(OA_DATA_FTR_FD, ftr)) {
+					ret = -EIO;
+					goto unref_buf;
+				}
+
+				/*
+				* Handle the case where the current chunk contains both the
+				* end of the previous frame and the start of the next frame.
+				*/
+				if (sv && (ebo <= sbo)) {
+					copy_offset = 0;
+					copy_len = ebo;
+				} else {
+					copy_len = ebo - copy_offset;
+				}
+			}
+
+			if (copy_len > 0) {
+				/*
+				* If the current fragment does not have enough room,
+				* append it and allocate a new fragment.
+				*/
+				if ((buf_rx_size - buf_rx_used) < copy_len) {
+					buf_rx->len = buf_rx_used;
+					net_pkt_append_buffer(pkt, buf_rx);
+					buf_rx = NULL;
+					buf_rx_used = 0;
+
+					buf_rx = net_pkt_get_frag(pkt, buf_rx_size,
+								  OA_TC6_BUF_ALLOC_TIMEOUT);
+					if (!buf_rx) {
+						LOG_ERR("OA RX: Can't allocate RX buffer for data!");
+						return -ENOMEM;
+					}
+				}
+
+				memcpy(buf_rx->data + buf_rx_used,
+				       chunk_ptr + copy_offset,
+				       copy_len);
+				buf_rx_used += copy_len;
+			}
+
+			if (ev) {
+				/*
+				* If the chunk contains both the end of the current frame and
+				* the head of the next frame, store the next frame head in concat_buf.
+				*/
+				if (sv && (ebo <= sbo)) {
+					uint8_t next_len = tc6->cps - sbo;
+
+					tc6->concat_buf = net_pkt_get_frag(pkt, next_len,
+									   OA_TC6_BUF_ALLOC_TIMEOUT);
+					if (!tc6->concat_buf) {
+						LOG_ERR("OA RX: Can't allocate concat buffer!");
+						ret = -ENOMEM;
+						goto unref_buf;
+					}
+
+					memcpy(tc6->concat_buf->data, chunk_ptr + sbo, next_len);
+					tc6->concat_buf->len = next_len;
+				}
+
+				buf_rx->len = buf_rx_used;
+				net_pkt_append_buffer(pkt, buf_rx);
+				buf_rx = NULL;
+
+				/*
+				* Store the remaining chunks in the burst as pending data.
+				*/
+				if ((i + 1) < chunk_cnt) {
+					uint8_t remain = chunk_cnt - (i + 1);
+
+					memcpy(tc6->pending_rx_data,
+					       rx_data_src + ((i + 1) * tc6->cps),
+					       remain * tc6->cps);
+
+					memcpy(tc6->pending_ftrs,
+					       &ftr_src[i + 1],
+					       remain * sizeof(uint32_t));
+
+					tc6->pending_idx = 0;
+					tc6->pending_cnt = remain;
+				} else {
+					tc6->pending_idx = 0;
+					tc6->pending_cnt = 0;
+				}
+
+				return 0;
+			}
+		}
+
+		/*
+		* Clear the pending state after all pending chunks are consumed.
+		*/
+		if (rx_data_src == tc6->pending_rx_data) {
+			tc6->pending_idx = 0;
+			tc6->pending_cnt = 0;
+		}
+
+		/*
+		* Reaching this point means:
+		* - no end-of-frame marker was found in the current burst
+		* - the frame is still in progress
+		* Continue reading the next burst in the loop.
+		*/
+	}
+
+	return 0;
+
+unref_buf:
+	if (buf_rx) {
+		net_buf_unref(buf_rx);
+	}
 	return ret;
 }
