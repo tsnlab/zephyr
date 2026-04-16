@@ -12,8 +12,25 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/net/net_if.h>
+#include <zephyr/net/ethernet.h>
 #include <ethernet/eth_stats.h>
 #include "oa_tc6.h"
+
+/*
+ * LAN865x RX callback prototype
+ *
+ * This callback is invoked when the LAN865x driver receives
+ * Ethernet frame data from the device.
+ *
+ * The callback is executed in the driver RX thread context.
+ *
+ * @param data Pointer to received data fragment
+ * @param len Length of the data fragment in bytes
+ * @param user_data User-defined pointer provided during registration
+ */
+typedef void (*lan865x_rx_cb_t)(const uint8_t *data,
+                                size_t len,
+                                void *user_data);
 
 #define LAN865X_SPI_MAX_FREQUENCY 25000000U
 #define LAN865X_HW_BOOT_DELAY_MS  7
@@ -32,6 +49,7 @@
 #define LAN865x_MAC_HRB          MMS_REG(0x1, 0x020)
 #define LAN865x_MAC_HRT          MMS_REG(0x1, 0x021)
 #define LAN865x_MAC_SAB1         MMS_REG(0x1, 0x022)
+#define LAN865x_MAC_SAT1         MMS_REG(0x1, 0x023)
 #define LAN865x_MAC_SAB2         MMS_REG(0x1, 0x024)
 #define LAN865x_MAC_SAT2         MMS_REG(0x1, 0x025)
 /* LAN8650/1 configuration fixup from AN1760 */
@@ -49,6 +67,7 @@ struct lan865x_config {
 	struct spi_dt_spec spi;
 	struct gpio_dt_spec interrupt;
 	struct gpio_dt_spec reset;
+	struct net_eth_mac_config mac_cfg;
 	int32_t timeout;
 
 	/* MAC */
@@ -67,6 +86,10 @@ struct lan865x_data {
 	uint8_t mac_address[6];
 	bool iface_initialized;
 	bool reset;
+
+	/* RX callback support */
+	lan865x_rx_cb_t rx_cb;
+	void *rx_cb_user_data;
 
 	K_KERNEL_STACK_MEMBER(thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE);
 	struct k_thread thread;

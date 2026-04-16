@@ -92,6 +92,12 @@
 #define OA_TC6_PHY_C45_VS_PLCA_MMS4  4 /* MMD 31 */
 #define OA_TC6_PHY_C45_AUTO_NEG_MMS5 5 /* MMD 7 */
 
+#define OA_TC6_PAYLOAD_SIZE  64
+#define OA_TC6_HDR_SIZE      4
+#define OA_TC6_FTR_SIZE      4
+#define OA_TC6_TX_CHUNK_SIZE (OA_TC6_HDR_SIZE + OA_TC6_PAYLOAD_SIZE) /* 68 */
+#define OA_TC6_RX_CHUNK_SIZE (OA_TC6_PAYLOAD_SIZE + OA_TC6_FTR_SIZE) /* 68 */
+
 /**
  * @brief OA TC6 data.
  */
@@ -122,6 +128,16 @@ struct oa_tc6 {
 
 	/** Pointer to network buffer concatenated from received chunk */
 	struct net_buf *concat_buf;
+
+	/** burst linear SPI buffer */
+	uint8_t spi_data_tx_buf[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_TX_CHUNK_SIZE];
+	uint8_t spi_data_rx_buf[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_RX_CHUNK_SIZE];
+
+	/** store pending chunks from burst */
+	uint8_t pending_rx_data[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_PAYLOAD_SIZE];
+	uint32_t pending_ftrs[CONFIG_ETH_LAN865X_BURST_CHUNKS];
+	uint8_t pending_cnt;
+	uint8_t pending_idx;
 };
 
 /**
@@ -182,6 +198,17 @@ int oa_tc6_reg_write(struct oa_tc6 *tc6, const uint32_t reg, uint32_t val);
 int oa_tc6_set_protected_ctrl(struct oa_tc6 *tc6, bool prote);
 
 /**
+ * @brief Send OA TC6 data chunks in burst mode using a TX path
+ *
+ * @param tc6 OA TC6 specific data
+ *
+ * @param pkt network packet to be sent
+ *
+ * @return 0 if data send was successful, <0 otherwise.
+ */
+int oa_tc6_send_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt);
+
+/**
  * @brief Send OA TC6 data chunks to the device
  *
  * @param tc6 OA TC6 specific data
@@ -202,6 +229,17 @@ int oa_tc6_send_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt);
  * @return 0 if read was successful, <0 otherwise.
  */
 int oa_tc6_read_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt);
+
+/**
+ * @brief Read multiple data chunks from OA TC6 device in a single SPI transaction
+ *
+ * @param tc6 OA TC6 specific data
+ *
+ * @param pkt network packet to store received data
+ *
+ * @return 0 if read was successful, <0 otherwise.
+ */
+int oa_tc6_read_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt);
 
 /**
  * @brief Perform SPI transfer of single chunk from/to OA TC6 device

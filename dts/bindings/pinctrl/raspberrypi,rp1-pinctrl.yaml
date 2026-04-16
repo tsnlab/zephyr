@@ -1,0 +1,49 @@
+# Copyright (c) 2026 TSNLab
+# SPDX-License-Identifier: Apache-2.0
+
+title: Raspberry Pi 5 RP1 Pin Controller
+
+description: |
+  Node responsible for controlling RP1 GPIO pin function selection
+  and pad configuration on Raspberry Pi 5.
+
+compatible: "raspberrypi,rp1-pinctrl"
+
+include:
+  - base.yaml
+
+properties:
+  reg:
+    required: true
+
+child-binding:
+  description: |
+    Pinctrl state node.
+
+  include:
+    - name: pincfg-node.yaml
+      property-allowlist:
+        - bias-disable
+        - bias-pull-down
+        - bias-pull-up
+        - input-enable
+        - input-schmitt-enable
+        - drive-strength
+        - slew-rate
+
+  properties:
+    pinmux:
+      type: array
+      required: true
+      description: |
+        Array of encoded pinmux values.
+
+    drive-strength:
+      type: int
+      enum: [2, 4, 8, 12]
+      default: 4
+
+    slew-rate:
+      type: int
+      enum: [0, 1]
+      default: 0

@@ -1,0 +1,122 @@
+
+/* boards/rpi_5.overlay */
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pinctrl/rp1-pinctrl.h>
+
+/ {
+	chosen {
+		zephyr,console = &uart10;
+		zephyr,shell-uart = &uart10;
+		zephyr,pcie-controller = &pcie2;
+	};
+};
+
+/* -------------------------------------------------------------------------- */
+/* Enable RP1 GPIO controllers                                                */
+/* -------------------------------------------------------------------------- */
+
+&gpio0_0 { status = "okay"; };
+&gpio0_1 { status = "okay"; };
+&gpio0_2 { status = "okay"; };
+
+/* -------------------------------------------------------------------------- */
+/* RP1 pinctrl: SPI0 pinmux                                                   */
+/* -------------------------------------------------------------------------- */
+
+&rp1_pinctrl {
+
+	spi0_lan865x: spi0_lan865x {
+		pinmux = <
+			RP1_PINMUX(9,  RP1_FSEL_ALT0)  /* SPI0_SCLK */
+			RP1_PINMUX(10, RP1_FSEL_ALT0)  /* SPI0_MOSI */
+			RP1_PINMUX(11, RP1_FSEL_ALT0)  /* SPI0_MISO */
+		>;
+	};
+
+	i2c1_default: i2c1_default {
+		pinmux = <
+			RP1_PINMUX(2, RP1_FSEL_ALT0)  /* I2C1_SDA */
+			RP1_PINMUX(3, RP1_FSEL_ALT0)  /* I2C1_SCL */
+		>;
+	};
+};
+
+/* -------------------------------------------------------------------------- */
+/* RP1 I2C1 + FXL6408 GPIO expander                                           */
+/* -------------------------------------------------------------------------- */
+
+&rp1_i2c1 {
+    status = "disabled";
+    pinctrl-0 = <&i2c1_default>;
+    pinctrl-names = "default";
+
+	clock-frequency = <100000>;
+
+    /* fxl6408 GPIO */
+	fxl6408: gpio@43 {
+		compatible = "fcs,fxl6408";
+		reg = <0x43>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+
+		status = "okay";
+	};
+};
+
+/* -------------------------------------------------------------------------- */
+/* RP1 SPI0 + LAN865x                                                         */
+/* -------------------------------------------------------------------------- */
+
+&rp1_spi0 {
+	status = "okay";
+
+	pinctrl-0 = <&spi0_lan865x>;
+	pinctrl-names = "default";
+
+	/* Chip-select as GPIO for bring-up and easy scope visibility */
+	cs-gpios = <&gpio0_0 8 GPIO_ACTIVE_LOW>;
+
+	lan865x: ethernet@0 {
+		compatible = "microchip,lan865x";
+		reg = <0>;
+
+		local-mac-address = [ d0 d1 95 30 23 04 ];
+
+		/* SPI mode 3 (CPOL=1, CPHA=1) */
+		spi-cpol;
+		spi-cpha;
+
+		/* Conservative speed for initial bring-up */
+		spi-max-frequency = <25000000>;
+
+		/* LAN865x control GPIOs */
+		rst-gpios = <&gpio0_0 22 GPIO_ACTIVE_LOW>;
+		int-gpios = <&gpio0_0 23 GPIO_ACTIVE_LOW>;
+
+		status = "okay";
+
+		lan865x_mdio: lan865x-mdio {
+			compatible = "microchip,lan865x-mdio";
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethernet-phy@0 {
+				compatible = "microchip,t1s-phy";
+				reg = <0>;
+
+				plca-enable;
+				plca-node-id = <0>;
+				plca-node-count = <8>;
+				plca-burst-count = <0>;
+				plca-burst-timer = <0x80>;
+				plca-to-timer = <0x20>;
+
+				status = "okay";
+			};
+		};
+	};
+};

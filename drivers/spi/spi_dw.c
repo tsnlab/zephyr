@@ -31,7 +31,6 @@ LOG_MODULE_REGISTER(spi_dw);
 #endif
 
 #include <zephyr/drivers/spi.h>
-#include <zephyr/drivers/spi/rtio.h>
 #include <zephyr/irq.h>
 
 #include "spi_dw.h"
@@ -41,6 +40,7 @@ LOG_MODULE_REGISTER(spi_dw);
 #include <zephyr/drivers/pinctrl.h>
 #endif
 
+#include <zephyr/drivers/spi/spi_dw_burst.h>
 static inline bool spi_dw_is_slave(struct spi_dw_data *spi)
 {
 	return (IS_ENABLED(CONFIG_SPI_SLAVE) &&
@@ -168,12 +168,16 @@ static void pull_data(const struct device *dev)
 			}
 		}
 
-		spi_context_update_rx(&spi->ctx, spi->dfs, 1);
-		spi->fifo_diff--;
+		if (spi_context_rx_on(&spi->ctx) && (spi->fifo_diff > 0U)) {
+			spi_context_update_rx(&spi->ctx, spi->dfs, 1);
+			spi->fifo_diff--;
+		}
 	}
 
-	if (!spi->ctx.rx_len && spi->ctx.tx_len < info->fifo_depth) {
-		write_rxftlr(dev, spi->ctx.tx_len - 1);
+	if (!spi->ctx.rx_len) {
+		if (spi->ctx.tx_len && (spi->ctx.tx_len < info->fifo_depth)) {
+			write_rxftlr(dev, spi->ctx.tx_len - 1);
+		}
 	} else if (read_rxftlr(dev) >= spi->ctx.rx_len) {
 		write_rxftlr(dev, spi->ctx.rx_len - 1);
 	}
@@ -255,6 +259,8 @@ static int spi_dw_configure(const struct device *dev,
 	spi->ctx.config = config;
 
 	if (!spi_dw_is_slave(spi)) {
+		clear_bit_ssienr(dev);
+
 		/* Baud rate and Slave select, for master only */
 		write_baudr(dev, SPI_DW_CLK_DIVIDER(info->clock_frequency,
 						    config->frequency));
@@ -342,6 +348,285 @@ static void spi_dw_update_txftlr(const struct device *dev,
 	write_txftlr(dev, reg_data);
 }
 
+static int spi_dw_xfer_polling_write_burst(const struct device *dev,
+				       const uint8_t *tx_buf,
+				       size_t len)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+
+	const uint32_t fifo_depth = info->fifo_depth;
+	size_t tx_issued = 0U;
+	uint32_t iter = 0U;
+	const uint32_t timeout_check_period = 64U;
+
+	if ((tx_buf == NULL) || (len == 0U)) {
+		return -EINVAL;
+	}
+
+	/* Initial FIFO prime */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+	}
+
+	/* Refill TX FIFO until all bytes are issued */
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw timeout (%u us), tx_issued=%u len=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)len);
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	* Wait until the controller finishes shifting out all queued data.
+	* This path is used for burst write-only transfers.
+	*/
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw busy timeout (%u us), txflr=%u",
+				timeout_us,
+				read_txflr(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+int spi_dw_write_burst(const struct device *dev,
+			 const struct spi_config *config,
+			 const uint8_t *tx_buf,
+			 size_t len)
+{
+	struct spi_dw_data *spi = dev->data;
+	uint32_t reg_data;
+	int ret;
+
+	if ((dev == NULL) || (config == NULL) ||
+	    (tx_buf == NULL) || (len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (!device_is_ready(dev)) {
+		return -ENODEV;
+	}
+
+	if (spi_dw_is_slave(spi)) {
+		return -ENOTSUP;
+	}
+
+	spi_context_lock(&spi->ctx, false, NULL, NULL, config);
+
+#ifdef CONFIG_PM_DEVICE
+	if (!pm_device_is_busy(dev)) {
+		pm_device_busy_set(dev);
+	}
+#endif
+
+	ret = spi_dw_configure(dev, spi, config);
+	if (ret) {
+		goto out;
+	}
+
+	clear_bit_ssienr(dev);
+
+	/* Configure the controller for a polling-based burst write transfer. */
+	reg_data = read_ctrlr0(dev);
+	reg_data &= ~DW_SPI_CTRLR0_TMOD_RESET;
+	reg_data |= DW_SPI_CTRLR0_TMOD_TX;
+	write_ctrlr0(dev, reg_data);
+
+	write_ctrlr1(dev, 0);
+	write_txftlr(dev, 0);
+	write_imr(dev, DW_SPI_IMR_MASK);
+
+	write_ser(dev, BIT(config->slave));
+	if (spi_cs_is_gpio(config)) {
+		spi_context_cs_control(&spi->ctx, true);
+	}
+
+	set_bit_ssienr(dev);
+
+	ret = spi_dw_xfer_polling_write_burst(dev, tx_buf, len);
+
+	clear_bit_ssienr(dev);
+
+	if (spi_cs_is_gpio(config)) {
+		spi_context_cs_control(&spi->ctx, false);
+	} else {
+		write_ser(dev, 0);
+	}
+
+out:
+#ifdef CONFIG_PM_DEVICE
+	if (pm_device_is_busy(dev)) {
+		pm_device_busy_clear(dev);
+	}
+#endif
+	spi_context_release(&spi->ctx, ret);
+
+	return ret;
+}
+
+int spi_dw_write_burst_dt(const struct spi_dt_spec *spec,
+			    const uint8_t *tx_buf,
+			    size_t len)
+{
+	if ((spec == NULL) || (tx_buf == NULL) || (len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (!spi_is_ready_dt(spec)) {
+		return -ENODEV;
+	}
+
+	return spi_dw_write_burst(spec->bus,
+				    &spec->config,
+				    tx_buf,
+				    len);
+}
+
+static int spi_dw_xfer_polling(const struct device *dev)
+{
+	const struct spi_dw_config *info = dev->config;
+	struct spi_dw_data *spi = dev->data;
+
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+
+	/*
+	 * Drain RX periodically instead of on every loop iteration.
+	 *
+	 * The goal is to keep the TX path prioritized while still preventing
+	 * RX FIFO from growing too much in full-duplex transfers.
+	 */
+	const uint32_t rx_drain_period = 8U;
+	const uint32_t timeout_check_period = 64U;
+
+	uint32_t iter = 0U;
+
+	ARG_UNUSED(info);
+
+	/*
+	 * Prime the TX FIFO first.
+	 *
+	 * This gives the polling path a TX-first behavior from the beginning,
+	 * which is important for large contiguous full-duplex transfers.
+	 */
+	if (spi_context_tx_on(&spi->ctx) || spi_context_rx_on(&spi->ctx)) {
+		push_data(dev);
+	}
+
+	while (true) {
+		bool tx_on;
+		bool rx_on;
+
+		tx_on = spi_context_tx_on(&spi->ctx);
+		rx_on = spi_context_rx_on(&spi->ctx);
+
+		/*
+		 * Step 1:
+		 * Refill TX first so the controller can keep shifting data out
+		 * as continuously as possible.
+		 */
+		if (tx_on || rx_on) {
+			push_data(dev);
+		}
+
+		/*
+		 * Step 2:
+		 * Drain RX periodically during the main transfer phase.
+		 *
+		 * This reduces RX handling overhead compared to draining on every
+		 * iteration, while still protecting against RX FIFO overrun.
+		 */
+		if (rx_on && ((iter % rx_drain_period) == 0U)) {
+			pull_data(dev);
+		}
+
+		/*
+		 * Refresh state after push/pull activity.
+		 */
+		tx_on = spi_context_tx_on(&spi->ctx);
+		rx_on = spi_context_rx_on(&spi->ctx);
+
+		/*
+		 * Step 3:
+		 * Once TX is no longer active, drain RX more aggressively so the
+		 * transfer can fully retire and reach a clean completion state.
+		 */
+		if (!tx_on && rx_on) {
+			pull_data(dev);
+
+			tx_on = spi_context_tx_on(&spi->ctx);
+			rx_on = spi_context_rx_on(&spi->ctx);
+		}
+
+		/*
+		 * Completion condition:
+		 * - no more TX pending in the SPI context
+		 * - no more RX pending in the SPI context
+		 * - no outstanding in-flight frame count
+		 * - RX FIFO is empty
+		 * - controller is no longer busy
+		 */
+		if (!tx_on &&
+		    !rx_on &&
+		    (spi->fifo_diff == 0U) &&
+		    (read_rxflr(dev) == 0U) &&
+		    !test_bit_sr_busy(dev)) {
+			return 0;
+		}
+
+		iter++;
+
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw polling timeout (%u us)", timeout_us);
+				return -ETIMEDOUT;
+			}
+		}
+	}
+}
+
+static size_t spi_buf_set_total_len(const struct spi_buf_set *bufs)
+{
+	size_t total = 0U;
+
+	if ((bufs == NULL) || (bufs->buffers == NULL)) {
+		return 0U;
+	}
+
+	for (size_t i = 0; i < bufs->count; i++) {
+		total += bufs->buffers[i].len;
+	}
+
+	return total;
+}
+
 static int transceive(const struct device *dev,
 		      const struct spi_config *config,
 		      const struct spi_buf_set *tx_bufs,
@@ -371,6 +656,12 @@ static int transceive(const struct device *dev,
 		goto out;
 	}
 
+	/* controller disabled while programming registers */
+	if (!spi_dw_is_slave(spi)) {
+		clear_bit_ssienr(dev);
+	}
+
+	/* Determine TMOD */
 	if (!rx_bufs || !rx_bufs->buffers) {
 		tmod = DW_SPI_CTRLR0_TMOD_TX;
 	} else if (!tx_bufs || !tx_bufs->buffers) {
@@ -436,25 +727,32 @@ static int transceive(const struct device *dev,
 	write_rxftlr(dev, reg_data);
 
 	/* Enable interrupts */
-	reg_data = !rx_bufs ?
-		DW_SPI_IMR_UNMASK & DW_SPI_IMR_MASK_RX :
-		DW_SPI_IMR_UNMASK;
+	if (IS_ENABLED(CONFIG_SPI_DW_USE_IRQ)) {
+		reg_data = !rx_bufs ?
+			(DW_SPI_IMR_UNMASK & DW_SPI_IMR_MASK_RX) :
+			DW_SPI_IMR_UNMASK;
+	} else {
+		reg_data = DW_SPI_IMR_MASK;
+	}
 	write_imr(dev, reg_data);
 
 	if (!spi_dw_is_slave(spi)) {
 		/* if cs is not defined as gpio, use hw cs */
+		write_ser(dev, BIT(config->slave));
 		if (spi_cs_is_gpio(config)) {
 			spi_context_cs_control(&spi->ctx, true);
-		} else {
-			write_ser(dev, BIT(config->slave));
 		}
 	}
 
 	LOG_DBG("Enabling controller");
 	set_bit_ssienr(dev);
 
-	ret = spi_context_wait_for_completion(&spi->ctx);
-
+	if (IS_ENABLED(CONFIG_SPI_DW_USE_IRQ)) {
+		ret = spi_context_wait_for_completion(&spi->ctx);
+	} else {
+		ret = spi_dw_xfer_polling(dev);
+		completed(dev, ret);
+	}
 #ifdef CONFIG_SPI_SLAVE
 	if (spi_context_is_slave(&spi->ctx) && !ret) {
 		ret = spi->ctx.recv_frames;
@@ -463,6 +761,10 @@ static int transceive(const struct device *dev,
 
 out:
 	spi_context_release(&spi->ctx, ret);
+
+	if (!spi_dw_is_slave(spi)) {
+		write_ser(dev, 0);
+	}
 
 	pm_device_busy_clear(dev);
 
@@ -560,7 +862,10 @@ int spi_dw_init(const struct device *dev)
 
 	DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 
-	info->config_func();
+	/* IRQ mode only */
+	if (info->config_func) {
+		info->config_func();
+	}
 
 	/* Masking interrupt and making sure controller is disabled */
 	write_imr(dev, DW_SPI_IMR_MASK);
@@ -649,6 +954,16 @@ COND_CODE_1(IS_EQ(DT_NUM_IRQS(DT_DRV_INST(inst)), 1),              \
 		(SPI_CFG_IRQS_MULTIPLE_ERR_LINES(inst)))))	   \
 }
 
+#if defined(CONFIG_CLOCK_CONTROL)
+#define CLOCK_DW_CONFIG(n)                                                             \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(0, clocks),                                   \
+		   (.clk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                  \
+		    .clk_id = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, clkid),))
+#else
+#define CLOCK_DW_CONFIG(n)
+#endif
+
+#if defined(CONFIG_SPI_DW_USE_IRQ)
 #define SPI_DW_INIT(inst)                                                                   \
 	IF_ENABLED(CONFIG_PINCTRL, (PINCTRL_DT_INST_DEFINE(inst);))                         \
 	SPI_DW_IRQ_HANDLER(inst);                                                           \
@@ -688,5 +1003,49 @@ COND_CODE_1(IS_EQ(DT_NUM_IRQS(DT_DRV_INST(inst)), 1),              \
 		POST_KERNEL,                                                                \
 		CONFIG_SPI_INIT_PRIORITY,                                                   \
 		&dw_spi_api);
+
+#else /* !CONFIG_SPI_DW_USE_IRQ */
+
+#define SPI_DW_INIT(inst)                                                                   \
+	IF_ENABLED(CONFIG_PINCTRL, (PINCTRL_DT_INST_DEFINE(inst);))                         \
+	static struct spi_dw_data spi_dw_data_##inst = {                                    \
+		SPI_CONTEXT_INIT_LOCK(spi_dw_data_##inst, ctx),                             \
+		SPI_CONTEXT_INIT_SYNC(spi_dw_data_##inst, ctx),                             \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(inst), ctx)                     \
+	};                                                                                  \
+	static const struct spi_dw_config spi_dw_config_##inst = {                          \
+		DEVICE_MMIO_ROM_INIT(DT_DRV_INST(inst)),                                    \
+		.clock_frequency = COND_CODE_1(                                             \
+			DT_NODE_HAS_PROP(DT_INST_PHANDLE(inst, clocks), clock_frequency),   \
+			(DT_INST_PROP_BY_PHANDLE(inst, clocks, clock_frequency)),           \
+			(DT_INST_PROP(inst, clock_frequency))),                             \
+		.config_func = NULL,                                                        \
+		.serial_target = DT_INST_PROP(inst, serial_target),                         \
+		.fifo_depth = DT_INST_PROP(inst, fifo_depth),                               \
+		.max_xfer_size = DT_INST_PROP(inst, max_xfer_size),                         \
+		IF_ENABLED(CONFIG_PINCTRL, (.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),)) \
+		COND_CODE_1(DT_INST_PROP(inst, aux_reg),                                    \
+			(.read_func = aux_reg_read,                                         \
+			 .write_func = aux_reg_write,                                        \
+			 .set_bit_func = aux_reg_set_bit,                                    \
+			 .clear_bit_func = aux_reg_clear_bit,                                \
+			 .test_bit_func = aux_reg_test_bit,),                                \
+			(.read_func = reg_read,                                             \
+			 .write_func = reg_write,                                            \
+			 .set_bit_func = reg_set_bit,                                        \
+			 .clear_bit_func = reg_clear_bit,                                    \
+			 .test_bit_func = reg_test_bit,))                                    \
+		CLOCK_DW_CONFIG(inst)                                                      \
+	};                                                                                  \
+	SPI_DEVICE_DT_INST_DEFINE(inst,                                                     \
+		spi_dw_init,                                                                \
+		NULL,                                                                       \
+		&spi_dw_data_##inst,                                                        \
+		&spi_dw_config_##inst,                                                      \
+		POST_KERNEL,                                                                \
+		CONFIG_SPI_INIT_PRIORITY,                                                   \
+		&dw_spi_api);
+
+#endif /* CONFIG_SPI_DW_USE_IRQ */
 
 DT_INST_FOREACH_STATUS_OKAY(SPI_DW_INIT)
