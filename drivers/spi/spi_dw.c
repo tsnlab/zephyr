@@ -40,7 +40,6 @@ LOG_MODULE_REGISTER(spi_dw);
 #include <zephyr/drivers/pinctrl.h>
 #endif
 
-#include <zephyr/drivers/spi/spi_dw_burst.h>
 static inline bool spi_dw_is_slave(struct spi_dw_data *spi)
 {
 	return (IS_ENABLED(CONFIG_SPI_SLAVE) &&
@@ -627,6 +626,736 @@ static size_t spi_buf_set_total_len(const struct spi_buf_set *bufs)
 	return total;
 }
 
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+/*
+ * Return true when the SPI transaction matches the contiguous stream
+ * transfer shape used by the OA-TC6 credit-based data path.
+ *
+ * The initial version only accepts one linear TX buffer and one linear
+ * RX buffer with the same length, using 8-bit data frames.
+ */
+static bool spi_dw_can_use_stream_path(const struct device *dev,
+				       const struct spi_config *config,
+				       const struct spi_buf_set *tx_bufs,
+				       const struct spi_buf_set *rx_bufs)
+{
+	struct spi_dw_data *spi = dev->data;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers[0].buf == NULL) || (rx_bufs->buffers[0].buf == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers[0].len == 0U) || (rx_bufs->buffers[0].len == 0U)) {
+		return false;
+	}
+
+	if (tx_bufs->buffers[0].len != rx_bufs->buffers[0].len) {
+		return false;
+	}
+
+	/*
+	 * The first stream path is intended for byte-wise OA-TC6 transfers.
+	 * Restrict the fast path to 8-bit data frames for now.
+	 */
+	if (spi->dfs != 1U) {
+		return false;
+	}
+
+	return true;
+}
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
+
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+int spi_stream_runtime_set_tx_chunks(const struct device *dev, uint16_t tx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return -EINVAL;
+	}
+
+	spi->stream_tx_chunks = tx_chunks;
+	spi->stream_tx_chunks_valid = true;
+
+	return 0;
+}
+
+bool spi_stream_runtime_get_tx_chunks(const struct device *dev, uint16_t *tx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if ((dev == NULL) || (tx_chunks == NULL)) {
+		return false;
+	}
+
+	spi = dev->data;
+	if ((spi == NULL) || !spi->stream_tx_chunks_valid) {
+		return false;
+	}
+
+	*tx_chunks = spi->stream_tx_chunks;
+	return true;
+}
+
+int spi_stream_runtime_set_rx_chunks(const struct device *dev, uint16_t rx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return -EINVAL;
+	}
+
+	spi->stream_rx_chunks = rx_chunks;
+	spi->stream_rx_chunks_valid = true;
+
+	return 0;
+}
+
+bool spi_stream_runtime_get_rx_chunks(const struct device *dev, uint16_t *rx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if ((dev == NULL) || (rx_chunks == NULL)) {
+		return false;
+	}
+
+	spi = dev->data;
+	if ((spi == NULL) || !spi->stream_rx_chunks_valid) {
+		return false;
+	}
+
+	*rx_chunks = spi->stream_rx_chunks;
+	return true;
+}
+
+void spi_stream_runtime_clear(const struct device *dev)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return;
+	}
+
+	spi->stream_tx_chunks = 0U;
+	spi->stream_tx_chunks_valid = false;
+
+	spi->stream_rx_chunks = 0U;
+	spi->stream_rx_chunks_valid = false;
+}
+
+static int spi_dw_xfer_polling_stream8_txburst(const struct device *dev,
+					       const struct spi_config *config,
+					       const struct spi_buf_set *tx_bufs,
+					       const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 64U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+
+	/*
+	 * Periodic RX drain budget.
+	 *
+	 * Change this value between 2 / 4 / 8 while testing.
+	 * The earlier experiments showed that a small periodic RX service
+	 * preserved stronger TX burst behavior than the more aggressive
+	 * stream completion logic.
+	 */
+	static const uint32_t rx_periodic_quota = 3U;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	/*
+	 * TX-heavy fast path based on periodic RX service.
+	 *
+	 * Main policy:
+	 *  - issue TX aggressively like the old write-burst path
+	 *  - periodically drain only a very small RX amount
+	 *  - at the end, empty the RX FIFO so that the next control/status
+	 *    transfer does not see stale returned data
+	 */
+
+	/* Initial FIFO prime */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+	}
+
+	/* Refill TX FIFO until all bytes are issued */
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+
+		/*
+		 * Periodic RX drain.
+		 *
+		 * Keep this intentionally small so that TX remains dominant.
+		 */
+		{
+			uint32_t drain = rx_periodic_quota;
+
+			while ((drain > 0U) &&
+			       (read_rxflr(dev) > 0U) &&
+			       (rx_done < len)) {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+				drain--;
+			}
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw txburst timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					read_txflr(dev),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Tail phase.
+	 *
+	 * While TX is still draining, keep the same light RX service policy.
+	 */
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		uint32_t drain = rx_periodic_quota;
+
+		while ((drain > 0U) &&
+		       (read_rxflr(dev) > 0U) &&
+		       (rx_done < len)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+			drain--;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw txburst busy timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	/*
+	 * Final cleanup.
+	 *
+	 * Do not wait for full rx_done == len completion forever, but empty
+	 * the RX FIFO before returning so that the next control/status
+	 * transfer does not observe stale returned bytes.
+	 */
+	while ((read_rxflr(dev) > 0U) && (rx_done < len)) {
+		rx_buf[rx_done] = (uint8_t)read_dr(dev);
+		rx_done++;
+	}
+
+	while (read_rxflr(dev) > 0U) {
+		(void)read_dr(dev);
+	}
+
+	return 0;
+}
+
+/*
+ * RX burst path for polling-mode SPI transfers.
+ *
+ * This function is used when the upper protocol layer wants to harvest RX
+ * data by sending dummy/empty TX bytes. Even though the purpose is RX
+ * collection, the policy of this driver remains TX-preferred.
+ *
+ * Therefore, this path keeps feeding TX whenever the TX FIFO has room, but
+ * it still drains RX often enough to avoid RX FIFO overflow. In other words,
+ * RX service is performed as a safety and harvesting operation, not as a
+ * scheduling priority over TX.
+ *
+ * The SPI controller does not know anything about OA-TC6 framing. It only
+ * moves bytes between TX/RX FIFOs. Header/footer parsing, credit handling,
+ * RCA interpretation, and packet assembly must stay in the protocol layer.
+ */
+
+static int spi_dw_xfer_polling_stream8_rxburst(
+	const struct device *dev,
+	const struct spi_config *config,
+	const struct spi_buf_set *tx_bufs,
+	const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 2048U;
+
+	/*
+	 * Register-minimized experiment.
+	 *
+	 * Do not read TXFLR/RXFLR in the hot path.
+	 * Drive the transfer with fixed TX/RX quotas.
+	 */
+	const uint32_t tx_quota = 16U;
+	const uint32_t rx_quota = 16U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+
+	uint32_t rx_guard;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	if (fifo_depth <= 4U) {
+		rx_guard = fifo_depth - 1U;
+	} else {
+		rx_guard = fifo_depth - 2U;
+	}
+
+	/*
+	 * Initial prime.
+	 *
+	 * Prime TX up to rx_guard without reading TXFLR.
+	 * This assumes TX FIFO is empty at transfer start.
+	 */
+	{
+		uint32_t n = MIN(rx_guard, (uint32_t)len);
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+	}
+
+	while (rx_done < len) {
+		uint32_t outstanding;
+		uint32_t n;
+
+		/*
+		 * Fixed RX service.
+		 *
+		 * This is intentionally register-free.
+		 * It assumes that after initial prime and previous TX writes,
+		 * enough RX data has arrived to read a small quota.
+		 *
+		 * Start conservatively with rx_quota = 8.
+		 */
+		if (rx_done < tx_issued) {
+			n = MIN(rx_quota, (uint32_t)(tx_issued - rx_done));
+			n = MIN(n, (uint32_t)(len - rx_done));
+
+			while (n > 0U) {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+				n--;
+			}
+		}
+
+		/*
+		 * Fixed TX refill.
+		 *
+		 * Do not read TXFLR. Use outstanding guard to avoid producing
+		 * more RX data than the RX FIFO can hold.
+		 */
+		if (tx_issued < len) {
+			outstanding = (uint32_t)(tx_issued - rx_done);
+
+			if (outstanding < rx_guard) {
+				n = rx_guard - outstanding;
+				n = MIN(n, tx_quota);
+				n = MIN(n, (uint32_t)(len - tx_issued));
+
+				while (n > 0U) {
+					write_dr(dev, tx_buf[tx_issued]);
+					tx_issued++;
+					n--;
+				}
+			}
+		}
+
+		/*
+		 * Tail phase.
+		 *
+		 * Once all TX bytes are issued, receive the remaining bytes.
+		 * Still avoid RXFLR in the hot path; drain based on outstanding.
+		 */
+		if (tx_issued >= len) {
+			while (rx_done < len) {
+				n = MIN(rx_quota, (uint32_t)(len - rx_done));
+
+				while (n > 0U) {
+					rx_buf[rx_done] = (uint8_t)read_dr(dev);
+					rx_done++;
+					n--;
+				}
+			}
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw rxburst quota timeout (%u us), tx_issued=%u rx_done=%u len=%u outstanding=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					(uint32_t)(tx_issued - rx_done));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Minimal final cleanup.
+	 *
+	 * Avoid busy wait. Do not read RXFLR repeatedly.
+	 * This experiment assumes rx_done == len is sufficient.
+	 */
+	return 0;
+}
+
+
+/*
+ * Polling-based contiguous full-duplex transfer path for 8-bit frames.
+ *
+ * This helper is intended for protocol layers such as OA-TC6 that build
+ * one linear TX/RX buffer pair and need to execute it as one logical SPI
+ * data transaction with low software overhead.
+ *
+ * The initial implementation only accepts one TX buffer and one RX buffer
+ * with the same length and assumes 8-bit data frames.
+ */
+static int spi_dw_xfer_polling_stream8_default(
+	const struct device *dev,
+	const struct spi_config *config,
+	const struct spi_buf_set *tx_bufs,
+	const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 64U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+	uint32_t rx_hi_wm;
+	uint32_t rx_lo_wm;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	/*
+	 * Default / generic full-duplex path.
+	 *
+	 * This path intentionally keeps stronger RX service for:
+	 * - control transfers
+	 * - small transfers
+	 * - generic full-duplex operation
+	 */
+	rx_hi_wm = (fifo_depth > 4U) ? (fifo_depth / 2U) : 1U;
+	rx_lo_wm = (fifo_depth > 8U) ? (fifo_depth / 4U) : 1U;
+
+	/*
+	 * Initial FIFO prime.
+	 */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+	}
+
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+
+		if ((read_rxflr(dev) >= rx_hi_wm) && (rx_done < tx_issued)) {
+			do {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+			} while ((read_rxflr(dev) > rx_lo_wm) &&
+				 (rx_done < tx_issued));
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw default timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					read_txflr(dev),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Wait until TX FIFO/shifter is drained.
+	 * Keep RX serviced while waiting.
+	 */
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		while ((read_rxflr(dev) > 0U) && (rx_done < tx_issued)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw default busy timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev),
+				test_bit_sr_busy(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	/*
+	 * Complete RX.
+	 *
+	 * Unlike txburst/rxburst paths, the default path remains conservative:
+	 * it waits until all expected RX bytes are consumed.
+	 */
+	while (rx_done < len) {
+		while ((rx_done < len) && (read_rxflr(dev) > 0U)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw default rx timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev),
+				test_bit_sr_busy(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+static int spi_dw_xfer_polling_stream8(const struct device *dev,
+				       const struct spi_config *config,
+				       const struct spi_buf_set *tx_bufs,
+				       const struct spi_buf_set *rx_bufs)
+{
+	uint16_t tx_chunks = 0U;
+	uint16_t rx_chunks = 0U;
+	bool has_tx_chunks;
+	bool has_rx_chunks;
+
+	has_tx_chunks = spi_stream_runtime_get_tx_chunks(dev, &tx_chunks);
+	has_rx_chunks = spi_stream_runtime_get_rx_chunks(dev, &rx_chunks);
+
+	/*
+	 * TX-preferred dispatch policy.
+	 *
+	 * Real TX payload always has priority over RX harvesting. RX burst is
+	 * selected only when there is no TX burst request and the upper layer
+	 * explicitly marks the next transfer as an RX-harvest transfer.
+	 */
+	/* TX first policy */
+	if (has_tx_chunks && (tx_chunks >= 16U)) {
+		return spi_dw_xfer_polling_stream8_txburst(dev, config,
+							   tx_bufs, rx_bufs);
+	}
+
+	/* RX burst path */
+	if (has_rx_chunks && (rx_chunks > 0U)) {
+		return spi_dw_xfer_polling_stream8_rxburst(dev, config,
+							   tx_bufs, rx_bufs);
+	}
+
+	/* fallback */
+	return spi_dw_xfer_polling_stream8_default(dev, config,
+						   tx_bufs, rx_bufs);
+}
+
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
+
 static int transceive(const struct device *dev,
 		      const struct spi_config *config,
 		      const struct spi_buf_set *tx_bufs,
@@ -700,6 +1429,34 @@ static int transceive(const struct device *dev,
 	reg_data |= tmod;
 
 	write_ctrlr0(dev, reg_data);
+
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+	/*
+	 * Use the polling-based contiguous stream path when the transfer
+	 * matches the OA-TC6 stream transaction shape.
+	 *
+	 * This path is only used for synchronous polling transfers and
+	 * falls back to the regular SPI context-based path otherwise.
+	 */
+	if (!asynchronous &&
+	    !IS_ENABLED(CONFIG_SPI_DW_USE_IRQ) &&
+	    spi_dw_can_use_stream_path(dev, config, tx_bufs, rx_bufs)) {
+		if (!spi_dw_is_slave(spi)) {
+			/* if cs is not defined as gpio, use hw cs */
+			write_ser(dev, BIT(config->slave));
+			if (spi_cs_is_gpio(config)) {
+				spi_context_cs_control(&spi->ctx, true);
+			}
+		}
+
+		LOG_DBG("Enabling controller for stream transfer");
+		set_bit_ssienr(dev);
+
+		ret = spi_dw_xfer_polling_stream8(dev, config, tx_bufs, rx_bufs);
+		completed(dev, ret);
+		goto out;
+	}
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
 
 	/* Set buffers info */
 	spi_context_buffers_setup(&spi->ctx, tx_bufs, rx_bufs, spi->dfs);
@@ -776,8 +1533,6 @@ static int spi_dw_transceive(const struct device *dev,
 			     const struct spi_buf_set *tx_bufs,
 			     const struct spi_buf_set *rx_bufs)
 {
-	LOG_DBG("%p, %p, %p", dev, tx_bufs, rx_bufs);
-
 	return transceive(dev, config, tx_bufs, rx_bufs, false, NULL, NULL);
 }
 

@@ -62,6 +62,13 @@ struct spi_dw_data {
 #endif
 	uint8_t dfs;	/* dfs in bytes: 1,2 or 4 */
 	uint8_t fifo_diff;	/* cannot be bigger than FIFO depth */
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+	uint16_t stream_tx_chunks;
+	bool stream_tx_chunks_valid;
+
+	uint16_t stream_rx_chunks;
+	bool stream_rx_chunks_valid;
+#endif
 };
 
 /* Register operation functions */
@@ -316,6 +323,9 @@ DEFINE_SET_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_CLEAR_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_TEST_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_TEST_BIT_OP(sr_busy, DW_SPI_REG_SR, DW_SPI_SR_BUSY_BIT)
+
+DEFINE_TEST_BIT_OP(sr_tfnf, DW_SPI_REG_SR, DW_SPI_SR_TFNF_BIT)
+DEFINE_TEST_BIT_OP(sr_rfne, DW_SPI_REG_SR, DW_SPI_SR_RFNE_BIT)
 
 #ifdef __cplusplus
 }

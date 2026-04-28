@@ -7,12 +7,21 @@
 #include <zephyr/net/mdio.h>
 #include "oa_tc6.h"
 
-#include <zephyr/drivers/spi/spi_dw_burst.h>
-
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(oa_tc6, CONFIG_ETHERNET_LOG_LEVEL);
 
-#define OA_TC6_BURST_CHUNKS CONFIG_ETH_LAN865X_BURST_CHUNKS
+#define OA_TC6_XFER_CHUNK_BUDGET 32U
+/*
+ * Internal OA-TC6 transfer plan used by the common data transfer path.
+ *
+ * The initial version is TX-only. RX-related fields can be added later
+ * when RX harvesting is integrated into the same planner.
+ */
+struct oa_tc6_xfer_plan {
+	uint8_t tx_chunks;
+	uint8_t rx_chunks;
+	uint8_t total_chunks;
+};
 
 /*
  * When IPv6 support enabled - the minimal size of network buffer
@@ -239,159 +248,6 @@ int oa_tc6_set_protected_ctrl(struct oa_tc6 *tc6, bool prote)
 	return 0;
 }
 
-int oa_tc6_send_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt)
-{
-	uint8_t *tx_buf;
-	size_t pkt_len = net_pkt_get_len(pkt);
-	size_t remaining = pkt_len;
-	uint8_t chunk_idx = 0U;
-	uint8_t cached_txc;
-	uint8_t bursts_since_status = 0U;
-	int ret;
-
-	/*
-	 * Adaptive status refresh tuning:
-	 *
-	 * - max_bursts_without_status:
-	 *   hard upper bound for how long status can stay stale
-	 *
-	 * - cached_txc_low_watermark:
-	 *   refresh early when cached TX credits become low
-	 */
-	const uint8_t max_bursts_without_status = 8U;
-	const uint8_t cached_txc_low_watermark = 4U;
-
-	if ((tc6 == NULL) || (pkt == NULL)) {
-		return -EINVAL;
-	}
-
-	if (pkt_len == 0U) {
-		return -ENODATA;
-	}
-
-	/*
-	 * Reuse the persistent burst TX buffer from struct oa_tc6.
-	 * This avoids large stack allocation in the TX path.
-	 */
-	tx_buf = tc6->spi_data_tx_buf;
-
-	/*
-	 * Start from the last known device credit.
-	 * A local cached copy is used between explicit status refresh points.
-	 */
-	cached_txc = tc6->txc;
-
-	while (remaining > 0U) {
-		uint8_t needed_chunks;
-		uint8_t burst_chunks;
-		uint8_t i;
-		bool need_status_refresh = false;
-
-		/*
-		 * Refresh status when:
-		 * - no cached credit is left
-		 * - cached credit is getting low
-		 * - too many bursts were sent without a refresh
-		 */
-		if (cached_txc == 0U) {
-			need_status_refresh = true;
-		} else if (cached_txc <= cached_txc_low_watermark) {
-			need_status_refresh = true;
-		} else if (bursts_since_status >= max_bursts_without_status) {
-			need_status_refresh = true;
-		}
-
-		if (need_status_refresh) {
-			uint32_t ftr = 0U;
-
-			ret = oa_tc6_read_status(tc6, &ftr);
-			if (ret < 0) {
-				LOG_ERR("OA TX burst: status read failed (%d)", ret);
-				return ret;
-			}
-
-			cached_txc = tc6->txc;
-			bursts_since_status = 0U;
-
-			/*
-			 * If credit is still unavailable, wait briefly and retry.
-			 */
-			if (cached_txc == 0U) {
-				k_busy_wait(50);
-				continue;
-			}
-		}
-
-		needed_chunks = DIV_ROUND_UP(remaining, tc6->cps);
-
-		burst_chunks = MIN(needed_chunks,
-				   (uint8_t)CONFIG_ETH_LAN865X_BURST_CHUNKS);
-		burst_chunks = MIN(burst_chunks, cached_txc);
-
-		if (burst_chunks == 0U) {
-			k_busy_wait(50);
-			continue;
-		}
-
-		memset(tx_buf, 0, burst_chunks * OA_TC6_TX_CHUNK_SIZE);
-
-		for (i = 0U; i < burst_chunks; i++) {
-			uint8_t *chunk_ptr = &tx_buf[i * OA_TC6_TX_CHUNK_SIZE];
-			uint8_t *payload_ptr = chunk_ptr + OA_TC6_HDR_SIZE;
-			size_t copy_len = MIN(remaining, (size_t)tc6->cps);
-			uint32_t hdr = 0U;
-
-			/*
-			 * Keep the normal OA TC6 chunk format.
-			 * NORX stays enabled for the TX-focused benchmark path.
-			 */
-			hdr |= FIELD_PREP(OA_DATA_HDR_DNC, 1);
-			hdr |= FIELD_PREP(OA_DATA_HDR_DV, 1);
-			hdr |= FIELD_PREP(OA_DATA_HDR_NORX, 1);
-
-			if (chunk_idx == 0U) {
-				hdr |= FIELD_PREP(OA_DATA_HDR_SV, 1);
-			}
-
-			if (remaining <= tc6->cps) {
-				hdr |= FIELD_PREP(OA_DATA_HDR_EV, 1);
-				hdr |= FIELD_PREP(OA_DATA_HDR_EBO, copy_len - 1U);
-			}
-
-			hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
-
-			sys_put_be32(hdr, chunk_ptr);
-
-			ret = net_pkt_read(pkt, payload_ptr, copy_len);
-			if (ret < 0) {
-				LOG_ERR("OA TX burst: failed to read packet data (%d)", ret);
-				return ret;
-			}
-
-			remaining -= copy_len;
-			chunk_idx++;
-		}
-
-		ret = spi_dw_write_burst_dt(tc6->spi,
-					      tx_buf,
-					      burst_chunks * OA_TC6_TX_CHUNK_SIZE);
-		if (ret < 0) {
-			LOG_ERR("OA TX burst: SPI transfer failed (%d)", ret);
-			return ret;
-		}
-
-		/*
-		 * Consume the local cached credit budget.
-		 * Actual device state will be synchronized at the next refresh point.
-		 */
-		cached_txc -= burst_chunks;
-		tc6->txc = cached_txc;
-		bursts_since_status++;
-	}
-
-	return 0;
-}
-
 int oa_tc6_send_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt)
 {
 	uint16_t len = net_pkt_get_len(pkt);
@@ -482,7 +338,7 @@ int oa_tc6_check_status(struct oa_tc6 *tc6)
 	return 0;
 }
 
-static int oa_tc6_update_status(struct oa_tc6 *tc6, uint32_t ftr)
+static inline int oa_tc6_update_status(struct oa_tc6 *tc6, uint32_t ftr)
 {
 	if (oa_tc6_get_parity(ftr)) {
 		LOG_DBG("OA Status Update: Footer parity error!");
@@ -545,134 +401,21 @@ int oa_tc6_read_status(struct oa_tc6 *tc6, uint32_t *ftr)
 	return oa_tc6_chunk_spi_transfer(tc6, NULL, NULL, hdr, ftr);
 }
 
-int oa_tc6_read_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt)
-{
-	const uint16_t buf_rx_size = CONFIG_NET_BUF_DATA_SIZE;
-	struct net_buf *buf_rx = NULL;
-	uint32_t buf_rx_used = 0;
-	uint32_t hdr, ftr;
-	uint8_t sbo, ebo;
-	int ret;
-
-	/*
-	 * Special case - append already received data (extracted from previous
-	 * chunk) to new packet.
-	 *
-	 * This code is NOT used when OA_CONFIG0 RFA [13:12] is set to 01
-	 * (ZAREFE) - so received ethernet frames will always start on the
-	 * beginning of new chunks.
-	 */
-	if (tc6->concat_buf) {
-		net_pkt_append_buffer(pkt, tc6->concat_buf);
-		tc6->concat_buf = NULL;
-	}
-
-	do {
-		if (!buf_rx) {
-			buf_rx = net_pkt_get_frag(pkt, buf_rx_size, OA_TC6_BUF_ALLOC_TIMEOUT);
-			if (!buf_rx) {
-				LOG_ERR("OA RX: Can't allocate RX buffer fordata!");
-				return -ENOMEM;
-			}
-		}
-
-		hdr = FIELD_PREP(OA_DATA_HDR_DNC, 1);
-		hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
-
-		ret = oa_tc6_chunk_spi_transfer(tc6, buf_rx->data + buf_rx_used, NULL, hdr, &ftr);
-		if (ret < 0) {
-			LOG_ERR("OA RX: transmission error: %d!", ret);
-			goto unref_buf;
-		}
-
-		ret = -EIO;
-		if (oa_tc6_get_parity(ftr)) {
-			LOG_ERR("OA RX: Footer parity error!");
-			goto unref_buf;
-		}
-
-		if (!FIELD_GET(OA_DATA_FTR_SYNC, ftr)) {
-			LOG_ERR("OA RX: Configuration not SYNC'ed!");
-			goto unref_buf;
-		}
-
-		if (!FIELD_GET(OA_DATA_FTR_DV, ftr)) {
-			LOG_DBG("OA RX: Data chunk not valid, skip!");
-			goto unref_buf;
-		}
-
-		sbo = FIELD_GET(OA_DATA_FTR_SWO, ftr) * sizeof(uint32_t);
-		ebo = FIELD_GET(OA_DATA_FTR_EBO, ftr) + 1;
-
-		if (FIELD_GET(OA_DATA_FTR_SV, ftr)) {
-			/*
-			 * Adjust beginning of the buffer with SWO only when
-			 * we DO NOT have two frames concatenated together
-			 * in one chunk.
-			 */
-			if (!(FIELD_GET(OA_DATA_FTR_EV, ftr) && (ebo <= sbo))) {
-				if (sbo) {
-					net_buf_pull(buf_rx, sbo);
-				}
-			}
-		}
-
-		if (FIELD_GET(OA_DATA_FTR_EV, ftr)) {
-			/*
-			 * Check if received frame shall be dropped - i.e. MAC has
-			 * detected error condition, which shall result in frame drop
-			 * by the SPI host.
-			 */
-			if (FIELD_GET(OA_DATA_FTR_FD, ftr)) {
-				ret = -EIO;
-				goto unref_buf;
-			}
-
-			/*
-			 * Concatenation of frames in a single chunk - one frame ends
-			 * and second one starts just afterwards (ebo == sbo).
-			 */
-			if (FIELD_GET(OA_DATA_FTR_SV, ftr) && (ebo <= sbo)) {
-				tc6->concat_buf = net_buf_clone(buf_rx, OA_TC6_BUF_ALLOC_TIMEOUT);
-				if (!tc6->concat_buf) {
-					LOG_ERR("OA RX: Can't allocate RX buffer for data!");
-					ret = -ENOMEM;
-					goto unref_buf;
-				}
-				net_buf_pull(tc6->concat_buf, sbo);
-			}
-
-			/* Set final size of the buffer */
-			buf_rx_used += ebo;
-			buf_rx->len = buf_rx_used;
-			net_pkt_append_buffer(pkt, buf_rx);
-			/*
-			 * Exit when complete packet is read and added to
-			 * struct net_pkt
-			 */
-			break;
-		} else {
-			buf_rx_used += tc6->cps;
-			if ((buf_rx_size - buf_rx_used) < tc6->cps) {
-				net_pkt_append_buffer(pkt, buf_rx);
-				buf_rx->len = buf_rx_used;
-				buf_rx_used = 0;
-				buf_rx = NULL;
-			}
-		}
-	} while (tc6->rca > 0);
-
-	return 0;
-
-unref_buf:
-	net_buf_unref(buf_rx);
-	return ret;
-}
-
-// #define OA_TC6_TX_CHUNK_SIZE  (4 + 64)
-// #define OA_TC6_RX_CHUNK_SIZE  (64 + 4)
-static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_rx,
-					      uint32_t *ftrs, uint8_t chunks)
+/*
+ * Transfer multiple OA-TC6 RX chunks in one SPI transaction.
+ *
+ * This function sends empty OA-TC6 data chunks to generate SPI clocks and
+ * harvest RX chunks from the MAC-PHY. Each returned footer is parsed through
+ * oa_tc6_update_status(), so RCA/TXC/SYNC/EXST are refreshed after the
+ * transaction.
+ *
+ * The SPI controller does not interpret OA-TC6 data. It only transfers raw
+ * bytes. Header/footer handling remains in this OA-TC6 layer.
+ */
+static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6,
+					      uint8_t *buf_rx,
+					      uint32_t *ftrs,
+					      uint8_t chunks)
 {
 	struct spi_buf tx_buf;
 	struct spi_buf rx_buf;
@@ -682,6 +425,14 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_r
 	size_t total_len;
 	int ret;
 	int i;
+
+	if ((tc6 == NULL) || (ftrs == NULL) || (chunks == 0U)) {
+		return -EINVAL;
+	}
+
+	if (chunks > OA_TC6_XFER_CHUNK_BUDGET) {
+		return -EINVAL;
+	}
 
 	hdr = FIELD_PREP(OA_DATA_HDR_DNC, 1);
 	hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
@@ -704,10 +455,19 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_r
 
 	tx.buffers = &tx_buf;
 	tx.count = 1;
+
 	rx.buffers = &rx_buf;
 	rx.count = 1;
 
+	ret = spi_stream_runtime_set_rx_chunks(tc6->spi->bus, chunks);
+	if (ret < 0) {
+		return ret;
+	}
+
 	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
+
+	spi_stream_runtime_clear(tc6->spi->bus);
+
 	if (ret < 0) {
 		return ret;
 	}
@@ -716,12 +476,13 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_r
 		uint8_t *rxp = &tc6->spi_data_rx_buf[i * OA_TC6_RX_CHUNK_SIZE];
 		uint32_t chunk_ftr;
 
-		if (buf_rx) {
+		if (buf_rx != NULL) {
 			memcpy(buf_rx + (i * tc6->cps), rxp, tc6->cps);
 		}
 
 		memcpy(&chunk_ftr, rxp + tc6->cps, sizeof(chunk_ftr));
 		chunk_ftr = sys_be32_to_cpu(chunk_ftr);
+
 		ftrs[i] = chunk_ftr;
 
 		ret = oa_tc6_update_status(tc6, chunk_ftr);
@@ -733,15 +494,41 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6, uint8_t *buf_r
 	return 0;
 }
 
-int oa_tc6_read_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt)
+/*
+ * Process one already-harvested OA-TC6 RX chunk.
+ *
+ * This helper should contain the existing per-chunk RX assembly logic from
+ * the old oa_tc6_read_chunks() implementation. It must not perform another
+ * SPI transfer. It only interprets one chunk payload and its footer, appends
+ * valid frame bytes to the net_pkt, and returns 0 when one complete Ethernet
+ * frame has been assembled.
+ */
+static int oa_tc6_process_rx_chunk(struct oa_tc6 *tc6,
+				   struct net_pkt *pkt,
+				   uint8_t *chunk_data,
+				   uint32_t ftr)
+{
+	/*
+	 * TODO:
+	 * Move the existing per-chunk body from oa_tc6_read_chunks() here.
+	 *
+	 * Return values:
+	 *   0        - one complete frame is ready
+	 *   -EAGAIN  - this chunk was consumed, but the frame is not complete yet
+	 *   < 0      - error
+	 */
+	return -EAGAIN;
+}
+
+int oa_tc6_read_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt)
 {
 	const uint16_t buf_rx_size = CONFIG_NET_BUF_DATA_SIZE;
 	struct net_buf *buf_rx = NULL;
 	uint32_t buf_rx_used = 0;
 	int ret = 0;
 
-	uint8_t temp_rx_data[CONFIG_ETH_LAN865X_BURST_CHUNKS * 64];
-	uint32_t ftrs[CONFIG_ETH_LAN865X_BURST_CHUNKS];
+	uint8_t temp_rx_data[OA_TC6_XFER_CHUNK_BUDGET * 64];
+	uint32_t ftrs[OA_TC6_XFER_CHUNK_BUDGET];
 	uint8_t chunks_to_read;
 	uint8_t i;
 
@@ -772,7 +559,7 @@ int oa_tc6_read_chunks_burst(struct oa_tc6 *tc6, struct net_pkt *pkt)
 			tc6->pending_cnt = 0;
 
 			chunks_to_read = MIN((uint8_t)tc6->rca,
-					     (uint8_t)CONFIG_ETH_LAN865X_BURST_CHUNKS);
+					     (uint8_t)OA_TC6_XFER_CHUNK_BUDGET);
 
 			if (chunks_to_read == 0) {
 				break;
@@ -958,4 +745,272 @@ unref_buf:
 		net_buf_unref(buf_rx);
 	}
 	return ret;
+}
+
+/*
+ * Build an RX OA-TC6 transfer plan.
+ *
+ * RX planning is based on RCA. RCA is updated from OA-TC6 data footers and
+ * represents the number of receive chunks currently available in the MAC-PHY.
+ *
+ * Unlike TX planning, RX cannot use packet length because the host does not
+ * know the incoming frame size before harvesting chunks. Therefore, RX uses
+ * RCA as the demand value and the common OA-TC6 transaction budget as the
+ * upper bound.
+ */
+static int oa_tc6_build_rx_plan(struct oa_tc6 *tc6,
+				struct oa_tc6_xfer_plan *plan)
+{
+	if ((tc6 == NULL) || (plan == NULL)) {
+		return -EINVAL;
+	}
+
+	memset(plan, 0, sizeof(*plan));
+
+	if (tc6->rca == 0U) {
+		return 0;
+	}
+
+	plan->rx_chunks = MIN((uint8_t)tc6->rca,
+			      (uint8_t)OA_TC6_XFER_CHUNK_BUDGET);
+	plan->total_chunks = plan->rx_chunks;
+
+	return 0;
+}
+
+
+static int oa_tc6_spi_data_xfer(struct oa_tc6 *tc6,
+				const uint8_t *tx_buf,
+				uint8_t *rx_buf,
+				size_t len,
+				uint16_t tx_chunks)
+{
+	int ret;
+
+	if ((tc6 == NULL) || (tx_buf == NULL) || (rx_buf == NULL) || (len == 0U)) {
+		return -EINVAL;
+	}
+
+	ret = spi_stream_runtime_set_tx_chunks(tc6->spi->bus, tx_chunks);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = spi_transceive_stream_dt(tc6->spi, tx_buf, rx_buf, len);
+
+	spi_stream_runtime_clear(tc6->spi->bus);
+
+	return ret;
+}
+
+// for debugging
+static void oa_tc6_log_rx_stream(const uint8_t *rx_buf, size_t len)
+{
+	size_t i;
+	size_t dump_len = MIN(len, 128U); /* first stage: only first 128B */
+
+	if (rx_buf == NULL || len == 0U) {
+		LOG_ERR("OA RX stream: empty");
+		return;
+	}
+
+	LOG_ERR("OA RX stream dump: len=%u dump_len=%u",
+		(unsigned int)len, (unsigned int)dump_len);
+
+	for (i = 0; i < dump_len; i += 16U) {
+		char line[80];
+		int pos = 0;
+		size_t j;
+		size_t line_len = MIN((size_t)16U, dump_len - i);
+
+		pos += snprintk(line + pos, sizeof(line) - pos, "%04u:", (unsigned int)i);
+
+		for (j = 0; j < line_len; j++) {
+			pos += snprintk(line + pos, sizeof(line) - pos,
+					" %02x", rx_buf[i + j]);
+		}
+
+		LOG_ERR("%s", line);
+	}
+}
+
+/*
+ * Build a TX-first OA-TC6 transfer plan.
+ *
+ * TX planning is based on the remaining packet payload length. The number
+ * of TX chunks is capped by the common OA-TC6 transaction budget.
+ *
+ * Credit-aware scheduling will be added later when the TX/RX scheduler is
+ * introduced.
+ */
+static int oa_tc6_build_xfer_plan(struct oa_tc6 *tc6,
+				  size_t remaining,
+				  struct oa_tc6_xfer_plan *plan)
+{
+	uint8_t needed_chunks;
+
+	if ((tc6 == NULL) || (plan == NULL)) {
+		return -EINVAL;
+	}
+
+	memset(plan, 0, sizeof(*plan));
+
+	if (remaining == 0U) {
+		return 0;
+	}
+
+	needed_chunks = DIV_ROUND_UP(remaining, tc6->cps);
+
+	plan->tx_chunks = MIN(needed_chunks, OA_TC6_XFER_CHUNK_BUDGET);
+	plan->total_chunks = plan->tx_chunks;
+
+	return 0;
+}
+
+/*
+ * Run the common OA-TC6 data transfer loop.
+ *
+ * This initial implementation is TX-first and credit-based. It uses the
+ * current TX credit value to decide how many chunks can be transmitted
+ * in one transaction, refreshes status when credit is unavailable, and
+ * repeats until the full packet has been consumed.
+ *
+ * RX chunk harvesting will be added later without changing the outer
+ * execution flow.
+ */
+static int oa_tc6_run_data_xfer(struct oa_tc6 *tc6, struct net_pkt *pkt)
+{
+	uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t remaining;
+	uint8_t chunk_idx = 0U;
+	int ret;
+
+	if ((tc6 == NULL) || (pkt == NULL)) {
+		return -EINVAL;
+	}
+
+	remaining = net_pkt_get_len(pkt);
+	if (remaining == 0U) {
+		return -ENODATA;
+	}
+
+	/*
+	 * Reuse the persistent OA-TC6 work buffers.
+	 * TX and RX buffers are both prepared here because the transfer path
+	 * must now go through the stream-capable SPI path instead of the old
+	 * TX-only burst helper.
+	 */
+	tx_buf = tc6->spi_data_tx_buf;
+	rx_buf = tc6->spi_data_rx_buf;
+
+	while (remaining > 0U) {
+		struct oa_tc6_xfer_plan plan;
+		size_t xfer_len;
+		uint8_t i;
+
+		ret = oa_tc6_build_xfer_plan(tc6, remaining, &plan);
+		if (ret < 0) {
+			return ret;
+		}
+
+		if (plan.tx_chunks == 0U) {
+			LOG_ERR("OA TX: invalid xfer plan (remaining=%u)",
+				(unsigned int)remaining);
+			return -EIO;
+		}
+
+		xfer_len = (size_t)plan.total_chunks * OA_TC6_TX_CHUNK_SIZE;
+
+		memset(tx_buf, 0, xfer_len);
+		memset(rx_buf, 0, xfer_len);
+
+		for (i = 0U; i < plan.tx_chunks; i++) {
+			uint8_t *chunk_ptr = &tx_buf[i * OA_TC6_TX_CHUNK_SIZE];
+			uint8_t *payload_ptr = chunk_ptr + OA_TC6_HDR_SIZE;
+			size_t copy_len = MIN(remaining, (size_t)tc6->cps);
+			uint32_t hdr = 0U;
+
+			/*
+			 * Keep the normal OA-TC6 data chunk format.
+			 *
+			 * At this stage, TX chunk count is payload-driven, but the
+			 * actual transfer must go through the stream-capable SPI
+			 * path so that RX service can happen in spi_dw.
+			 *
+			 * NORX is intentionally not set here, because the balanced
+			 * TX/RX design now depends on the lower SPI path being able
+			 * to receive and drain return data as needed.
+			 */
+			hdr |= FIELD_PREP(OA_DATA_HDR_DNC, 1);
+			hdr |= FIELD_PREP(OA_DATA_HDR_DV, 1);
+
+			if (chunk_idx == 0U) {
+				hdr |= FIELD_PREP(OA_DATA_HDR_SV, 1);
+			}
+
+			if (remaining <= tc6->cps) {
+				hdr |= FIELD_PREP(OA_DATA_HDR_EV, 1);
+				hdr |= FIELD_PREP(OA_DATA_HDR_EBO, copy_len - 1U);
+			}
+
+			hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
+			sys_put_be32(hdr, chunk_ptr);
+
+			ret = net_pkt_read(pkt, payload_ptr, copy_len);
+			if (ret < 0) {
+				LOG_ERR("OA TX: failed to read packet data (%d)", ret);
+				return ret;
+			}
+
+			remaining -= copy_len;
+			chunk_idx++;
+		}
+
+		/*
+		 * Run the transfer through the full-duplex stream path.
+		 *
+		 * The current step focuses on payload-driven TX planning while
+		 * letting spi_dw_xfer_polling_stream8() evolve into the engine
+		 * that balances TX progress and RX service.
+		 */
+		ret = oa_tc6_spi_data_xfer(tc6, tx_buf, rx_buf, xfer_len, plan.tx_chunks);
+		if (ret < 0) {
+			LOG_ERR("OA TX: SPI transfer failed (%d)", ret);
+			return ret;
+		}
+
+		/*
+		 * Status/footer consumption is intentionally deferred for now.
+		 *
+		 * The immediate goal is to validate that:
+		 *  1) the TX plan is driven by payload size, and
+		 *  2) the lower SPI stream path can keep RX alive without
+		 *     falling back to the removed TX-only burst helper.
+		 *
+		 * Credit/status synchronization can be reintroduced after the
+		 * stream path behavior is measured under TX-only, RX-only,
+		 * and mixed traffic.
+		 */
+	}
+
+	return 0;
+}
+
+int oa_tc6_run_tx(struct oa_tc6 *tc6, struct net_pkt *pkt)
+{
+	if ((tc6 == NULL) || (pkt == NULL)) {
+		return -EINVAL;
+	}
+
+	if (net_pkt_get_len(pkt) == 0U) {
+		return -ENODATA;
+	}
+
+#if defined(CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER)
+	int ret = oa_tc6_run_data_xfer(tc6, pkt);
+	return ret;
+#else
+	return oa_tc6_send_chunks(tc6, pkt);
+#endif
 }

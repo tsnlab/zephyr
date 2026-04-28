@@ -98,6 +98,8 @@
 #define OA_TC6_TX_CHUNK_SIZE (OA_TC6_HDR_SIZE + OA_TC6_PAYLOAD_SIZE) /* 68 */
 #define OA_TC6_RX_CHUNK_SIZE (OA_TC6_PAYLOAD_SIZE + OA_TC6_FTR_SIZE) /* 68 */
 
+#define OA_TC6_MAX_CHUNKS_PER_XFER 32U
+
 /**
  * @brief OA TC6 data.
  */
@@ -129,13 +131,22 @@ struct oa_tc6 {
 	/** Pointer to network buffer concatenated from received chunk */
 	struct net_buf *concat_buf;
 
-	/** burst linear SPI buffer */
-	uint8_t spi_data_tx_buf[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_TX_CHUNK_SIZE];
-	uint8_t spi_data_rx_buf[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_RX_CHUNK_SIZE];
+	/*
+	 * Internal work buffers for multi-chunk OA-TC6 data transactions.
+	 *
+	 * These buffers are owned by the OA-TC6 layer and reused across
+	 * SPI transfers. The SPI controller driver only consumes the
+	 * prepared buffers and does not manage their lifetime.
+	 */
+	uint8_t spi_data_tx_buf[OA_TC6_MAX_CHUNKS_PER_XFER * OA_TC6_TX_CHUNK_SIZE];
+	uint8_t spi_data_rx_buf[OA_TC6_MAX_CHUNKS_PER_XFER * OA_TC6_RX_CHUNK_SIZE];
 
-	/** store pending chunks from burst */
-	uint8_t pending_rx_data[CONFIG_ETH_LAN865X_BURST_CHUNKS * OA_TC6_PAYLOAD_SIZE];
-	uint32_t pending_ftrs[CONFIG_ETH_LAN865X_BURST_CHUNKS];
+	/*
+	 * Temporary RX payload/footer storage used when received chunks
+	 * need to be processed after the SPI transaction completes.
+	 */
+	uint8_t pending_rx_data[OA_TC6_MAX_CHUNKS_PER_XFER * OA_TC6_PAYLOAD_SIZE];
+	uint32_t pending_ftrs[OA_TC6_MAX_CHUNKS_PER_XFER];
 	uint8_t pending_cnt;
 	uint8_t pending_idx;
 };
@@ -357,4 +368,14 @@ int oa_tc6_mdio_read_c45(struct oa_tc6 *tc6, uint8_t prtad, uint8_t devad, uint1
  */
 int oa_tc6_mdio_write_c45(struct oa_tc6 *tc6, uint8_t prtad, uint8_t devad, uint16_t regad,
 			  uint16_t data);
+
+/*
+ * Common TX entry point for OA-TC6.
+ *
+ * This function is used by the LAN865x driver as the single transmit entry.
+ * When the credit-based transfer path is enabled, it routes TX traffic through
+ * the OA-TC6 credit-aware path. Otherwise, it falls back to the legacy TX path.
+ */
+int oa_tc6_run_tx(struct oa_tc6 *tc6, struct net_pkt *pkt);
+
 #endif /* OA_TC6_CFG_H__ */

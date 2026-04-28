@@ -391,39 +391,6 @@ static void lan865x_read_chunks(const struct device *dev)
 		LOG_ERR("OA RX: Could not process packet (%d)!", ret);
 		net_pkt_unref(pkt);
 	}
-	k_sem_give(&ctx->tx_rx_sem);
-}
-
-static void lan865x_read_chunks_burst(const struct device *dev)
-{
-	struct lan865x_data *ctx = dev->data;
-	struct oa_tc6 *tc6 = ctx->tc6;
-	struct net_pkt *pkt;
-	int ret;
-
-	pkt = net_pkt_rx_alloc(K_MSEC(CONFIG_ETH_LAN865X_TIMEOUT));
-	if (!pkt) {
-		// LOG_ERR("OA RX burst: Could not allocate packet!");
-		return;
-	}
-
-	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
-
-	ret = oa_tc6_read_chunks_burst(tc6, pkt);
-	if (ret < 0) {
-		eth_stats_update_errors_rx(ctx->iface);
-		net_pkt_unref(pkt);
-		k_sem_give(&ctx->tx_rx_sem);
-		return;
-	}
-
-	/* application RX callback */
-	/* lan865x_rx_callback_handler(ctx, pkt); */
-	ret = net_recv_data(ctx->iface, pkt);
-	if (ret < 0) {
-		// LOG_ERR("OA RX burst: Could not process packet (%d)!", ret);
-		net_pkt_unref(pkt);
-	}
 
 	k_sem_give(&ctx->tx_rx_sem);
 }
@@ -441,6 +408,7 @@ static void lan865x_int_thread(const struct device *dev)
 #else
 		k_sleep(K_USEC(100));
 #endif
+
 		if (!ctx->reset) {
 			oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
 			if (sts & OA_STATUS0_RESETC) {
@@ -449,9 +417,11 @@ static void lan865x_int_thread(const struct device *dev)
 				lan865x_default_config(dev);
 
 				ctx->reset = true;
+
 				/*
-				 * According to OA T1S standard - it is mandatory to
-				 * read chunk of data to get the IRQ_N negated (deasserted).
+				 * According to the OA-T1S standard, it is mandatory
+				 * to read one data/status chunk to get IRQ_N
+				 * deasserted after reset completion.
 				 */
 				oa_tc6_read_status(tc6, &ftr);
 				continue;
@@ -460,32 +430,54 @@ static void lan865x_int_thread(const struct device *dev)
 
 #if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
 		/*
-		 * Polling mode: do NOT force a chunk read when no data is pending.
-		 * First read status to refresh RCA, then only read chunks if RCA > 0.
+		 * Polling mode:
+		 *
+		 * Do not read status before every RX burst.
+		 *
+		 * RX burst transfers already parse data footers and update
+		 * tc6->rca through oa_tc6_update_status(). Therefore, while
+		 * tc6->rca is non-zero, keep reading RX chunks directly.
+		 *
+		 * Only when tc6->rca is zero, send a status probe to refresh
+		 * RCA and check whether new RX data has arrived.
 		 */
-		oa_tc6_read_status(tc6, &ftr);
-		if (tc6->rca == 0) {
-			continue;
+		if (tc6->rca == 0U) {
+			ret = oa_tc6_read_status(tc6, &ftr);
+			if (ret < 0) {
+				continue;
+			}
+
+			if (tc6->rca == 0U) {
+				continue;
+			}
 		}
 #endif
+
 		/*
-		 * The IRQ_N is asserted when RCA becomes > 0. As described in
-		 * OPEN Alliance 10BASE-T1x standard it is deasserted when first
-		 * data header is received by LAN865x.
+		 * IRQ mode:
 		 *
-		 * Hence, it is mandatory to ALWAYS read at least one data chunk!
+		 * IRQ_N is asserted when RCA becomes non-zero. As described in
+		 * the OPEN Alliance 10BASE-T1x standard, IRQ_N is deasserted
+		 * when the first data header is received by the MAC-PHY.
+		 *
+		 * Polling mode:
+		 *
+		 * tc6->rca is refreshed by either oa_tc6_read_status() or the
+		 * footer parsing performed inside oa_tc6_read_chunks().
 		 */
 		do {
-			if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1) {
-				lan865x_read_chunks_burst(dev);
-			} else {
 			lan865x_read_chunks(dev);
-			}
+
 #if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
-			/* Yield to avoid starving other threads in cooperative mode */
-    		k_yield();
+			/*
+			 * Yield to avoid starving other threads in cooperative
+			 * mode. If this hurts RX-only throughput too much, this
+			 * can be revisited after the RX path is functionally
+			 * stable.
+			 */
+			k_yield();
 #endif
-		} while (tc6->rca > 0);
+		} while (tc6->rca > 0U);
 
 		ret = oa_tc6_check_status(tc6);
 		if (ret == -EIO) {
@@ -716,20 +708,18 @@ static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct lan865x_data *ctx = dev->data;
-	struct oa_tc6 *tc6 = ctx->tc6;
 	int ret;
 
 	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
 
-#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
-	ret = oa_tc6_send_chunks_burst(tc6, pkt);
+#if defined(CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER)
+	ret = oa_tc6_run_tx(ctx->tc6, pkt);
 #else
-	ret = oa_tc6_send_chunks(tc6, pkt);
+	ret = oa_tc6_send_chunks(ctx->tc6, pkt);
 #endif
 
 #if defined(CONFIG_ETH_LAN865X_USE_IRQ)
-	/* Check if rca > 0 during half-duplex TX transmission */
-	if (tc6->rca > 0) {
+	if (ctx->tc6->rca > 0U) {
 		k_sem_give(&ctx->int_sem);
 	}
 #endif /* CONFIG_ETH_LAN865X_USE_IRQ */

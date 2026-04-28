@@ -75,4 +75,18 @@ config ETH_LAN865X_BURST_CHUNKS
 	  Value 1 keeps the legacy single-chunk behavior.
 	  Larger values increase burst size and may improve throughput.
 
+config ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+	bool "Use credit-based OA-TC6 transaction path"
+	default y
+	help
+	  Enable the credit-based OA-TC6 data transaction path for LAN865X.
+
+	  When enabled, the OA-TC6 layer builds SPI data transactions
+	  from TX credit and RX chunk availability instead of using
+	  the legacy send/read chunk paths.
+
+	  This path keeps the OA-TC6 transaction logic generic and
+	  allows the underlying SPI controller driver to use an
+	  optimized transfer path when available.
+
 endif # ETH_LAN865X

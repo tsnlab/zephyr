@@ -1137,6 +1137,163 @@ static inline int spi_write_dt(const struct spi_dt_spec *spec,
 {
 	return spi_write(spec->bus, &spec->config, tx_bufs);
 }
+
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+/**
+ * @brief Set the upper-layer TX chunk count for the next stream transfer.
+ *
+ * This function stores the number of TX chunks that the upper layer intends
+ * to send in the next contiguous stream transfer on the specified SPI bus.
+ *
+ * A lower SPI driver may use this information to bias its internal transfer
+ * policy toward TX progress when TX activity is high, or to relax that bias
+ * when TX activity is low.
+ *
+ * The value applies only to the upcoming stream-oriented transfer and should
+ * be cleared after the transfer completes.
+ *
+ * @param dev SPI bus device.
+ * @param tx_chunks Number of TX chunks intended for the upcoming transfer.
+ *
+ * @retval 0 If the value was stored successfully.
+ * @retval -EINVAL If @p dev is invalid.
+ */
+int spi_stream_runtime_set_tx_chunks(const struct device *dev,
+				     uint16_t tx_chunks);
+
+/**
+ * @brief Get the currently stored upper-layer TX chunk count for a stream
+ *        transfer.
+ *
+ * This function retrieves the TX chunk count previously stored for the
+ * specified SPI bus by spi_stream_runtime_set_tx_chunks().
+ *
+ * A lower SPI driver may use this value to decide how strongly TX should be
+ * prioritized over RX service during the current stream transfer.
+ *
+ * @param dev SPI bus device.
+ * @param tx_chunks Pointer where the stored TX chunk count will be written.
+ *
+ * @retval true If a valid TX chunk count is available and has been written to
+ *              @p tx_chunks.
+ * @retval false If no valid TX chunk count is available, or if the arguments
+ *               are invalid.
+ */
+bool spi_stream_runtime_get_tx_chunks(const struct device *dev,
+				      uint16_t *tx_chunks);
+
+/**
+ * @brief Set the upper-layer RX chunk count for the next stream transfer.
+ *
+ * This function stores the number of RX chunks that the upper layer intends
+ * to harvest in the next contiguous stream transfer on the specified SPI bus.
+ *
+ * A lower SPI driver may use this information to select an RX-harvest transfer
+ * policy. In such a transfer, the upper layer usually sends dummy or empty TX
+ * chunks only to generate SPI clocks and receive data from the device.
+ *
+ * The value applies only to the upcoming stream-oriented transfer and should
+ * be cleared after the transfer completes.
+ *
+ * @param dev SPI bus device.
+ * @param rx_chunks Number of RX chunks intended for the upcoming transfer.
+ *
+ * @retval 0 If the value was stored successfully.
+ * @retval -EINVAL If @p dev is invalid.
+ */
+int spi_stream_runtime_set_rx_chunks(const struct device *dev,
+				     uint16_t rx_chunks);
+
+/**
+ * @brief Get the currently stored upper-layer RX chunk count for a stream
+ *        transfer.
+ *
+ * This function retrieves the RX chunk count previously stored for the
+ * specified SPI bus by spi_stream_runtime_set_rx_chunks().
+ *
+ * A lower SPI driver may use this value to decide whether the current stream
+ * transfer should use an RX-harvest policy.
+ *
+ * @param dev SPI bus device.
+ * @param rx_chunks Pointer where the stored RX chunk count will be written.
+ *
+ * @retval true If a valid RX chunk count is available and has been written to
+ *              @p rx_chunks.
+ * @retval false If no valid RX chunk count is available, or if the arguments
+ *               are invalid.
+ */
+bool spi_stream_runtime_get_rx_chunks(const struct device *dev,
+				      uint16_t *rx_chunks);
+
+/**
+ * @brief Clear the stored upper-layer TX chunk count for a stream transfer.
+ *
+ * This function clears any TX chunk count previously stored for the specified
+ * SPI bus by spi_stream_runtime_set_tx_chunks().
+ *
+ * It should be called after a stream-oriented transfer completes so that
+ * unrelated SPI transfers do not observe stale stream metadata.
+ *
+ * @param dev SPI bus device.
+ */
+void spi_stream_runtime_clear(const struct device *dev);
+
+/**
+ * @brief Execute one contiguous SPI stream transfer on a bus specified in
+ *        @p spi_dt_spec.
+ *
+ * This is equivalent to:
+ *
+ *     struct spi_buf tx_buf = {
+ *         .buf = (void *)tx_buf,
+ *         .len = len,
+ *     };
+ *     struct spi_buf rx_buf = {
+ *         .buf = rx_buf,
+ *         .len = len,
+ *     };
+ *     struct spi_buf_set tx = {
+ *         .buffers = &tx_buf,
+ *         .count = 1,
+ *     };
+ *     struct spi_buf_set rx = {
+ *         .buffers = &rx_buf,
+ *         .count = 1,
+ *     };
+ *     spi_transceive(spec->bus, &spec->config, &tx, &rx);
+ *
+ * @param spec SPI specification from devicetree.
+ * @param tx_buf Pointer to the contiguous TX buffer.
+ * @param rx_buf Pointer to the contiguous RX buffer.
+ * @param len Length of the TX and RX buffers in bytes.
+ *
+ * @return a value from spi_transceive().
+ */
+static inline int spi_transceive_stream_dt(const struct spi_dt_spec *spec,
+					   const uint8_t *tx_buf,
+					   uint8_t *rx_buf,
+					   size_t len)
+{
+	struct spi_buf tx_buf_desc = {
+		.buf = (void *)tx_buf,
+		.len = len,
+	};
+	struct spi_buf rx_buf_desc = {
+		.buf = rx_buf,
+		.len = len,
+	};
+	struct spi_buf_set tx = {
+		.buffers = &tx_buf_desc,
+		.count = 1,
+	};
+	struct spi_buf_set rx = {
+		.buffers = &rx_buf_desc,
+		.count = 1,
+	};
+
+	return spi_transceive(spec->bus, &spec->config, &tx, &rx);
+}
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
 /** @} */
 
 #if defined(CONFIG_SPI_ASYNC) || defined(__DOXYGEN__)
