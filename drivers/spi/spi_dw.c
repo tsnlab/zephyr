@@ -801,7 +801,7 @@ static int spi_dw_xfer_polling_stream8_txburst(const struct device *dev,
 	 * preserved stronger TX burst behavior than the more aggressive
 	 * stream completion logic.
 	 */
-	static const uint32_t rx_periodic_quota = 3U;
+	static const uint32_t rx_periodic_quota = 1U;
 
 	ARG_UNUSED(config);
 
@@ -963,7 +963,6 @@ static int spi_dw_xfer_polling_stream8_txburst(const struct device *dev,
  * moves bytes between TX/RX FIFOs. Header/footer parsing, credit handling,
  * RCA interpretation, and packet assembly must stay in the protocol layer.
  */
-
 static int spi_dw_xfer_polling_stream8_rxburst(
 	const struct device *dev,
 	const struct spi_config *config,
@@ -978,10 +977,12 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 	const uint32_t timeout_check_period = 2048U;
 
 	/*
-	 * Register-minimized experiment.
+	 * RX burst must be footer-safe.
 	 *
-	 * Do not read TXFLR/RXFLR in the hot path.
-	 * Drive the transfer with fixed TX/RX quotas.
+	 * TX burst may minimize RX reads because returned RX data is not
+	 * trusted by upper layers. RX burst is different: OA-TC6 parses
+	 * returned footers from rx_buf, so every read_dr() must be guarded
+	 * by RXFLR.
 	 */
 	const uint32_t tx_quota = 16U;
 	const uint32_t rx_quota = 16U;
@@ -994,7 +995,6 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 	size_t tx_issued = 0U;
 	size_t rx_done = 0U;
 	uint32_t iter = 0U;
-
 	uint32_t rx_guard;
 
 	ARG_UNUSED(config);
@@ -1039,8 +1039,8 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 	/*
 	 * Initial prime.
 	 *
-	 * Prime TX up to rx_guard without reading TXFLR.
-	 * This assumes TX FIFO is empty at transfer start.
+	 * Keep this below the RX FIFO guard because every TX byte produces
+	 * one RX byte in full-duplex SPI.
 	 */
 	{
 		uint32_t n = MIN(rx_guard, (uint32_t)len);
@@ -1054,19 +1054,19 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 
 	while (rx_done < len) {
 		uint32_t outstanding;
+		uint32_t rxflr;
 		uint32_t n;
 
 		/*
-		 * Fixed RX service.
+		 * RX service.
 		 *
-		 * This is intentionally register-free.
-		 * It assumes that after initial prime and previous TX writes,
-		 * enough RX data has arrived to read a small quota.
-		 *
-		 * Start conservatively with rx_quota = 8.
+		 * Never read DR unless RXFLR says data is available.
+		 * This is required to keep OA-TC6 footer alignment valid.
 		 */
-		if (rx_done < tx_issued) {
-			n = MIN(rx_quota, (uint32_t)(tx_issued - rx_done));
+		rxflr = read_rxflr(dev);
+		if ((rxflr > 0U) && (rx_done < tx_issued)) {
+			n = MIN(rxflr, rx_quota);
+			n = MIN(n, (uint32_t)(tx_issued - rx_done));
 			n = MIN(n, (uint32_t)(len - rx_done));
 
 			while (n > 0U) {
@@ -1077,10 +1077,10 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 		}
 
 		/*
-		 * Fixed TX refill.
+		 * TX refill.
 		 *
-		 * Do not read TXFLR. Use outstanding guard to avoid producing
-		 * more RX data than the RX FIFO can hold.
+		 * We still avoid TXFLR in the hot path, but use the
+		 * outstanding byte count to prevent RX FIFO overflow.
 		 */
 		if (tx_issued < len) {
 			outstanding = (uint32_t)(tx_issued - rx_done);
@@ -1101,17 +1101,35 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 		/*
 		 * Tail phase.
 		 *
-		 * Once all TX bytes are issued, receive the remaining bytes.
-		 * Still avoid RXFLR in the hot path; drain based on outstanding.
+		 * Once all TX bytes are issued, keep waiting for RXFLR and
+		 * drain until rx_done == len. Do not read DR blindly.
 		 */
 		if (tx_issued >= len) {
 			while (rx_done < len) {
-				n = MIN(rx_quota, (uint32_t)(len - rx_done));
+				rxflr = read_rxflr(dev);
 
-				while (n > 0U) {
-					rx_buf[rx_done] = (uint8_t)read_dr(dev);
-					rx_done++;
-					n--;
+				if (rxflr > 0U) {
+					n = MIN(rxflr, rx_quota);
+					n = MIN(n, (uint32_t)(len - rx_done));
+
+					while (n > 0U) {
+						rx_buf[rx_done] = (uint8_t)read_dr(dev);
+						rx_done++;
+						n--;
+					}
+
+					continue;
+				}
+
+				if ((k_cycle_get_64() - start) >= timeout_cycles) {
+					LOG_ERR("spi_dw rxburst tail timeout (%u us), tx_issued=%u rx_done=%u len=%u rxflr=%u busy=%u",
+						timeout_us,
+						(uint32_t)tx_issued,
+						(uint32_t)rx_done,
+						(uint32_t)len,
+						read_rxflr(dev),
+						test_bit_sr_busy(dev));
+					return -ETIMEDOUT;
 				}
 			}
 		}
@@ -1119,26 +1137,31 @@ static int spi_dw_xfer_polling_stream8_rxburst(
 		iter++;
 		if ((iter % timeout_check_period) == 0U) {
 			if ((k_cycle_get_64() - start) >= timeout_cycles) {
-				LOG_ERR("spi_dw rxburst quota timeout (%u us), tx_issued=%u rx_done=%u len=%u outstanding=%u",
+				LOG_ERR("spi_dw rxburst timeout (%u us), tx_issued=%u rx_done=%u len=%u outstanding=%u rxflr=%u busy=%u",
 					timeout_us,
 					(uint32_t)tx_issued,
 					(uint32_t)rx_done,
 					(uint32_t)len,
-					(uint32_t)(tx_issued - rx_done));
+					(uint32_t)(tx_issued - rx_done),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
 				return -ETIMEDOUT;
 			}
 		}
 	}
 
 	/*
-	 * Minimal final cleanup.
+	 * Defensive cleanup.
 	 *
-	 * Avoid busy wait. Do not read RXFLR repeatedly.
-	 * This experiment assumes rx_done == len is sufficient.
+	 * Normally rx_done == len means the transaction is complete.
+	 * If any stale RX byte remains, drain it explicitly.
 	 */
+	while (read_rxflr(dev) > 0U) {
+		(void)read_dr(dev);
+	}
+
 	return 0;
 }
-
 
 /*
  * Polling-based contiguous full-duplex transfer path for 8-bit frames.

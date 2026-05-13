@@ -11,6 +11,7 @@
 LOG_MODULE_REGISTER(oa_tc6, CONFIG_ETHERNET_LOG_LEVEL);
 
 #define OA_TC6_XFER_CHUNK_BUDGET 32U
+
 /*
  * Internal OA-TC6 transfer plan used by the common data transfer path.
  *
@@ -22,6 +23,21 @@ struct oa_tc6_xfer_plan {
 	uint8_t rx_chunks;
 	uint8_t total_chunks;
 };
+
+/*
+ * OA-TC6 SPI transaction lock.
+ *
+ * This lock serializes all OA-TC6 SPI transactions including:
+ * - shared OA-TC6 work buffer access
+ * - stream runtime TX/RX chunk hint setup
+ * - spi_transceive_dt() / spi_transceive_stream_dt()
+ * - stream runtime clear
+ * - footer/status update
+ *
+ * This is required because TX path and lan865x_poll RX/status path can run
+ * from different threads.
+ */
+static K_MUTEX_DEFINE(oa_tc6_spi_xfer_lock);
 
 /*
  * When IPv6 support enabled - the minimal size of network buffer
@@ -58,7 +74,15 @@ int oa_tc6_reg_read(struct oa_tc6 *tc6, const uint32_t reg, uint32_t *val)
 	hdr_bkp = *hdr;
 	*hdr = sys_cpu_to_be32(*hdr);
 
+	ret = k_mutex_lock(&oa_tc6_spi_xfer_lock, K_MSEC(1000));
+	if (ret < 0) {
+		return ret;
+	}
+
 	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
+
+	k_mutex_unlock(&oa_tc6_spi_xfer_lock);
+
 	if (ret < 0) {
 		return ret;
 	}
@@ -119,7 +143,15 @@ int oa_tc6_reg_write(struct oa_tc6 *tc6, const uint32_t reg, uint32_t val)
 		*(uint32_t *)&buf_tx[8] = sys_be32_to_cpu(~val);
 	}
 
+	ret = k_mutex_lock(&oa_tc6_spi_xfer_lock, K_MSEC(1000));
+	if (ret < 0) {
+		return ret;
+	}
+
 	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
+
+	k_mutex_unlock(&oa_tc6_spi_xfer_lock);
+
 	if (ret < 0) {
 		return ret;
 	}
@@ -353,7 +385,10 @@ static inline int oa_tc6_update_status(struct oa_tc6 *tc6, uint32_t ftr)
 	return 0;
 }
 
-int oa_tc6_chunk_spi_transfer(struct oa_tc6 *tc6, uint8_t *buf_rx, uint8_t *buf_tx, uint32_t hdr,
+int oa_tc6_chunk_spi_transfer(struct oa_tc6 *tc6,
+			      uint8_t *buf_rx,
+			      uint8_t *buf_tx,
+			      uint32_t hdr,
 			      uint32_t *ftr)
 {
 	struct spi_buf tx_buf[2];
@@ -361,6 +396,15 @@ int oa_tc6_chunk_spi_transfer(struct oa_tc6 *tc6, uint8_t *buf_rx, uint8_t *buf_
 	struct spi_buf_set tx;
 	struct spi_buf_set rx;
 	int ret;
+
+	if ((tc6 == NULL) || (ftr == NULL)) {
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&oa_tc6_spi_xfer_lock, K_MSEC(1000));
+	if (ret < 0) {
+		return ret;
+	}
 
 	hdr = sys_cpu_to_be32(hdr);
 	tx_buf[0].buf = &hdr;
@@ -383,11 +427,16 @@ int oa_tc6_chunk_spi_transfer(struct oa_tc6 *tc6, uint8_t *buf_rx, uint8_t *buf_
 
 	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
 	if (ret < 0) {
-		return ret;
+		goto out;
 	}
 	*ftr = sys_be32_to_cpu(*ftr);
 
-	return oa_tc6_update_status(tc6, *ftr);
+	ret = oa_tc6_update_status(tc6, *ftr);
+
+out:
+	k_mutex_unlock(&oa_tc6_spi_xfer_lock);
+
+	return ret;
 }
 
 int oa_tc6_read_status(struct oa_tc6 *tc6, uint32_t *ftr)
@@ -434,6 +483,11 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6,
 		return -EINVAL;
 	}
 
+	ret = k_mutex_lock(&oa_tc6_spi_xfer_lock, K_MSEC(1000));
+	if (ret < 0) {
+		return ret;
+	}
+
 	hdr = FIELD_PREP(OA_DATA_HDR_DNC, 1);
 	hdr |= FIELD_PREP(OA_DATA_HDR_P, oa_tc6_get_parity(hdr));
 
@@ -461,7 +515,7 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6,
 
 	ret = spi_stream_runtime_set_rx_chunks(tc6->spi->bus, chunks);
 	if (ret < 0) {
-		return ret;
+		goto out;
 	}
 
 	ret = spi_transceive_dt(tc6->spi, &tx, &rx);
@@ -469,7 +523,7 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6,
 	spi_stream_runtime_clear(tc6->spi->bus);
 
 	if (ret < 0) {
-		return ret;
+		goto out;
 	}
 
 	for (i = 0; i < chunks; i++) {
@@ -487,37 +541,16 @@ static int oa_tc6_chunk_spi_rx_transfer_burst(struct oa_tc6 *tc6,
 
 		ret = oa_tc6_update_status(tc6, chunk_ftr);
 		if (ret < 0) {
-			return ret;
+			goto out;
 		}
 	}
 
-	return 0;
-}
+	ret = 0;
 
-/*
- * Process one already-harvested OA-TC6 RX chunk.
- *
- * This helper should contain the existing per-chunk RX assembly logic from
- * the old oa_tc6_read_chunks() implementation. It must not perform another
- * SPI transfer. It only interprets one chunk payload and its footer, appends
- * valid frame bytes to the net_pkt, and returns 0 when one complete Ethernet
- * frame has been assembled.
- */
-static int oa_tc6_process_rx_chunk(struct oa_tc6 *tc6,
-				   struct net_pkt *pkt,
-				   uint8_t *chunk_data,
-				   uint32_t ftr)
-{
-	/*
-	 * TODO:
-	 * Move the existing per-chunk body from oa_tc6_read_chunks() here.
-	 *
-	 * Return values:
-	 *   0        - one complete frame is ready
-	 *   -EAGAIN  - this chunk was consumed, but the frame is not complete yet
-	 *   < 0      - error
-	 */
-	return -EAGAIN;
+out:
+	k_mutex_unlock(&oa_tc6_spi_xfer_lock);
+
+	return ret;
 }
 
 int oa_tc6_read_chunks(struct oa_tc6 *tc6, struct net_pkt *pkt)
@@ -778,7 +811,9 @@ static int oa_tc6_build_rx_plan(struct oa_tc6 *tc6,
 	return 0;
 }
 
-
+/*
+ * Caller must hold oa_tc6_spi_xfer_lock.
+ */
 static int oa_tc6_spi_data_xfer(struct oa_tc6 *tc6,
 				const uint8_t *tx_buf,
 				uint8_t *rx_buf,
@@ -867,6 +902,43 @@ static int oa_tc6_build_xfer_plan(struct oa_tc6 *tc6,
 	return 0;
 }
 
+static int oa_tc6_wait_tx_credit(struct oa_tc6 *tc6, uint8_t needed_chunks)
+{
+	uint32_t ftr;
+	uint32_t wait_count = 0U;
+	int ret;
+
+	if ((tc6 == NULL) || (needed_chunks == 0U)) {
+		return -EINVAL;
+	}
+
+	while (tc6->txc < needed_chunks) {
+		/*
+		 * Refresh TXC through a normal status transfer.
+		 *
+		 * Do not parse returned TX footers from the TX burst path. The
+		 * current spi_dw TX burst path is optimized for TX throughput
+		 * and does not provide footer-safe RX data.
+		 */
+		ret = oa_tc6_read_status(tc6, &ftr);
+		if (ret < 0) {
+			return ret;
+		}
+
+		if (tc6->txc >= needed_chunks) {
+			break;
+		}
+
+		wait_count++;
+		if (wait_count > 1000U) {
+			return -EAGAIN;
+		}
+
+		k_yield();
+	}
+
+	return 0;
+}
 /*
  * Run the common OA-TC6 data transfer loop.
  *
@@ -895,55 +967,92 @@ static int oa_tc6_run_data_xfer(struct oa_tc6 *tc6, struct net_pkt *pkt)
 		return -ENODATA;
 	}
 
-	/*
-	 * Reuse the persistent OA-TC6 work buffers.
-	 * TX and RX buffers are both prepared here because the transfer path
-	 * must now go through the stream-capable SPI path instead of the old
-	 * TX-only burst helper.
-	 */
 	tx_buf = tc6->spi_data_tx_buf;
 	rx_buf = tc6->spi_data_rx_buf;
 
 	while (remaining > 0U) {
-		struct oa_tc6_xfer_plan plan;
 		size_t xfer_len;
 		uint8_t i;
+		uint8_t needed_chunks;
+		uint8_t tx_chunks;
+		uint8_t tx_chunks_done;
 
-		ret = oa_tc6_build_xfer_plan(tc6, remaining, &plan);
-		if (ret < 0) {
-			return ret;
-		}
+		/*
+		 * Build a TX plan from the remaining frame length.
+		 *
+		 * In the normal Ethernet MTU case, the whole frame should fit
+		 * within one OA-TC6 transaction budget. For a 1514-byte Ethernet
+		 * frame and 64-byte CPS, this is normally 24 chunks.
+		 */
+		needed_chunks = DIV_ROUND_UP(remaining, tc6->cps);
+		tx_chunks = MIN(needed_chunks, (uint8_t)OA_TC6_XFER_CHUNK_BUDGET);
 
-		if (plan.tx_chunks == 0U) {
-			LOG_ERR("OA TX: invalid xfer plan (remaining=%u)",
+		if (tx_chunks == 0U) {
+			LOG_ERR("OA TX: invalid TX chunk count (remaining=%u)",
 				(unsigned int)remaining);
 			return -EIO;
 		}
 
-		xfer_len = (size_t)plan.total_chunks * OA_TC6_TX_CHUNK_SIZE;
+		/*
+		 * Wait until enough TX credit is available for this transaction.
+		 *
+		 * This avoids starting a frame with only a small number of
+		 * available credits, which would split one Ethernet frame across
+		 * many small SPI transactions and significantly reduce throughput.
+		 */
+		ret = oa_tc6_wait_tx_credit(tc6, tx_chunks);
+		if (ret < 0) {
+			return ret;
+		}
+
+		/*
+		 * Protect the full OA-TC6 data transaction.
+		 *
+		 * The shared tc6->spi_data_tx_buf/rx_buf and the runtime
+		 * stream hint must not be touched by RX/status paths while
+		 * this TX transaction is being prepared and executed.
+		 */
+		ret = k_mutex_lock(&oa_tc6_spi_xfer_lock, K_MSEC(1000));
+		if (ret < 0) {
+			return ret;
+		}
+
+		/*
+		 * Re-check TXC while holding the transaction lock.
+		 *
+		 * Another status/RX path may have updated tc6->txc before this
+		 * lock was acquired. If the credit is no longer sufficient,
+		 * release the lock and retry from the top.
+		 */
+		if (tc6->txc < tx_chunks) {
+			k_mutex_unlock(&oa_tc6_spi_xfer_lock);
+			k_yield();
+			continue;
+		}
+
+		xfer_len = (size_t)tx_chunks * OA_TC6_TX_CHUNK_SIZE;
 
 		memset(tx_buf, 0, xfer_len);
 		memset(rx_buf, 0, xfer_len);
 
-		for (i = 0U; i < plan.tx_chunks; i++) {
+		for (i = 0U; i < tx_chunks; i++) {
 			uint8_t *chunk_ptr = &tx_buf[i * OA_TC6_TX_CHUNK_SIZE];
 			uint8_t *payload_ptr = chunk_ptr + OA_TC6_HDR_SIZE;
 			size_t copy_len = MIN(remaining, (size_t)tc6->cps);
 			uint32_t hdr = 0U;
 
 			/*
-			 * Keep the normal OA-TC6 data chunk format.
+			 * Keep TX transactions TX-only.
 			 *
-			 * At this stage, TX chunk count is payload-driven, but the
-			 * actual transfer must go through the stream-capable SPI
-			 * path so that RX service can happen in spi_dw.
-			 *
-			 * NORX is intentionally not set here, because the balanced
-			 * TX/RX design now depends on the lower SPI path being able
-			 * to receive and drain return data as needed.
+			 * The current TX stream path does not consume returned RX
+			 * chunks. Therefore, NORX must be set so that RX frames
+			 * are not harvested and discarded during TX. RX harvesting
+			 * is handled by lan865x_poll through oa_tc6_read_chunks().
 			 */
 			hdr |= FIELD_PREP(OA_DATA_HDR_DNC, 1);
 			hdr |= FIELD_PREP(OA_DATA_HDR_DV, 1);
+			hdr |= FIELD_PREP(OA_DATA_HDR_NORX, 1);
+			hdr |= FIELD_PREP(OA_DATA_HDR_SWO, 0);
 
 			if (chunk_idx == 0U) {
 				hdr |= FIELD_PREP(OA_DATA_HDR_SV, 1);
@@ -959,6 +1068,7 @@ static int oa_tc6_run_data_xfer(struct oa_tc6 *tc6, struct net_pkt *pkt)
 
 			ret = net_pkt_read(pkt, payload_ptr, copy_len);
 			if (ret < 0) {
+				k_mutex_unlock(&oa_tc6_spi_xfer_lock);
 				LOG_ERR("OA TX: failed to read packet data (%d)", ret);
 				return ret;
 			}
@@ -967,31 +1077,32 @@ static int oa_tc6_run_data_xfer(struct oa_tc6 *tc6, struct net_pkt *pkt)
 			chunk_idx++;
 		}
 
-		/*
-		 * Run the transfer through the full-duplex stream path.
-		 *
-		 * The current step focuses on payload-driven TX planning while
-		 * letting spi_dw_xfer_polling_stream8() evolve into the engine
-		 * that balances TX progress and RX service.
-		 */
-		ret = oa_tc6_spi_data_xfer(tc6, tx_buf, rx_buf, xfer_len, plan.tx_chunks);
+		tx_chunks_done = tx_chunks;
+
+		ret = oa_tc6_spi_data_xfer(tc6, tx_buf, rx_buf, xfer_len, tx_chunks);
 		if (ret < 0) {
+			k_mutex_unlock(&oa_tc6_spi_xfer_lock);
 			LOG_ERR("OA TX: SPI transfer failed (%d)", ret);
 			return ret;
 		}
 
 		/*
-		 * Status/footer consumption is intentionally deferred for now.
+		 * Conservatively consume local TX credit.
 		 *
-		 * The immediate goal is to validate that:
-		 *  1) the TX plan is driven by payload size, and
-		 *  2) the lower SPI stream path can keep RX alive without
-		 *     falling back to the removed TX-only burst helper.
+		 * Do not parse returned TX footers in the current TX burst path.
+		 * The spi_dw TX burst path is optimized for TX throughput and
+		 * does not currently provide footer-safe RX data for OA-TC6
+		 * status parsing.
 		 *
-		 * Credit/status synchronization can be reintroduced after the
-		 * stream path behavior is measured under TX-only, RX-only,
-		 * and mixed traffic.
+		 * TXC will be refreshed later through oa_tc6_read_status().
 		 */
+		if (tc6->txc >= tx_chunks_done) {
+			tc6->txc -= tx_chunks_done;
+		} else {
+			tc6->txc = 0U;
+		}
+
+		k_mutex_unlock(&oa_tc6_spi_xfer_lock);
 	}
 
 	return 0;

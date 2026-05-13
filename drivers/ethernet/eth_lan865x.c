@@ -23,10 +23,7 @@ LOG_MODULE_REGISTER(eth_lan865x, CONFIG_ETHERNET_LOG_LEVEL);
 #include "eth_lan865x_priv.h"
 
 static int lan865x_default_config(const struct device *dev);
-#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
-static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
-                                        struct net_pkt *pkt);
-#endif
+
 
 int eth_lan865x_mdio_c22_read(const struct device *dev, uint8_t prtad, uint8_t regad,
 			      uint16_t *data)
@@ -391,10 +388,34 @@ static void lan865x_read_chunks(const struct device *dev)
 		LOG_ERR("OA RX: Could not process packet (%d)!", ret);
 		net_pkt_unref(pkt);
 	}
-
 	k_sem_give(&ctx->tx_rx_sem);
 }
 
+/*
+ * Status probe intervals for polling mode.
+ *
+ * When TX is active and RCA is zero, status probes should be rare so
+ * that the TX path can run close to TX-only mode.
+ *
+ * When TX is idle, status probes should be more frequent so that RX
+ * traffic can be discovered quickly.
+ */
+#define LAN865X_STATUS_PROBE_TX_ACTIVE_INTERVAL_US 20000
+#define LAN865X_STATUS_PROBE_TX_IDLE_INTERVAL_US   5000
+
+/*
+ * If TX occurred within this window, the polling thread treats the
+ * device as TX-active.
+ */
+#define LAN865X_TX_ACTIVE_WINDOW_US                3000
+
+/*
+ * If RX has been idle for a while, refresh status once before entering
+ * the RX burst path.
+ */
+#define LAN865X_RX_IDLE_RESYNC_US                  5000
+
+static int64_t lan865x_last_tx_us;
 static void lan865x_int_thread(const struct device *dev)
 {
 	struct lan865x_data *ctx = dev->data;
@@ -402,11 +423,29 @@ static void lan865x_int_thread(const struct device *dev)
 	uint32_t sts, ftr;
 	int ret;
 
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	int64_t last_status_probe_us = 0;
+	int64_t last_rx_seen_us = 0;
+#endif
+
 	while (true) {
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+		bool status_probe_done = false;
+#endif
+
 #if defined(CONFIG_ETH_LAN865X_USE_IRQ)
 		k_sem_take(&ctx->int_sem, K_FOREVER);
 #else
-		k_sleep(K_USEC(100));
+		/*
+		 * Polling mode:
+		 *
+		 * Sleep only when there is no known RX work. If RCA is already
+		 * non-zero, go directly to RX drain without adding another
+		 * fixed wait at the top of the loop.
+		 */
+		if (tc6->rca == 0U) {
+			k_sleep(K_USEC(20));
+		}
 #endif
 
 		if (!ctx->reset) {
@@ -432,23 +471,68 @@ static void lan865x_int_thread(const struct device *dev)
 		/*
 		 * Polling mode:
 		 *
-		 * Do not read status before every RX burst.
-		 *
-		 * RX burst transfers already parse data footers and update
-		 * tc6->rca through oa_tc6_update_status(). Therefore, while
-		 * tc6->rca is non-zero, keep reading RX chunks directly.
-		 *
-		 * Only when tc6->rca is zero, send a status probe to refresh
-		 * RCA and check whether new RX data has arrived.
+		 * When RCA is zero, status probes are used to discover new RX
+		 * data. While TX is active, use a longer interval so TX can run
+		 * close to TX-only mode. When TX is idle, use a shorter interval
+		 * so RX traffic can be discovered more quickly.
 		 */
 		if (tc6->rca == 0U) {
+			int64_t now_us = k_ticks_to_us_floor64(k_uptime_ticks());
+			int64_t tx_age_us = now_us - lan865x_last_tx_us;
+			int64_t probe_interval_us;
+
+			if (tx_age_us < LAN865X_TX_ACTIVE_WINDOW_US) {
+				probe_interval_us =
+					LAN865X_STATUS_PROBE_TX_ACTIVE_INTERVAL_US;
+			} else {
+				probe_interval_us =
+					LAN865X_STATUS_PROBE_TX_IDLE_INTERVAL_US;
+			}
+
+			if ((now_us - last_status_probe_us) < probe_interval_us) {
+				continue;
+			}
+
+			last_status_probe_us = now_us;
+
 			ret = oa_tc6_read_status(tc6, &ftr);
 			if (ret < 0) {
 				continue;
 			}
 
+			/*
+			 * This loop already refreshed OA-TC6 status. If RCA
+			 * becomes non-zero, do not run the idle-to-active resync
+			 * status read again in the same iteration.
+			 */
+			status_probe_done = true;
+
 			if (tc6->rca == 0U) {
 				continue;
+			}
+		}
+
+		/*
+		 * RX idle-to-active resync:
+		 *
+		 * Run this only when the current loop did not already perform
+		 * a status probe. If RCA was discovered by the status probe
+		 * above, another immediate status read is redundant and delays
+		 * RX burst entry.
+		 */
+		if (!status_probe_done) {
+			int64_t now_us = k_ticks_to_us_floor64(k_uptime_ticks());
+
+			if ((now_us - last_rx_seen_us) >= LAN865X_RX_IDLE_RESYNC_US) {
+				ret = oa_tc6_read_status(tc6, &ftr);
+				if (ret < 0) {
+					continue;
+				}
+
+				if (tc6->rca == 0U) {
+					last_rx_seen_us = now_us;
+					continue;
+				}
 			}
 		}
 #endif
@@ -469,11 +553,13 @@ static void lan865x_int_thread(const struct device *dev)
 			lan865x_read_chunks(dev);
 
 #if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+			last_rx_seen_us = k_ticks_to_us_floor64(k_uptime_ticks());
+
 			/*
 			 * Yield to avoid starving other threads in cooperative
-			 * mode. If this hurts RX-only throughput too much, this
-			 * can be revisited after the RX path is functionally
-			 * stable.
+			 * mode. This remains intentionally unchanged for now so
+			 * the effect of removing the redundant status read can be
+			 * measured independently.
 			 */
 			k_yield();
 #endif
@@ -609,18 +695,6 @@ static int lan865x_init(const struct device *dev)
 //	return lan865x_gpio_reset(dev);
 }
 
-int lan865x_register_rx_callback(const struct device *dev,
-				 lan865x_rx_cb_t cb,
-				 void *user_data)
-{
-	struct lan865x_data *ctx = dev->data;
-
-	ctx->rx_cb = cb;
-	ctx->rx_cb_user_data = user_data;
-
-	return 0;
-}
-
 int lan865x_tx_frame(const struct device *dev, const uint8_t *data, size_t len)
 {
     struct lan865x_data *ctx = dev->data;
@@ -673,44 +747,14 @@ int lan865x_tx_frame(const struct device *dev, const uint8_t *data, size_t len)
     return ret;
 }
 
-#if (CONFIG_ETH_LAN865X_BURST_CHUNKS > 1)
-static void lan865x_rx_callback_handler(struct lan865x_data *ctx,
-                                         struct net_pkt *pkt)
-{
-    struct net_pkt *clone;
-    struct net_buf *frag;
-
-    if (!ctx->rx_cb) {
-        return;
-    }
-
-    clone = net_pkt_clone(pkt, K_NO_WAIT);
-    if (!clone) {
-        LOG_WRN("LAN865x RX: pkt clone failed");
-        return;
-    }
-
-    frag = clone->buffer;
-
-    while (frag) {
-
-        ctx->rx_cb(frag->data,
-                   frag->len,
-                   ctx->rx_cb_user_data);
-
-        frag = frag->frags;
-    }
-
-    net_pkt_unref(clone);
-}
-#endif
-
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct lan865x_data *ctx = dev->data;
 	int ret;
 
-	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	lan865x_last_tx_us = k_ticks_to_us_floor64(k_uptime_ticks());
+#endif
 
 #if defined(CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER)
 	ret = oa_tc6_run_tx(ctx->tc6, pkt);
@@ -718,20 +762,17 @@ static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 	ret = oa_tc6_send_chunks(ctx->tc6, pkt);
 #endif
 
-#if defined(CONFIG_ETH_LAN865X_USE_IRQ)
-	if (ctx->tc6->rca > 0U) {
-		k_sem_give(&ctx->int_sem);
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	if (ret == 0) {
+		lan865x_last_tx_us = k_ticks_to_us_floor64(k_uptime_ticks());
 	}
-#endif /* CONFIG_ETH_LAN865X_USE_IRQ */
+#endif
 
-	k_sem_give(&ctx->tx_rx_sem);
 	if (ret < 0) {
 		LOG_ERR("TX transmission error, %d", ret);
-		eth_stats_update_errors_tx(net_pkt_iface(pkt));
-		return ret;
 	}
 
-	return 0;
+	return ret;
 }
 
 const struct device *lan865x_get_phy(const struct device *dev)
