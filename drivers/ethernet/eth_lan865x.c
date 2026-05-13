@@ -695,58 +695,6 @@ static int lan865x_init(const struct device *dev)
 //	return lan865x_gpio_reset(dev);
 }
 
-int lan865x_tx_frame(const struct device *dev, const uint8_t *data, size_t len)
-{
-    struct lan865x_data *ctx = dev->data;
-    struct oa_tc6 *tc6 = ctx->tc6;
-    struct net_pkt *pkt;
-    uint32_t ftr = 0;
-    int ret, sret;
-
-    if (!ctx->iface) {
-        LOG_ERR("LAN865x iface not initialized");
-        return -ENODEV;
-    }
-
-    pkt = net_pkt_alloc_with_buffer(ctx->iface,
-                                    len,
-                                    AF_UNSPEC,
-                                    0,
-                                    K_MSEC(100));
-    if (!pkt) {
-        LOG_ERR("TX pkt alloc failed");
-        return -ENOMEM;
-    }
-
-    ret = net_pkt_write(pkt, data, len);
-    if (ret) {
-        LOG_ERR("pkt write failed %d", ret);
-        net_pkt_unref(pkt);
-        return ret;
-    }
-
-    net_pkt_cursor_init(pkt);
-
-    k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
-
-    sret = oa_tc6_read_status(tc6, &ftr);
-    LOG_ERR("TX pre-status: sret=%d ftr=0x%08x sync=%u txc=%u rca=%u protected=%d",
-            sret, ftr, tc6->sync, tc6->txc, tc6->rca, tc6->protected);
-
-    LOG_INF("LAN865x TX frame len=%d", len);
-
-    ret = oa_tc6_send_chunks(tc6, pkt);
-
-    LOG_ERR("TX result: ret=%d sync=%u txc=%u rca=%u",
-            ret, tc6->sync, tc6->txc, tc6->rca);
-
-    k_sem_give(&ctx->tx_rx_sem);
-
-    net_pkt_unref(pkt);
-
-    return ret;
-}
-
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct lan865x_data *ctx = dev->data;
