@@ -62,6 +62,13 @@ struct spi_dw_data {
 #endif
 	uint8_t dfs;	/* dfs in bytes: 1,2 or 4 */
 	uint8_t fifo_diff;	/* cannot be bigger than FIFO depth */
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+	uint16_t stream_tx_chunks;
+	bool stream_tx_chunks_valid;
+
+	uint16_t stream_rx_chunks;
+	bool stream_rx_chunks_valid;
+#endif
 };
 
 /* Register operation functions */
@@ -298,6 +305,9 @@ static int reg_test_bit(uint8_t bit, mm_reg_t addr, uint32_t off)
 DEFINE_MM_REG_READ(txflr, DW_SPI_REG_TXFLR, 32)
 DEFINE_MM_REG_READ(rxflr, DW_SPI_REG_RXFLR, 32)
 
+DEFINE_MM_REG_READ(ssienr, DW_SPI_REG_SSIENR, 32)
+DEFINE_MM_REG_READ(ser, DW_SPI_REG_SER, 32)
+
 #ifdef CONFIG_SPI_DW_ACCESS_WORD_ONLY
 DEFINE_MM_REG_WRITE(baudr, DW_SPI_REG_BAUDR, 32)
 DEFINE_MM_REG_WRITE(imr, DW_SPI_REG_IMR, 32)
@@ -316,6 +326,9 @@ DEFINE_SET_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_CLEAR_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_TEST_BIT_OP(ssienr, DW_SPI_REG_SSIENR, DW_SPI_SSIENR_SSIEN_BIT)
 DEFINE_TEST_BIT_OP(sr_busy, DW_SPI_REG_SR, DW_SPI_SR_BUSY_BIT)
+
+DEFINE_TEST_BIT_OP(sr_tfnf, DW_SPI_REG_SR, DW_SPI_SR_TFNF_BIT)
+DEFINE_TEST_BIT_OP(sr_rfne, DW_SPI_REG_SR, DW_SPI_SR_RFNE_BIT)
 
 #ifdef __cplusplus
 }
