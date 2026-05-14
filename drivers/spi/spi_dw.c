@@ -31,7 +31,6 @@ LOG_MODULE_REGISTER(spi_dw);
 #endif
 
 #include <zephyr/drivers/spi.h>
-#include <zephyr/drivers/spi/rtio.h>
 #include <zephyr/irq.h>
 
 #include "spi_dw.h"
@@ -168,12 +167,16 @@ static void pull_data(const struct device *dev)
 			}
 		}
 
-		spi_context_update_rx(&spi->ctx, spi->dfs, 1);
-		spi->fifo_diff--;
+		if (spi_context_rx_on(&spi->ctx) && (spi->fifo_diff > 0U)) {
+			spi_context_update_rx(&spi->ctx, spi->dfs, 1);
+			spi->fifo_diff--;
+		}
 	}
 
-	if (!spi->ctx.rx_len && spi->ctx.tx_len < info->fifo_depth) {
-		write_rxftlr(dev, spi->ctx.tx_len - 1);
+	if (!spi->ctx.rx_len) {
+		if (spi->ctx.tx_len && (spi->ctx.tx_len < info->fifo_depth)) {
+			write_rxftlr(dev, spi->ctx.tx_len - 1);
+		}
 	} else if (read_rxftlr(dev) >= spi->ctx.rx_len) {
 		write_rxftlr(dev, spi->ctx.rx_len - 1);
 	}
@@ -255,6 +258,8 @@ static int spi_dw_configure(const struct device *dev,
 	spi->ctx.config = config;
 
 	if (!spi_dw_is_slave(spi)) {
+		clear_bit_ssienr(dev);
+
 		/* Baud rate and Slave select, for master only */
 		write_baudr(dev, SPI_DW_CLK_DIVIDER(info->clock_frequency,
 						    config->frequency));
@@ -342,6 +347,945 @@ static void spi_dw_update_txftlr(const struct device *dev,
 	write_txftlr(dev, reg_data);
 }
 
+static int spi_dw_xfer_polling_write_burst(const struct device *dev,
+				       const uint8_t *tx_buf,
+				       size_t len)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+
+	const uint32_t fifo_depth = info->fifo_depth;
+	size_t tx_issued = 0U;
+	uint32_t iter = 0U;
+	const uint32_t timeout_check_period = 64U;
+
+	if ((tx_buf == NULL) || (len == 0U)) {
+		return -EINVAL;
+	}
+
+	/* Initial FIFO prime */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+	}
+
+	/* Refill TX FIFO until all bytes are issued */
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw timeout (%u us), tx_issued=%u len=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)len);
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	* Wait until the controller finishes shifting out all queued data.
+	* This path is used for burst write-only transfers.
+	*/
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw busy timeout (%u us), txflr=%u",
+				timeout_us,
+				read_txflr(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+static int spi_dw_xfer_polling(const struct device *dev)
+{
+	const struct spi_dw_config *info = dev->config;
+	struct spi_dw_data *spi = dev->data;
+
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+
+	/*
+	 * Drain RX periodically instead of on every loop iteration.
+	 *
+	 * The goal is to keep the TX path prioritized while still preventing
+	 * RX FIFO from growing too much in full-duplex transfers.
+	 */
+	const uint32_t rx_drain_period = 8U;
+	const uint32_t timeout_check_period = 64U;
+
+	uint32_t iter = 0U;
+
+	ARG_UNUSED(info);
+
+	/*
+	 * Prime the TX FIFO first.
+	 *
+	 * This gives the polling path a TX-first behavior from the beginning,
+	 * which is important for large contiguous full-duplex transfers.
+	 */
+	if (spi_context_tx_on(&spi->ctx) || spi_context_rx_on(&spi->ctx)) {
+		push_data(dev);
+	}
+
+	while (true) {
+		bool tx_on;
+		bool rx_on;
+
+		tx_on = spi_context_tx_on(&spi->ctx);
+		rx_on = spi_context_rx_on(&spi->ctx);
+
+		/*
+		 * Step 1:
+		 * Refill TX first so the controller can keep shifting data out
+		 * as continuously as possible.
+		 */
+		if (tx_on || rx_on) {
+			push_data(dev);
+		}
+
+		/*
+		 * Step 2:
+		 * Drain RX periodically during the main transfer phase.
+		 *
+		 * This reduces RX handling overhead compared to draining on every
+		 * iteration, while still protecting against RX FIFO overrun.
+		 */
+		if (rx_on && ((iter % rx_drain_period) == 0U)) {
+			pull_data(dev);
+		}
+
+		/*
+		 * Refresh state after push/pull activity.
+		 */
+		tx_on = spi_context_tx_on(&spi->ctx);
+		rx_on = spi_context_rx_on(&spi->ctx);
+
+		/*
+		 * Step 3:
+		 * Once TX is no longer active, drain RX more aggressively so the
+		 * transfer can fully retire and reach a clean completion state.
+		 */
+		if (!tx_on && rx_on) {
+			pull_data(dev);
+
+			tx_on = spi_context_tx_on(&spi->ctx);
+			rx_on = spi_context_rx_on(&spi->ctx);
+		}
+
+		/*
+		 * Completion condition:
+		 * - no more TX pending in the SPI context
+		 * - no more RX pending in the SPI context
+		 * - no outstanding in-flight frame count
+		 * - RX FIFO is empty
+		 * - controller is no longer busy
+		 */
+		if (!tx_on &&
+		    !rx_on &&
+		    (spi->fifo_diff == 0U) &&
+		    (read_rxflr(dev) == 0U) &&
+		    !test_bit_sr_busy(dev)) {
+			return 0;
+		}
+
+		iter++;
+
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw polling timeout (%u us)", timeout_us);
+				return -ETIMEDOUT;
+			}
+		}
+	}
+}
+
+static size_t spi_buf_set_total_len(const struct spi_buf_set *bufs)
+{
+	size_t total = 0U;
+
+	if ((bufs == NULL) || (bufs->buffers == NULL)) {
+		return 0U;
+	}
+
+	for (size_t i = 0; i < bufs->count; i++) {
+		total += bufs->buffers[i].len;
+	}
+
+	return total;
+}
+
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+/*
+ * Return true when the SPI transaction matches the contiguous stream
+ * transfer shape used by the OA-TC6 credit-based data path.
+ *
+ * The initial version only accepts one linear TX buffer and one linear
+ * RX buffer with the same length, using 8-bit data frames.
+ */
+static bool spi_dw_can_use_stream_path(const struct device *dev,
+				       const struct spi_config *config,
+				       const struct spi_buf_set *tx_bufs,
+				       const struct spi_buf_set *rx_bufs)
+{
+	struct spi_dw_data *spi = dev->data;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers[0].buf == NULL) || (rx_bufs->buffers[0].buf == NULL)) {
+		return false;
+	}
+
+	if ((tx_bufs->buffers[0].len == 0U) || (rx_bufs->buffers[0].len == 0U)) {
+		return false;
+	}
+
+	if (tx_bufs->buffers[0].len != rx_bufs->buffers[0].len) {
+		return false;
+	}
+
+	/*
+	 * The first stream path is intended for byte-wise OA-TC6 transfers.
+	 * Restrict the fast path to 8-bit data frames for now.
+	 */
+	if (spi->dfs != 1U) {
+		return false;
+	}
+
+	return true;
+}
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
+
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+int spi_stream_runtime_set_tx_chunks(const struct device *dev, uint16_t tx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return -EINVAL;
+	}
+
+	spi->stream_tx_chunks = tx_chunks;
+	spi->stream_tx_chunks_valid = true;
+
+	return 0;
+}
+
+bool spi_stream_runtime_get_tx_chunks(const struct device *dev, uint16_t *tx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if ((dev == NULL) || (tx_chunks == NULL)) {
+		return false;
+	}
+
+	spi = dev->data;
+	if ((spi == NULL) || !spi->stream_tx_chunks_valid) {
+		return false;
+	}
+
+	*tx_chunks = spi->stream_tx_chunks;
+	return true;
+}
+
+int spi_stream_runtime_set_rx_chunks(const struct device *dev, uint16_t rx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return -EINVAL;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return -EINVAL;
+	}
+
+	spi->stream_rx_chunks = rx_chunks;
+	spi->stream_rx_chunks_valid = true;
+
+	return 0;
+}
+
+bool spi_stream_runtime_get_rx_chunks(const struct device *dev, uint16_t *rx_chunks)
+{
+	struct spi_dw_data *spi;
+
+	if ((dev == NULL) || (rx_chunks == NULL)) {
+		return false;
+	}
+
+	spi = dev->data;
+	if ((spi == NULL) || !spi->stream_rx_chunks_valid) {
+		return false;
+	}
+
+	*rx_chunks = spi->stream_rx_chunks;
+	return true;
+}
+
+void spi_stream_runtime_clear(const struct device *dev)
+{
+	struct spi_dw_data *spi;
+
+	if (dev == NULL) {
+		return;
+	}
+
+	spi = dev->data;
+	if (spi == NULL) {
+		return;
+	}
+
+	spi->stream_tx_chunks = 0U;
+	spi->stream_tx_chunks_valid = false;
+
+	spi->stream_rx_chunks = 0U;
+	spi->stream_rx_chunks_valid = false;
+}
+
+static int spi_dw_xfer_polling_stream8_txburst(const struct device *dev,
+					       const struct spi_config *config,
+					       const struct spi_buf_set *tx_bufs,
+					       const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 64U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+
+	/*
+	 * Periodic RX drain budget.
+	 *
+	 * Change this value between 2 / 4 / 8 while testing.
+	 * The earlier experiments showed that a small periodic RX service
+	 * preserved stronger TX burst behavior than the more aggressive
+	 * stream completion logic.
+	 */
+	static const uint32_t rx_periodic_quota = 1U;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	/*
+	 * TX-heavy fast path based on periodic RX service.
+	 *
+	 * Main policy:
+	 *  - issue TX aggressively like the old write-burst path
+	 *  - periodically drain only a very small RX amount
+	 *  - at the end, empty the RX FIFO so that the next control/status
+	 *    transfer does not see stale returned data
+	 */
+
+	/* Initial FIFO prime */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+	}
+
+	/* Refill TX FIFO until all bytes are issued */
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n--) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+		}
+
+		/*
+		 * Periodic RX drain.
+		 *
+		 * Keep this intentionally small so that TX remains dominant.
+		 */
+		{
+			uint32_t drain = rx_periodic_quota;
+
+			while ((drain > 0U) &&
+			       (read_rxflr(dev) > 0U) &&
+			       (rx_done < len)) {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+				drain--;
+			}
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw txburst timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					read_txflr(dev),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Tail phase.
+	 *
+	 * While TX is still draining, keep the same light RX service policy.
+	 */
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		uint32_t drain = rx_periodic_quota;
+
+		while ((drain > 0U) &&
+		       (read_rxflr(dev) > 0U) &&
+		       (rx_done < len)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+			drain--;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw txburst busy timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	/*
+	 * Final cleanup.
+	 *
+	 * Do not wait for full rx_done == len completion forever, but empty
+	 * the RX FIFO before returning so that the next control/status
+	 * transfer does not observe stale returned bytes.
+	 */
+	while ((read_rxflr(dev) > 0U) && (rx_done < len)) {
+		rx_buf[rx_done] = (uint8_t)read_dr(dev);
+		rx_done++;
+	}
+
+	while (read_rxflr(dev) > 0U) {
+		(void)read_dr(dev);
+	}
+
+	return 0;
+}
+
+/*
+ * RX burst path for polling-mode SPI transfers.
+ *
+ * This function is used when the upper protocol layer wants to harvest RX
+ * data by sending dummy/empty TX bytes. Even though the purpose is RX
+ * collection, the policy of this driver remains TX-preferred.
+ *
+ * Therefore, this path keeps feeding TX whenever the TX FIFO has room, but
+ * it still drains RX often enough to avoid RX FIFO overflow. In other words,
+ * RX service is performed as a safety and harvesting operation, not as a
+ * scheduling priority over TX.
+ *
+ * The SPI controller does not know anything about OA-TC6 framing. It only
+ * moves bytes between TX/RX FIFOs. Header/footer parsing, credit handling,
+ * RCA interpretation, and packet assembly must stay in the protocol layer.
+ */
+static int spi_dw_xfer_polling_stream8_rxburst(
+	const struct device *dev,
+	const struct spi_config *config,
+	const struct spi_buf_set *tx_bufs,
+	const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 2048U;
+
+	/*
+	 * RX burst must be footer-safe.
+	 *
+	 * TX burst may minimize RX reads because returned RX data is not
+	 * trusted by upper layers. RX burst is different: OA-TC6 parses
+	 * returned footers from rx_buf, so every read_dr() must be guarded
+	 * by RXFLR.
+	 */
+	const uint32_t tx_quota = 16U;
+	const uint32_t rx_quota = 16U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+	uint32_t rx_guard;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	if (fifo_depth <= 4U) {
+		rx_guard = fifo_depth - 1U;
+	} else {
+		rx_guard = fifo_depth - 2U;
+	}
+
+	/*
+	 * Initial prime.
+	 *
+	 * Keep this below the RX FIFO guard because every TX byte produces
+	 * one RX byte in full-duplex SPI.
+	 */
+	{
+		uint32_t n = MIN(rx_guard, (uint32_t)len);
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+	}
+
+	while (rx_done < len) {
+		uint32_t outstanding;
+		uint32_t rxflr;
+		uint32_t n;
+
+		/*
+		 * RX service.
+		 *
+		 * Never read DR unless RXFLR says data is available.
+		 * This is required to keep OA-TC6 footer alignment valid.
+		 */
+		rxflr = read_rxflr(dev);
+		if ((rxflr > 0U) && (rx_done < tx_issued)) {
+			n = MIN(rxflr, rx_quota);
+			n = MIN(n, (uint32_t)(tx_issued - rx_done));
+			n = MIN(n, (uint32_t)(len - rx_done));
+
+			while (n > 0U) {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+				n--;
+			}
+		}
+
+		/*
+		 * TX refill.
+		 *
+		 * We still avoid TXFLR in the hot path, but use the
+		 * outstanding byte count to prevent RX FIFO overflow.
+		 */
+		if (tx_issued < len) {
+			outstanding = (uint32_t)(tx_issued - rx_done);
+
+			if (outstanding < rx_guard) {
+				n = rx_guard - outstanding;
+				n = MIN(n, tx_quota);
+				n = MIN(n, (uint32_t)(len - tx_issued));
+
+				while (n > 0U) {
+					write_dr(dev, tx_buf[tx_issued]);
+					tx_issued++;
+					n--;
+				}
+			}
+		}
+
+		/*
+		 * Tail phase.
+		 *
+		 * Once all TX bytes are issued, keep waiting for RXFLR and
+		 * drain until rx_done == len. Do not read DR blindly.
+		 */
+		if (tx_issued >= len) {
+			while (rx_done < len) {
+				rxflr = read_rxflr(dev);
+
+				if (rxflr > 0U) {
+					n = MIN(rxflr, rx_quota);
+					n = MIN(n, (uint32_t)(len - rx_done));
+
+					while (n > 0U) {
+						rx_buf[rx_done] = (uint8_t)read_dr(dev);
+						rx_done++;
+						n--;
+					}
+
+					continue;
+				}
+
+				if ((k_cycle_get_64() - start) >= timeout_cycles) {
+					LOG_ERR("spi_dw rxburst tail timeout (%u us), tx_issued=%u rx_done=%u len=%u rxflr=%u busy=%u",
+						timeout_us,
+						(uint32_t)tx_issued,
+						(uint32_t)rx_done,
+						(uint32_t)len,
+						read_rxflr(dev),
+						test_bit_sr_busy(dev));
+					return -ETIMEDOUT;
+				}
+			}
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw rxburst timeout (%u us), tx_issued=%u rx_done=%u len=%u outstanding=%u rxflr=%u busy=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					(uint32_t)(tx_issued - rx_done),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Defensive cleanup.
+	 *
+	 * Normally rx_done == len means the transaction is complete.
+	 * If any stale RX byte remains, drain it explicitly.
+	 */
+	while (read_rxflr(dev) > 0U) {
+		(void)read_dr(dev);
+	}
+
+	return 0;
+}
+
+/*
+ * Polling-based contiguous full-duplex transfer path for 8-bit frames.
+ *
+ * This helper is intended for protocol layers such as OA-TC6 that build
+ * one linear TX/RX buffer pair and need to execute it as one logical SPI
+ * data transaction with low software overhead.
+ *
+ * The initial implementation only accepts one TX buffer and one RX buffer
+ * with the same length and assumes 8-bit data frames.
+ */
+static int spi_dw_xfer_polling_stream8_default(
+	const struct device *dev,
+	const struct spi_config *config,
+	const struct spi_buf_set *tx_bufs,
+	const struct spi_buf_set *rx_bufs)
+{
+	const struct spi_dw_config *info = dev->config;
+	const uint32_t timeout_us = CONFIG_SPI_DW_POLLING_TIMEOUT_US;
+	const int64_t start = k_cycle_get_64();
+	const int64_t timeout_cycles = k_us_to_cyc_ceil64(timeout_us);
+	const uint32_t fifo_depth = info->fifo_depth;
+	const uint32_t timeout_check_period = 64U;
+
+	const struct spi_buf *txb;
+	const struct spi_buf *rxb;
+	const uint8_t *tx_buf;
+	uint8_t *rx_buf;
+	size_t len;
+	size_t tx_issued = 0U;
+	size_t rx_done = 0U;
+	uint32_t iter = 0U;
+	uint32_t rx_hi_wm;
+	uint32_t rx_lo_wm;
+
+	ARG_UNUSED(config);
+
+	if ((tx_bufs == NULL) || (rx_bufs == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->buffers == NULL) || (rx_bufs->buffers == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((tx_bufs->count != 1U) || (rx_bufs->count != 1U)) {
+		return -EINVAL;
+	}
+
+	txb = &tx_bufs->buffers[0];
+	rxb = &rx_bufs->buffers[0];
+
+	if ((txb->buf == NULL) || (rxb->buf == NULL)) {
+		return -EINVAL;
+	}
+
+	if ((txb->len == 0U) || (rxb->len == 0U)) {
+		return -EINVAL;
+	}
+
+	if (txb->len != rxb->len) {
+		return -EINVAL;
+	}
+
+	tx_buf = (const uint8_t *)txb->buf;
+	rx_buf = (uint8_t *)rxb->buf;
+	len = txb->len;
+
+	/*
+	 * Default / generic full-duplex path.
+	 *
+	 * This path intentionally keeps stronger RX service for:
+	 * - control transfers
+	 * - small transfers
+	 * - generic full-duplex operation
+	 */
+	rx_hi_wm = (fifo_depth > 4U) ? (fifo_depth / 2U) : 1U;
+	rx_lo_wm = (fifo_depth > 8U) ? (fifo_depth / 4U) : 1U;
+
+	/*
+	 * Initial FIFO prime.
+	 */
+	{
+		uint32_t n = MIN((uint32_t)len, fifo_depth);
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+	}
+
+	while (tx_issued < len) {
+		uint32_t txflr = read_txflr(dev);
+		uint32_t space = fifo_depth - txflr;
+		uint32_t n = MIN(space, (uint32_t)(len - tx_issued));
+
+		while (n > 0U) {
+			write_dr(dev, tx_buf[tx_issued]);
+			tx_issued++;
+			n--;
+		}
+
+		if ((read_rxflr(dev) >= rx_hi_wm) && (rx_done < tx_issued)) {
+			do {
+				rx_buf[rx_done] = (uint8_t)read_dr(dev);
+				rx_done++;
+			} while ((read_rxflr(dev) > rx_lo_wm) &&
+				 (rx_done < tx_issued));
+		}
+
+		iter++;
+		if ((iter % timeout_check_period) == 0U) {
+			if ((k_cycle_get_64() - start) >= timeout_cycles) {
+				LOG_ERR("spi_dw default timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+					timeout_us,
+					(uint32_t)tx_issued,
+					(uint32_t)rx_done,
+					(uint32_t)len,
+					read_txflr(dev),
+					read_rxflr(dev),
+					test_bit_sr_busy(dev));
+				return -ETIMEDOUT;
+			}
+		}
+	}
+
+	/*
+	 * Wait until TX FIFO/shifter is drained.
+	 * Keep RX serviced while waiting.
+	 */
+	while (test_bit_sr_busy(dev) || (read_txflr(dev) > 0U)) {
+		while ((read_rxflr(dev) > 0U) && (rx_done < tx_issued)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw default busy timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev),
+				test_bit_sr_busy(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	/*
+	 * Complete RX.
+	 *
+	 * Unlike txburst/rxburst paths, the default path remains conservative:
+	 * it waits until all expected RX bytes are consumed.
+	 */
+	while (rx_done < len) {
+		while ((rx_done < len) && (read_rxflr(dev) > 0U)) {
+			rx_buf[rx_done] = (uint8_t)read_dr(dev);
+			rx_done++;
+		}
+
+		if ((k_cycle_get_64() - start) >= timeout_cycles) {
+			LOG_ERR("spi_dw default rx timeout (%u us), tx_issued=%u rx_done=%u len=%u txflr=%u rxflr=%u busy=%u",
+				timeout_us,
+				(uint32_t)tx_issued,
+				(uint32_t)rx_done,
+				(uint32_t)len,
+				read_txflr(dev),
+				read_rxflr(dev),
+				test_bit_sr_busy(dev));
+			return -ETIMEDOUT;
+		}
+	}
+
+	return 0;
+}
+
+static int spi_dw_xfer_polling_stream8(const struct device *dev,
+				       const struct spi_config *config,
+				       const struct spi_buf_set *tx_bufs,
+				       const struct spi_buf_set *rx_bufs)
+{
+	uint16_t tx_chunks = 0U;
+	uint16_t rx_chunks = 0U;
+	bool has_tx_chunks;
+	bool has_rx_chunks;
+
+	has_tx_chunks = spi_stream_runtime_get_tx_chunks(dev, &tx_chunks);
+	has_rx_chunks = spi_stream_runtime_get_rx_chunks(dev, &rx_chunks);
+
+	/*
+	 * TX-preferred dispatch policy.
+	 *
+	 * Real TX payload always has priority over RX harvesting. RX burst is
+	 * selected only when there is no TX burst request and the upper layer
+	 * explicitly marks the next transfer as an RX-harvest transfer.
+	 */
+	/* TX first policy */
+	if (has_tx_chunks && (tx_chunks >= 16U)) {
+		return spi_dw_xfer_polling_stream8_txburst(dev, config,
+							   tx_bufs, rx_bufs);
+	}
+
+	/* RX burst path */
+	if (has_rx_chunks && (rx_chunks > 0U)) {
+		return spi_dw_xfer_polling_stream8_rxburst(dev, config,
+							   tx_bufs, rx_bufs);
+	}
+
+	/* fallback */
+	return spi_dw_xfer_polling_stream8_default(dev, config,
+						   tx_bufs, rx_bufs);
+}
+
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
+
 static int transceive(const struct device *dev,
 		      const struct spi_config *config,
 		      const struct spi_buf_set *tx_bufs,
@@ -371,6 +1315,12 @@ static int transceive(const struct device *dev,
 		goto out;
 	}
 
+	/* controller disabled while programming registers */
+	if (!spi_dw_is_slave(spi)) {
+		clear_bit_ssienr(dev);
+	}
+
+	/* Determine TMOD */
 	if (!rx_bufs || !rx_bufs->buffers) {
 		tmod = DW_SPI_CTRLR0_TMOD_TX;
 	} else if (!tx_bufs || !tx_bufs->buffers) {
@@ -410,6 +1360,34 @@ static int transceive(const struct device *dev,
 
 	write_ctrlr0(dev, reg_data);
 
+#ifdef CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER
+	/*
+	 * Use the polling-based contiguous stream path when the transfer
+	 * matches the OA-TC6 stream transaction shape.
+	 *
+	 * This path is only used for synchronous polling transfers and
+	 * falls back to the regular SPI context-based path otherwise.
+	 */
+	if (!asynchronous &&
+	    !IS_ENABLED(CONFIG_SPI_DW_USE_IRQ) &&
+	    spi_dw_can_use_stream_path(dev, config, tx_bufs, rx_bufs)) {
+		if (!spi_dw_is_slave(spi)) {
+			/* if cs is not defined as gpio, use hw cs */
+			write_ser(dev, BIT(config->slave));
+			if (spi_cs_is_gpio(config)) {
+				spi_context_cs_control(&spi->ctx, true);
+			}
+		}
+
+		LOG_DBG("Enabling controller for stream transfer");
+		set_bit_ssienr(dev);
+
+		ret = spi_dw_xfer_polling_stream8(dev, config, tx_bufs, rx_bufs);
+		completed(dev, ret);
+		goto out;
+	}
+#endif /* CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER */
+
 	/* Set buffers info */
 	spi_context_buffers_setup(&spi->ctx, tx_bufs, rx_bufs, spi->dfs);
 
@@ -436,25 +1414,32 @@ static int transceive(const struct device *dev,
 	write_rxftlr(dev, reg_data);
 
 	/* Enable interrupts */
-	reg_data = !rx_bufs ?
-		DW_SPI_IMR_UNMASK & DW_SPI_IMR_MASK_RX :
-		DW_SPI_IMR_UNMASK;
+	if (IS_ENABLED(CONFIG_SPI_DW_USE_IRQ)) {
+		reg_data = !rx_bufs ?
+			(DW_SPI_IMR_UNMASK & DW_SPI_IMR_MASK_RX) :
+			DW_SPI_IMR_UNMASK;
+	} else {
+		reg_data = DW_SPI_IMR_MASK;
+	}
 	write_imr(dev, reg_data);
 
 	if (!spi_dw_is_slave(spi)) {
 		/* if cs is not defined as gpio, use hw cs */
+		write_ser(dev, BIT(config->slave));
 		if (spi_cs_is_gpio(config)) {
 			spi_context_cs_control(&spi->ctx, true);
-		} else {
-			write_ser(dev, BIT(config->slave));
 		}
 	}
 
 	LOG_DBG("Enabling controller");
 	set_bit_ssienr(dev);
 
-	ret = spi_context_wait_for_completion(&spi->ctx);
-
+	if (IS_ENABLED(CONFIG_SPI_DW_USE_IRQ)) {
+		ret = spi_context_wait_for_completion(&spi->ctx);
+	} else {
+		ret = spi_dw_xfer_polling(dev);
+		completed(dev, ret);
+	}
 #ifdef CONFIG_SPI_SLAVE
 	if (spi_context_is_slave(&spi->ctx) && !ret) {
 		ret = spi->ctx.recv_frames;
@@ -463,6 +1448,10 @@ static int transceive(const struct device *dev,
 
 out:
 	spi_context_release(&spi->ctx, ret);
+
+	if (!spi_dw_is_slave(spi)) {
+		write_ser(dev, 0);
+	}
 
 	pm_device_busy_clear(dev);
 
@@ -474,8 +1463,6 @@ static int spi_dw_transceive(const struct device *dev,
 			     const struct spi_buf_set *tx_bufs,
 			     const struct spi_buf_set *rx_bufs)
 {
-	LOG_DBG("%p, %p, %p", dev, tx_bufs, rx_bufs);
-
 	return transceive(dev, config, tx_bufs, rx_bufs, false, NULL, NULL);
 }
 
@@ -560,7 +1547,10 @@ int spi_dw_init(const struct device *dev)
 
 	DEVICE_MMIO_MAP(dev, K_MEM_CACHE_NONE);
 
-	info->config_func();
+	/* IRQ mode only */
+	if (info->config_func) {
+		info->config_func();
+	}
 
 	/* Masking interrupt and making sure controller is disabled */
 	write_imr(dev, DW_SPI_IMR_MASK);
@@ -649,6 +1639,16 @@ COND_CODE_1(IS_EQ(DT_NUM_IRQS(DT_DRV_INST(inst)), 1),              \
 		(SPI_CFG_IRQS_MULTIPLE_ERR_LINES(inst)))))	   \
 }
 
+#if defined(CONFIG_CLOCK_CONTROL)
+#define CLOCK_DW_CONFIG(n)                                                             \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(0, clocks),                                   \
+		   (.clk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                  \
+		    .clk_id = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, clkid),))
+#else
+#define CLOCK_DW_CONFIG(n)
+#endif
+
+#if defined(CONFIG_SPI_DW_USE_IRQ)
 #define SPI_DW_INIT(inst)                                                                   \
 	IF_ENABLED(CONFIG_PINCTRL, (PINCTRL_DT_INST_DEFINE(inst);))                         \
 	SPI_DW_IRQ_HANDLER(inst);                                                           \
@@ -688,5 +1688,49 @@ COND_CODE_1(IS_EQ(DT_NUM_IRQS(DT_DRV_INST(inst)), 1),              \
 		POST_KERNEL,                                                                \
 		CONFIG_SPI_INIT_PRIORITY,                                                   \
 		&dw_spi_api);
+
+#else /* !CONFIG_SPI_DW_USE_IRQ */
+
+#define SPI_DW_INIT(inst)                                                                   \
+	IF_ENABLED(CONFIG_PINCTRL, (PINCTRL_DT_INST_DEFINE(inst);))                         \
+	static struct spi_dw_data spi_dw_data_##inst = {                                    \
+		SPI_CONTEXT_INIT_LOCK(spi_dw_data_##inst, ctx),                             \
+		SPI_CONTEXT_INIT_SYNC(spi_dw_data_##inst, ctx),                             \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(inst), ctx)                     \
+	};                                                                                  \
+	static const struct spi_dw_config spi_dw_config_##inst = {                          \
+		DEVICE_MMIO_ROM_INIT(DT_DRV_INST(inst)),                                    \
+		.clock_frequency = COND_CODE_1(                                             \
+			DT_NODE_HAS_PROP(DT_INST_PHANDLE(inst, clocks), clock_frequency),   \
+			(DT_INST_PROP_BY_PHANDLE(inst, clocks, clock_frequency)),           \
+			(DT_INST_PROP(inst, clock_frequency))),                             \
+		.config_func = NULL,                                                        \
+		.serial_target = DT_INST_PROP(inst, serial_target),                         \
+		.fifo_depth = DT_INST_PROP(inst, fifo_depth),                               \
+		.max_xfer_size = DT_INST_PROP(inst, max_xfer_size),                         \
+		IF_ENABLED(CONFIG_PINCTRL, (.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),)) \
+		COND_CODE_1(DT_INST_PROP(inst, aux_reg),                                    \
+			(.read_func = aux_reg_read,                                         \
+			 .write_func = aux_reg_write,                                        \
+			 .set_bit_func = aux_reg_set_bit,                                    \
+			 .clear_bit_func = aux_reg_clear_bit,                                \
+			 .test_bit_func = aux_reg_test_bit,),                                \
+			(.read_func = reg_read,                                             \
+			 .write_func = reg_write,                                            \
+			 .set_bit_func = reg_set_bit,                                        \
+			 .clear_bit_func = reg_clear_bit,                                    \
+			 .test_bit_func = reg_test_bit,))                                    \
+		CLOCK_DW_CONFIG(inst)                                                      \
+	};                                                                                  \
+	SPI_DEVICE_DT_INST_DEFINE(inst,                                                     \
+		spi_dw_init,                                                                \
+		NULL,                                                                       \
+		&spi_dw_data_##inst,                                                        \
+		&spi_dw_config_##inst,                                                      \
+		POST_KERNEL,                                                                \
+		CONFIG_SPI_INIT_PRIORITY,                                                   \
+		&dw_spi_api);
+
+#endif /* CONFIG_SPI_DW_USE_IRQ */
 
 DT_INST_FOREACH_STATUS_OKAY(SPI_DW_INIT)

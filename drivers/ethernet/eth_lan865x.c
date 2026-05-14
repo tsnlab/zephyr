@@ -22,6 +22,9 @@ LOG_MODULE_REGISTER(eth_lan865x, CONFIG_ETHERNET_LOG_LEVEL);
 
 #include "eth_lan865x_priv.h"
 
+static int lan865x_default_config(const struct device *dev);
+
+
 int eth_lan865x_mdio_c22_read(const struct device *dev, uint8_t prtad, uint8_t regad,
 			      uint16_t *data)
 {
@@ -90,6 +93,14 @@ static void lan865x_iface_init(struct net_if *iface)
 	const struct device *dev = net_if_get_device(iface);
 	struct lan865x_data *ctx = dev->data;
 	int ret;
+	const struct net_linkaddr *ll;
+
+	LOG_DBG("iface_init enter: dev=%s iface=%p ctx=%p ctx->iface=%p",
+		dev->name, iface, ctx, ctx->iface);
+
+	LOG_INF("ctx->mac_address = %02x:%02x:%02x:%02x:%02x:%02x",
+		ctx->mac_address[0], ctx->mac_address[1], ctx->mac_address[2],
+		ctx->mac_address[3], ctx->mac_address[4], ctx->mac_address[5]);
 
 	ret = lan865x_enable_sync(dev);
 	if (ret) {
@@ -97,7 +108,21 @@ static void lan865x_iface_init(struct net_if *iface)
 		return;
 	}
 
+	LOG_DBG("LAN865x sync enabled");
+
 	net_if_set_link_addr(iface, ctx->mac_address, sizeof(ctx->mac_address), NET_LINK_ETHERNET);
+
+	ll = net_if_get_link_addr(iface);
+	if (!ll) {
+		LOG_ERR("net_if_get_link_addr() returned NULL");
+	} else if (ll->len < 6) {
+		LOG_ERR("link addr length too short: %u", ll->len);
+	} else {
+		LOG_INF("iface link addr = %02x:%02x:%02x:%02x:%02x:%02x len=%u type=%u",
+			ll->addr[0], ll->addr[1], ll->addr[2],
+			ll->addr[3], ll->addr[4], ll->addr[5],
+			ll->len, ll->type);
+	}
 
 	if (ctx->iface == NULL) {
 		ctx->iface = iface;
@@ -107,6 +132,8 @@ static void lan865x_iface_init(struct net_if *iface)
 
 	net_eth_carrier_on(iface);
 	ctx->iface_initialized = true;
+
+	LOG_DBG("iface_init done: iface_initialized=%d", ctx->iface_initialized);
 }
 
 static enum ethernet_hw_caps lan865x_port_get_capabilities(const struct device *dev)
@@ -153,6 +180,7 @@ static int lan865x_set_config(const struct device *dev, enum ethernet_config_typ
 	return -ENOTSUP;
 }
 
+#if defined(CONFIG_ETH_LAN865X_USE_IRQ)
 static int lan865x_wait_for_reset(const struct device *dev)
 {
 	struct lan865x_data *ctx = dev->data;
@@ -167,14 +195,53 @@ static int lan865x_wait_for_reset(const struct device *dev)
 		LOG_ERR("LAN865x reset timeout reached!");
 		return -ENODEV;
 	}
-
 	return 0;
 }
+#else /* CONFIG_ETH_LAN865X_USE_IRQ */
+static int lan865x_wait_for_reset(const struct device *dev)
+{
+	struct lan865x_data *ctx = dev->data;
+	struct oa_tc6 *tc6 = ctx->tc6;
+	uint32_t sts, ftr;
+	uint8_t i;
+	int ret;
+
+	/* Poll RESETC in OA_STATUS0 to detect end of reset in polling mode */
+	for (i = 0; i < LAN865X_RESET_TIMEOUT; i++) {
+		ret = oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
+		if (ret == 0 && (sts & OA_STATUS0_RESETC)) {
+			/* Clear RESETC latch */
+			(void)oa_tc6_reg_write(tc6, OA_STATUS0, sts);
+
+			/* Apply default config right after reset completion */
+			lan865x_default_config(dev);
+
+			/* Mark reset done */
+			ctx->reset = true;
+
+			/*
+			 * OA-T1S note: reading status/chunk may be required to deassert IRQ_N.
+			 * Keep it even in polling mode for spec compliance.
+			 */
+			(void)oa_tc6_read_status(tc6, &ftr);
+
+ 	         return 0;
+        }
+
+		k_msleep(1);
+	}
+
+	LOG_ERR("LAN865x reset timeout reached!");
+	return -ENODEV;
+}
+#endif /* CONFIG_ETH_LAN865X_USE_IRQ */
 
 static int lan865x_gpio_reset(const struct device *dev)
 {
 	const struct lan865x_config *cfg = dev->config;
 	struct lan865x_data *ctx = dev->data;
+
+	LOG_ERR("LAN865x lan865x_gpio_reset!");
 
 	ctx->reset = false;
 	ctx->tc6->protected = false;
@@ -195,18 +262,22 @@ static int lan865x_check_spi(const struct device *dev)
 	uint32_t val;
 	int ret;
 
+	LOG_DBG("LAN865x: lan865x_check_spi reading DEVID via SPI");
 	ret = oa_tc6_reg_read(ctx->tc6, LAN865x_DEVID, &val);
 	if (ret < 0) {
+		LOG_ERR("LAN865x: oa_tc6_reg_read failed");
 		return -ENODEV;
 	}
 
 	ctx->silicon_rev = val & LAN865X_REV_MASK;
 	if (ctx->silicon_rev != 1 && ctx->silicon_rev != 2) {
+		LOG_ERR("LAN865x: silicon_rev failed");
 		return -ENODEV;
 	}
 
 	ctx->chip_id = (val >> 4) & 0xFFFF;
 	if (ctx->chip_id != LAN8650_DEVID && ctx->chip_id != LAN8651_DEVID) {
+		LOG_ERR("LAN865x: LAN8650_DEVID failed");
 		return -ENODEV;
 	}
 
@@ -233,6 +304,9 @@ static void lan865x_write_macaddress(const struct device *dev)
 	 */
 	val = (mac[5] << 24) | (mac[4] << 16) | (mac[3] << 8) | mac[2];
 	oa_tc6_reg_write(ctx->tc6, LAN865x_MAC_SAB1, val);
+	/* SPEC_ADD1_TOP - write top register too for activation */
+	val = mac[1] << 8 | mac[0];
+	oa_tc6_reg_write(ctx->tc6, LAN865x_MAC_SAT1, val);
 }
 
 static int lan865x_set_specific_multicast_addr(const struct device *dev)
@@ -317,6 +391,31 @@ static void lan865x_read_chunks(const struct device *dev)
 	k_sem_give(&ctx->tx_rx_sem);
 }
 
+/*
+ * Status probe intervals for polling mode.
+ *
+ * When TX is active and RCA is zero, status probes should be rare so
+ * that the TX path can run close to TX-only mode.
+ *
+ * When TX is idle, status probes should be more frequent so that RX
+ * traffic can be discovered quickly.
+ */
+#define LAN865X_STATUS_PROBE_TX_ACTIVE_INTERVAL_US 20000
+#define LAN865X_STATUS_PROBE_TX_IDLE_INTERVAL_US   5000
+
+/*
+ * If TX occurred within this window, the polling thread treats the
+ * device as TX-active.
+ */
+#define LAN865X_TX_ACTIVE_WINDOW_US                3000
+
+/*
+ * If RX has been idle for a while, refresh status once before entering
+ * the RX burst path.
+ */
+#define LAN865X_RX_IDLE_RESYNC_US                  5000
+
+static int64_t lan865x_last_tx_us;
 static void lan865x_int_thread(const struct device *dev)
 {
 	struct lan865x_data *ctx = dev->data;
@@ -324,8 +423,31 @@ static void lan865x_int_thread(const struct device *dev)
 	uint32_t sts, ftr;
 	int ret;
 
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	int64_t last_status_probe_us = 0;
+	int64_t last_rx_seen_us = 0;
+#endif
+
 	while (true) {
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+		bool status_probe_done = false;
+#endif
+
+#if defined(CONFIG_ETH_LAN865X_USE_IRQ)
 		k_sem_take(&ctx->int_sem, K_FOREVER);
+#else
+		/*
+		 * Polling mode:
+		 *
+		 * Sleep only when there is no known RX work. If RCA is already
+		 * non-zero, go directly to RX drain without adding another
+		 * fixed wait at the top of the loop.
+		 */
+		if (tc6->rca == 0U) {
+			k_sleep(K_USEC(20));
+		}
+#endif
+
 		if (!ctx->reset) {
 			oa_tc6_reg_read(tc6, OA_STATUS0, &sts);
 			if (sts & OA_STATUS0_RESETC) {
@@ -334,25 +456,114 @@ static void lan865x_int_thread(const struct device *dev)
 				lan865x_default_config(dev);
 
 				ctx->reset = true;
+
 				/*
-				 * According to OA T1S standard - it is mandatory to
-				 * read chunk of data to get the IRQ_N negated (deasserted).
+				 * According to the OA-T1S standard, it is mandatory
+				 * to read one data/status chunk to get IRQ_N
+				 * deasserted after reset completion.
 				 */
 				oa_tc6_read_status(tc6, &ftr);
 				continue;
 			}
 		}
 
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
 		/*
-		 * The IRQ_N is asserted when RCA becomes > 0. As described in
-		 * OPEN Alliance 10BASE-T1x standard it is deasserted when first
-		 * data header is received by LAN865x.
+		 * Polling mode:
 		 *
-		 * Hence, it is mandatory to ALWAYS read at least one data chunk!
+		 * When RCA is zero, status probes are used to discover new RX
+		 * data. While TX is active, use a longer interval so TX can run
+		 * close to TX-only mode. When TX is idle, use a shorter interval
+		 * so RX traffic can be discovered more quickly.
+		 */
+		if (tc6->rca == 0U) {
+			int64_t now_us = k_ticks_to_us_floor64(k_uptime_ticks());
+			int64_t tx_age_us = now_us - lan865x_last_tx_us;
+			int64_t probe_interval_us;
+
+			if (tx_age_us < LAN865X_TX_ACTIVE_WINDOW_US) {
+				probe_interval_us =
+					LAN865X_STATUS_PROBE_TX_ACTIVE_INTERVAL_US;
+			} else {
+				probe_interval_us =
+					LAN865X_STATUS_PROBE_TX_IDLE_INTERVAL_US;
+			}
+
+			if ((now_us - last_status_probe_us) < probe_interval_us) {
+				continue;
+			}
+
+			last_status_probe_us = now_us;
+
+			ret = oa_tc6_read_status(tc6, &ftr);
+			if (ret < 0) {
+				continue;
+			}
+
+			/*
+			 * This loop already refreshed OA-TC6 status. If RCA
+			 * becomes non-zero, do not run the idle-to-active resync
+			 * status read again in the same iteration.
+			 */
+			status_probe_done = true;
+
+			if (tc6->rca == 0U) {
+				continue;
+			}
+		}
+
+		/*
+		 * RX idle-to-active resync:
+		 *
+		 * Run this only when the current loop did not already perform
+		 * a status probe. If RCA was discovered by the status probe
+		 * above, another immediate status read is redundant and delays
+		 * RX burst entry.
+		 */
+		if (!status_probe_done) {
+			int64_t now_us = k_ticks_to_us_floor64(k_uptime_ticks());
+
+			if ((now_us - last_rx_seen_us) >= LAN865X_RX_IDLE_RESYNC_US) {
+				ret = oa_tc6_read_status(tc6, &ftr);
+				if (ret < 0) {
+					continue;
+				}
+
+				if (tc6->rca == 0U) {
+					last_rx_seen_us = now_us;
+					continue;
+				}
+			}
+		}
+#endif
+
+		/*
+		 * IRQ mode:
+		 *
+		 * IRQ_N is asserted when RCA becomes non-zero. As described in
+		 * the OPEN Alliance 10BASE-T1x standard, IRQ_N is deasserted
+		 * when the first data header is received by the MAC-PHY.
+		 *
+		 * Polling mode:
+		 *
+		 * tc6->rca is refreshed by either oa_tc6_read_status() or the
+		 * footer parsing performed inside oa_tc6_read_chunks().
 		 */
 		do {
 			lan865x_read_chunks(dev);
-		} while (tc6->rca > 0);
+
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+			last_rx_seen_us = k_ticks_to_us_floor64(k_uptime_ticks());
+
+			/*
+			 * Yield to avoid starving other threads in cooperative
+			 * mode. This remains intentionally unchanged for now so
+			 * the effect of removing the redundant status read can be
+			 * measured independently.
+			 */
+			k_yield();
+#endif
+		} while (tc6->rca > 0U);
 
 		ret = oa_tc6_check_status(tc6);
 		if (ret == -EIO) {
@@ -367,6 +578,8 @@ static int lan865x_init(const struct device *dev)
 	struct lan865x_data *ctx = dev->data;
 	int ret;
 
+	LOG_DBG("LAN865x iface init called");
+
 	__ASSERT(cfg->spi.config.frequency <= LAN865X_SPI_MAX_FREQUENCY,
 		 "SPI frequency exceeds supported maximum\n");
 
@@ -380,6 +593,12 @@ static int lan865x_init(const struct device *dev)
 		return -ENODEV;
 	}
 
+	ret = gpio_pin_configure_dt(&cfg->reset, GPIO_OUTPUT_INACTIVE);
+	if (ret < 0) {
+		LOG_ERR("Failed to configure reset GPIO, %d", ret);
+		return ret;
+	}
+
 	/* Check SPI communication after reset */
 	ret = lan865x_check_spi(dev);
 	if (ret < 0) {
@@ -387,6 +606,7 @@ static int lan865x_init(const struct device *dev)
 		return ret;
 	}
 
+#if defined(CONFIG_ETH_LAN865X_USE_IRQ)
 	/*
 	 * Configure interrupt service routine for LAN865x IRQ
 	 */
@@ -413,6 +633,24 @@ static int lan865x_init(const struct device *dev)
 		(k_thread_entry_t)lan865x_int_thread, (void *)dev, NULL, NULL,
 		K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
 	k_thread_name_set(ctx->tid_int, "lan865x_interrupt");
+#else
+	LOG_DBG("LAN865x IRQ disabled, using polling mode");
+	/* Start poll thread */
+	// ctx->tid_int = k_thread_create(
+	// 	&ctx->thread, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
+	// 	(k_thread_entry_t)lan865x_int_thread, (void *)dev, NULL, NULL,
+	// 	K_PRIO_PREEMPT(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
+
+	ctx->tid_int = k_thread_create(
+		&ctx->thread, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
+		(k_thread_entry_t)lan865x_int_thread, (void *)dev, NULL, NULL,
+		K_PRIO_COOP(CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO), 0, K_NO_WAIT);
+
+	LOG_DBG("lan865x thread created: tid=%p stack=%p size=%u prio=%d",
+        ctx->tid_int, ctx->thread_stack, CONFIG_ETH_LAN865X_IRQ_THREAD_STACK_SIZE,
+        CONFIG_ETH_LAN865X_IRQ_THREAD_PRIO);
+	k_thread_name_set(ctx->tid_int, "lan865x_poll");
+#endif
 
 	/* Perform HW reset - 'rst-gpios' required property set in DT */
 	if (!gpio_is_ready_dt(&cfg->reset)) {
@@ -426,31 +664,63 @@ static int lan865x_init(const struct device *dev)
 		return ret;
 	}
 
-	return lan865x_gpio_reset(dev);
+	ret = net_eth_mac_load(&cfg->mac_cfg, ctx->mac_address);
+	if (ret == -ENODATA) {
+		LOG_DBG("No MAC address configured for %s", dev->name);
+	} else if (ret < 0) {
+		LOG_ERR("Failed to load MAC address (%d)", ret);
+		return ret;
+	}
+
+	/* initialize RX callback */
+	ctx->rx_cb = NULL;
+	ctx->rx_cb_user_data = NULL;
+
+	/* TEMP: skip hardware reset for bring-up */
+	oa_tc6_set_protected_ctrl(ctx->tc6, true);
+
+	ret = lan865x_default_config(dev);
+	if (ret < 0) {
+		LOG_ERR("lan865x_default_config failed: %d", ret);
+		return ret;
+	}
+
+	LOG_DBG("default config applied in bring-up path");
+
+    /* TEMP: skip hardware reset for bring-up */
+    ctx->reset = true;
+
+	return 0;
+
+//	return lan865x_gpio_reset(dev);
 }
 
 static int lan865x_port_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct lan865x_data *ctx = dev->data;
-	struct oa_tc6 *tc6 = ctx->tc6;
 	int ret;
 
-	k_sem_take(&ctx->tx_rx_sem, K_FOREVER);
-	ret = oa_tc6_send_chunks(tc6, pkt);
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	lan865x_last_tx_us = k_ticks_to_us_floor64(k_uptime_ticks());
+#endif
 
-	/* Check if rca > 0 during half-duplex TX transmission */
-	if (tc6->rca > 0) {
-		k_sem_give(&ctx->int_sem);
+#if defined(CONFIG_ETH_LAN865X_OA_TC6_CREDIT_BASED_XFER)
+	ret = oa_tc6_run_tx(ctx->tc6, pkt);
+#else
+	ret = oa_tc6_send_chunks(ctx->tc6, pkt);
+#endif
+
+#if !defined(CONFIG_ETH_LAN865X_USE_IRQ)
+	if (ret == 0) {
+		lan865x_last_tx_us = k_ticks_to_us_floor64(k_uptime_ticks());
 	}
+#endif
 
-	k_sem_give(&ctx->tx_rx_sem);
 	if (ret < 0) {
 		LOG_ERR("TX transmission error, %d", ret);
-		eth_stats_update_errors_tx(net_pkt_iface(pkt));
-		return ret;
 	}
 
-	return 0;
+	return ret;
 }
 
 const struct device *lan865x_get_phy(const struct device *dev)
@@ -475,7 +745,9 @@ static const struct ethernet_api lan865x_api_func = {
 		.reset = GPIO_DT_SPEC_INST_GET(inst, rst_gpios),                                   \
 		.timeout = CONFIG_ETH_LAN865X_TIMEOUT,                                             \
 		.phy = DEVICE_DT_GET(                                                              \
-			DT_CHILD(DT_INST_CHILD(inst, lan865x_mdio), ethernet_phy_##inst))};        \
+			DT_CHILD(DT_INST_CHILD(inst, lan865x_mdio), ethernet_phy_##inst)),         \
+		.mac_cfg = NET_ETH_MAC_DT_INST_CONFIG_INIT(inst),                                  \
+	};                                                                                         \
                                                                                                    \
 	struct oa_tc6 oa_tc6_##inst = {                                                            \
 		.cps = 64, .protected = 0, .spi = &lan865x_config_##inst.spi};                     \
