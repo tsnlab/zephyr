@@ -1,0 +1,13 @@
+/* storage for the flash writer, below the last sector (DTOE board settings). The code partition of the dtoe
+ * snippet still covers it (snippet overlays come after this one); flash_writer.c checks that the image ends below.
+ */
+
+&flash0 {
+	partitions {
+		storage_partition: partition@1c0000 {
+			compatible = "zephyr,mapped-partition";
+			label = "storage";
+			reg = <0x1c0000 0x3f000>;
+		};
+	};
+};
