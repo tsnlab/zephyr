@@ -1,8 +1,7 @@
 /*
- * Way back to the RP2040 boot ROM (BOOTSEL, USB mass storage and picotool) for test firmware on a board nobody
- * can reach: Zephyr has no pico-sdk USB reset interface, so `picotool reboot` cannot do it.
- * - the host opens the console (CDC ACM) at 1200 baud
- * - or BOOTSEL_FALLBACK_MINUTES after boot, whatever the application does
+ * Way back to the RP2040 boot ROM (BOOTSEL, USB mass storage and picotool) without the BOOTSEL button: Zephyr has
+ * no pico-sdk USB reset interface, so `picotool reboot` cannot do it. The host opens the console (CDC ACM) at
+ * 1200 baud.
  */
 #include <stdint.h>
 
@@ -11,7 +10,6 @@
 #include <zephyr/kernel.h>
 
 #define BOOTSEL_BAUD             1200
-#define BOOTSEL_FALLBACK_MINUTES 20
 
 // RP2040 boot ROM function lookup (datasheet 2.8.3)
 typedef void *(*rom_table_lookup_fn)(const uint16_t *table, uint32_t code);
@@ -32,15 +30,11 @@ static void reset_to_bootsel(void)
 static void bootsel_thread(void *a, void *b, void *c)
 {
 	const struct device *console = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
-	int64_t deadline = k_uptime_get() + BOOTSEL_FALLBACK_MINUTES * 60 * 1000;
 
 	for (;;) {
 		uint32_t baud = 0;
 
 		if (uart_line_ctrl_get(console, UART_LINE_CTRL_BAUD_RATE, &baud) == 0 && baud == BOOTSEL_BAUD) {
-			reset_to_bootsel();
-		}
-		if (k_uptime_get() > deadline) {
 			reset_to_bootsel();
 		}
 		k_msleep(100);
