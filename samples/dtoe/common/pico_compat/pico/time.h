@@ -17,6 +17,10 @@ static inline absolute_time_t delayed_by_us(absolute_time_t t, uint64_t us) {
     return t + us;
 }
 
+static inline int64_t absolute_time_diff_us(absolute_time_t from, absolute_time_t to) {
+    return (int64_t)(to - from);
+}
+
 static inline void sleep_until(absolute_time_t t) {
     absolute_time_t now = get_absolute_time();
 
