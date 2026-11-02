@@ -689,9 +689,9 @@ fail:
 	}
 
 	/* Nothing was sent, so try again after a short random delay. */
-	return sys_rand32_get() %
+	return sys_rand8_get() %
 			(CONFIG_NET_DHCPV4_INITIAL_DELAY_MAX -
-			 DHCPV4_INITIAL_DELAY_MIN) +
+			 DHCPV4_INITIAL_DELAY_MIN + 1U) +
 			DHCPV4_INITIAL_DELAY_MIN;
 }
 
@@ -1148,15 +1148,20 @@ static int dhcpv4_parse_option_vendor(struct net_pkt *pkt, struct net_if *iface,
 #endif /* CONFIG_NET_DHCPV4_OPTION_CALLBACKS_VENDOR_SPECIFIC */
 
 /*
- * Read the message type without applying any options or invoking callbacks.
- * Option 53 need not be the first option, so inspect the complete option list.
+ * Read the message type and the server identifier without applying any
+ * options or invoking callbacks. Option 53 need not be the first option, so
+ * inspect the complete option list. The server identifier is optional here;
+ * server_id_found tells whether it was present.
  */
-static bool dhcpv4_get_msg_type(struct net_pkt *pkt, enum net_dhcpv4_msg_type *msg_type)
+static bool dhcpv4_get_msg_type(struct net_pkt *pkt, enum net_dhcpv4_msg_type *msg_type,
+				struct net_in_addr *server_id, bool *server_id_found)
 {
 	struct net_pkt_cursor backup;
 	uint8_t cookie[sizeof(magic_cookie)];
 	uint8_t type, length, value;
 	bool found = false;
+
+	*server_id_found = false;
 
 	net_pkt_cursor_backup(pkt, &backup);
 
@@ -1186,6 +1191,12 @@ static bool dhcpv4_get_msg_type(struct net_pkt *pkt, enum net_dhcpv4_msg_type *m
 
 			*msg_type = value;
 			found = true;
+		} else if (type == DHCPV4_OPTIONS_SERVER_ID && length == sizeof(*server_id)) {
+			if (net_pkt_read(pkt, server_id->s4_addr, length) != 0) {
+				return false;
+			}
+
+			*server_id_found = true;
 		} else if (net_pkt_skip(pkt, length) != 0) {
 			return false;
 		}
@@ -1770,28 +1781,25 @@ static void dhcpv4_handle_msg_nak(struct net_if *iface)
 		break;
 	case NET_DHCPV4_INIT:
 	case NET_DHCPV4_SELECTING:
-	case NET_DHCPV4_REQUESTING:
-		if (memcmp(&iface->config.dhcpv4.request_server_addr,
-			   &iface->config.dhcpv4.response_src_addr,
-			   sizeof(iface->config.dhcpv4.request_server_addr)) == 0) {
-			bool requesting = iface->config.dhcpv4.state ==
-					  NET_DHCPV4_REQUESTING;
+	case NET_DHCPV4_REQUESTING: {
+		/* dhcpv4_reply_is_expected() lets only a NAK from the
+		 * requesting server through in these states.
+		 */
+		bool requesting = iface->config.dhcpv4.state == NET_DHCPV4_REQUESTING;
 
-			LOG_DBG("NAK from requesting server %s, restart config",
-				net_sprint_ipv4_addr(&iface->config.dhcpv4.request_server_addr));
-			/* A server that offers and then refuses would otherwise
-			 * drive a discover loop as fast as it answers. A NAK in
-			 * the other two states leaves the discover the client
-			 * already has in flight to its own schedule.
-			 */
-			if (dhcpv4_entered_selecting(iface) && requesting) {
-				(void)dhcpv4_set_restart_timeout(&iface->config.dhcpv4);
-			}
-		} else {
-			LOG_DBG("NAK from non-requesting server %s, ignore it",
-				net_sprint_ipv4_addr(&iface->config.dhcpv4.response_src_addr));
+		LOG_DBG("NAK from requesting server %s, restart config",
+			net_sprint_ipv4_addr(&iface->config.dhcpv4.request_server_addr));
+		/* A server that offers and then refuses would otherwise
+		 * drive a discover loop as fast as it answers. A NAK in
+		 * the other two states leaves the discover the client
+		 * already has in flight to its own schedule.
+		 */
+		if (dhcpv4_entered_selecting(iface) && requesting) {
+			(void)dhcpv4_set_restart_timeout(&iface->config.dhcpv4);
 		}
+
 		break;
+	}
 	case NET_DHCPV4_BOUND:
 	case NET_DHCPV4_DECLINE:
 	/* A stopped client has no exchange to restart. */
@@ -1836,9 +1844,13 @@ static void dhcpv4_handle_reply(struct net_if *iface,
 /*
  * Must be invoked with lock held, before parsing options with side effects.
  * Keep this consistent with the OFFER, ACK and NAK handlers above.
+ *
+ * A NAK names its sender in the server identifier option. The IP source is
+ * a relay agent's address when the NAK was relayed, so it is compared only
+ * when the server identifier is missing.
  */
 static bool dhcpv4_reply_is_expected(struct net_if *iface, enum net_dhcpv4_msg_type msg_type,
-				     const uint8_t *src_addr)
+				     const uint8_t *src_addr, const struct net_in_addr *server_id)
 {
 	enum net_dhcpv4_state state = iface->config.dhcpv4.state;
 
@@ -1858,6 +1870,11 @@ static bool dhcpv4_reply_is_expected(struct net_if *iface, enum net_dhcpv4_msg_t
 			return false;
 		}
 
+		if (server_id != NULL) {
+			return net_ipv4_addr_cmp(&iface->config.dhcpv4.request_server_addr,
+						 server_id);
+		}
+
 		return memcmp(iface->config.dhcpv4.request_server_addr.s4_addr, src_addr,
 			      sizeof(struct net_in_addr)) == 0;
 	default:
@@ -1874,6 +1891,8 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 	NET_PKT_DATA_ACCESS_DEFINE(dhcp_access, struct dhcp_msg);
 	enum net_verdict verdict = NET_DROP;
 	enum net_dhcpv4_msg_type msg_type = 0;
+	struct net_in_addr server_id;
+	bool server_id_found;
 	struct dhcp_msg *msg;
 	struct net_if *iface;
 	int ret;
@@ -1959,12 +1978,13 @@ static enum net_verdict net_dhcpv4_input(struct net_conn *conn,
 		goto drop;
 	}
 
-	if (!dhcpv4_get_msg_type(pkt, &msg_type)) {
+	if (!dhcpv4_get_msg_type(pkt, &msg_type, &server_id, &server_id_found)) {
 		NET_DBG("Invalid DHCPv4 message type or option list");
 		goto drop;
 	}
 
-	if (!dhcpv4_reply_is_expected(iface, msg_type, ip_hdr->ipv4->src)) {
+	if (!dhcpv4_reply_is_expected(iface, msg_type, ip_hdr->ipv4->src,
+				      server_id_found ? &server_id : NULL)) {
 		NET_DBG("Ignore reply state=%s msg=%s",
 			net_dhcpv4_state_name(iface->config.dhcpv4.state),
 			net_dhcpv4_msg_type_name(msg_type));
@@ -2175,12 +2195,6 @@ static void dhcpv4_start_internal(struct net_if *iface, bool first_start)
 		 */
 		iface->config.dhcpv4.attempts = 0U;
 
-		/* Random delay before sending the initial discover message,
-		 * drawn separately from the transaction identifier so that
-		 * one cannot be guessed from the other.
-		 */
-		entropy = sys_rand32_get();
-
 		/* RFC 2131 4.1: choose the identifier so that two clients are
 		 * unlikely to pick the same one. It stays put for the whole of
 		 * the exchange that follows; the next exchange draws another.
@@ -2195,8 +2209,14 @@ static void dhcpv4_start_internal(struct net_if *iface, bool first_start)
 		 */
 		if (first_start &&
 		    iface->config.dhcpv4.state == NET_DHCPV4_INIT) {
+			/* Random delay before sending the initial discover message,
+			 * drawn separately from the transaction identifier so that
+			 * one cannot be guessed from the other.
+			 */
+			entropy = sys_rand8_get();
+
 			timeout = entropy % (CONFIG_NET_DHCPV4_INITIAL_DELAY_MAX -
-					DHCPV4_INITIAL_DELAY_MIN) + DHCPV4_INITIAL_DELAY_MIN;
+					DHCPV4_INITIAL_DELAY_MIN + 1U) + DHCPV4_INITIAL_DELAY_MIN;
 		}
 
 		NET_DBG("wait timeout=%us", timeout);

@@ -56,10 +56,12 @@ LOG_MODULE_REGISTER(i3c_dw, CONFIG_I3C_DW_LOG_LEVEL);
 #define HW_CAP_DEVICE_ROLE_SEC_MASTER 0x3 /* dual-role       */
 #define HW_CAP_DEVICE_ROLE_SLAVE      0x4 /* target only     */
 
-/* Dual-role rejects SIR/MR via the reject registers; controller-only uses the DAT
- * entry (databook Table 2-1).
+/* SIR/MR reject registers are defined by both IC_DEVICE_ROLE and IC_HAS_IBI_DATA != 1
+ * - the latter we can't directly probe.  Flag if we could have these registers based
+ * on role, so at run-time it can be determined if we actually do. See databook
+ * sections 5.2.13/5.2.14
  */
-#define DW_IBI_REJECT_VIA_REG(role) ((role) == HW_CAP_DEVICE_ROLE_SEC_MASTER)
+#define DW_IBI_REJECT_REG_MAY_EXIST(role) ((role) == HW_CAP_DEVICE_ROLE_SEC_MASTER)
 /* BUS_AVAILABLE_TIME/BUS_IDLE_TIMING exist for 1 < IC_DEVICE_ROLE < 5. */
 #define DW_HAS_BUS_IDLE(role)                                                                      \
 	((role) == HW_CAP_DEVICE_ROLE_SEC_MASTER || (role) == HW_CAP_DEVICE_ROLE_SLAVE)
@@ -145,7 +147,7 @@ LOG_MODULE_REGISTER(i3c_dw, CONFIG_I3C_DW_LOG_LEVEL);
 #define IBI_QUEUE_CTRL     0x24
 #define IBI_MR_REQ_REJECT  0x2C
 #define IBI_SIR_REQ_REJECT 0x30
-#define IBI_SIR_REQ_ID(x)  ((((x) & GENMASK(6, 5)) >> 5) + ((x) & GENMASK(4, 0)))
+#define IBI_SIR_REQ_ID(x)  (((((x) & GENMASK(6, 5)) >> 5) + ((x) & GENMASK(4, 0))) % 32U)
 #define IBI_REQ_REJECT_ALL GENMASK(31, 0)
 
 #define RESET_CTRL            0x34
@@ -232,8 +234,14 @@ LOG_MODULE_REGISTER(i3c_dw, CONFIG_I3C_DW_LOG_LEVEL);
 #define SLV_MIPI_ID_VALUE_SLV_MIPI_MFG_ID_MASK GENMASK(15, 1)
 #define SLV_MIPI_ID_VALUE_SLV_MIPI_MFG_ID(x)   ((x) & SLV_MIPI_ID_VALUE_SLV_MIPI_MFG_ID_MASK)
 #define SLV_MIPI_ID_VALUE_SLV_PROV_ID_SEL      BIT(0)
+/* The register's lower half is PID[47:32]: MFG ID in [15:1], type selector in [0]. */
+#define SLV_MIPI_ID_VALUE_PID_HI_MASK          GENMASK(15, 0)
 
 #define SLV_PID_VALUE 0x74
+
+/* Halves of the 48-bit PID, as split across SLV_MIPI_ID_VALUE and SLV_PID_VALUE. */
+#define I3C_PID_HI_MASK GENMASK64(47, 32)
+#define I3C_PID_LO_MASK GENMASK64(31, 0)
 
 #define SLV_CHAR_CTRL                      0x78
 #define SLV_CHAR_CTRL_MAX_DATA_SPEED_LIMIT BIT(0)
@@ -257,8 +265,10 @@ LOG_MODULE_REGISTER(i3c_dw, CONFIG_I3C_DW_LOG_LEVEL);
 #define SLV_DEBUG_STATUS 0x88
 
 #define SLV_INTR_REQ                        0x8c
-#define SLV_INTR_REQ_SIR_DATA_LENGTH(x)     (((x) << 16) & GENMASK(23, 16))
-#define SLV_INTR_REQ_MDB(x)                 (((x) << 8) & GENMASK(15, 8))
+#define SLV_INTR_REQ_SIR_DATA_LENGTH_MASK   GENMASK(23, 16)
+#define SLV_INTR_REQ_SIR_DATA_LENGTH(x)     (((x) << 16) & SLV_INTR_REQ_SIR_DATA_LENGTH_MASK)
+#define SLV_INTR_REQ_MDB_MASK               GENMASK(15, 8)
+#define SLV_INTR_REQ_MDB(x)                 (((x) << 8) & SLV_INTR_REQ_MDB_MASK)
 #define SLV_INTR_REQ_IBI_STS(x)             (((x) & GENMASK(9, 8)) >> 8)
 #define SLV_INTR_REQ_IBI_STS_IBI_ACCEPT     0x01
 #define SLV_INTR_REQ_IBI_STS_IBI_NO_ATTEMPT 0x03
@@ -469,6 +479,9 @@ struct dw_i3c_data {
 
 	/* IC_DEVICE_ROLE, cached from HW_CAPABILITY */
 	uint8_t role;
+
+	/* IBI_SIR/MR_REQ_REJECT are implemented, probed once at init */
+	bool ibi_reject_via_reg;
 
 	/* fifo depth is in words (32b) */
 	uint8_t ibififodepth;
@@ -698,6 +711,26 @@ static void dw_i3c_intr_disable(const struct device *dev, uint32_t bits)
 	sys_write32(mask, dw_i3c_regs(dev) + INTR_STATUS_EN);
 	sys_write32(mask, dw_i3c_regs(dev) + INTR_SIGNAL_EN);
 }
+
+#ifdef CONFIG_I3C_TARGET
+/**
+ * @brief Drop RX bytes left in the FIFO at dynamic address assignment.
+ *
+ * Any unsupported CCC carrying a payload will accumulate in the RX FIFO -
+ * it should be discarded as no transfer will claim it.
+ *
+ * @param dev Pointer to the I3C device structure.
+ */
+static void dw_i3c_target_flush_rx_residue(const struct device *dev)
+{
+	uint32_t rx_lvl = DATA_BUFFER_STATUS_LEVEL_RX(
+		sys_read32(dw_i3c_regs(dev) + DATA_BUFFER_STATUS_LEVEL));
+
+	while (rx_lvl-- > 0U) {
+		(void)sys_read32(dw_i3c_regs(dev) + RX_TX_DATA_PORT);
+	}
+}
+#endif /* CONFIG_I3C_TARGET */
 
 /**
  * @brief Enqueue pending commands into the Command Queue as space allows.
@@ -1517,7 +1550,6 @@ static int dw_i3c_controller_ibi_crr_response(struct i3c_device_desc *target, bo
 static int i3c_dw_endis_ibi(const struct device *dev, struct i3c_device_desc *target, bool en)
 {
 	struct dw_i3c_data *data = dev->data;
-	uint32_t role = data->role;
 	uint32_t bitpos, sir_con;
 	struct i3c_ccc_events i3c_events;
 	int ret;
@@ -1546,7 +1578,7 @@ static int i3c_dw_endis_ibi(const struct device *dev, struct i3c_device_desc *ta
 	/* The DAT entry carries the IBI payload flag and SIR gating for every role;
 	 * a secondary controller gates SIR again in IBI_SIR_REQ_REJECT.
 	 */
-	if (DW_IBI_REJECT_VIA_REG(role)) {
+	if (data->ibi_reject_via_reg) {
 		sir_con = sys_read32(dw_i3c_regs(dev) + IBI_SIR_REQ_REJECT);
 		/* Map dynamic address to its SIR reject-bit position. */
 		bitpos = IBI_SIR_REQ_ID(target->dynamic_addr);
@@ -1778,6 +1810,11 @@ static int dw_i3c_target_ibi_raise_tir(const struct device *dev, struct i3c_ibi 
 			return -EINVAL;
 		}
 
+		/* Clear stale MDB/SIR_DATA_LENGTH: the IP does not auto-clear
+		 * between IBIs.
+		 */
+		slv_intr_req &= ~(SLV_INTR_REQ_SIR_DATA_LENGTH_MASK | SLV_INTR_REQ_MDB_MASK);
+
 		/* MDB should be the first byte of the payload */
 		slv_intr_req |= SLV_INTR_REQ_MDB(request->payload[0]) |
 				SLV_INTR_REQ_SIR_DATA_LENGTH(request->payload_len - 1);
@@ -1801,6 +1838,11 @@ static int dw_i3c_target_ibi_raise_tir(const struct device *dev, struct i3c_ibi 
 	/* wait for SLV_IBI_RESP update */
 	status = k_sem_take(&data->ibi_sts_sem, K_MSEC(100));
 	if (status != 0) {
+		/* The request stays armed here and the IP keeps re-arbitrating for it;
+		 * SLV_INTR_REQ.SIR is not writable once in flight, so there is nothing
+		 * the target can withdraw.
+		 */
+		LOG_WRN("%s: no IBI TIR status within timeout", dev->name);
 		return -ETIMEDOUT;
 	}
 
@@ -1968,6 +2010,7 @@ static int i3c_dw_irq(const struct device *dev)
 #endif /* CONFIG_I3C_USE_IBI */
 		/* DA has been assigned, could happen after a IBI HJ request */
 		if (status & INTR_DYN_ADDR_ASSGN_STAT) {
+			dw_i3c_target_flush_rx_residue(dev);
 #ifdef CONFIG_I3C_USE_IBI
 			k_sem_give(&data->sem_hj);
 #endif /* CONFIG_I3C_USE_IBI */
@@ -2806,10 +2849,11 @@ static int dw_i3c_config_get(const struct device *dev, enum i3c_config_type type
 		target_config->supported_hdr = SLV_CHAR_CTRL_HDR_CAP(reg);
 
 		reg = sys_read32(dw_i3c_regs(dev) + SLV_MIPI_ID_VALUE);
-		target_config->pid = ((uint64_t)reg) << 32;
+		target_config->pid = FIELD_PREP(I3C_PID_HI_MASK,
+						FIELD_GET(SLV_MIPI_ID_VALUE_PID_HI_MASK, reg));
 		target_config->pid_random = (bool)!!(reg & SLV_MIPI_ID_VALUE_SLV_PROV_ID_SEL);
 		reg = sys_read32(dw_i3c_regs(dev) + SLV_PID_VALUE);
-		target_config->pid |= reg;
+		target_config->pid |= FIELD_PREP(I3C_PID_LO_MASK, reg);
 
 		target_config->enabled = !dw_i3c_is_current_controller(dev);
 #else
@@ -2887,17 +2931,18 @@ static int dw_i3c_configure(const struct device *dev, enum i3c_config_type type,
 		 * written to in bcr
 		 */
 		val |= SLV_CHAR_CTRL_BCR(target_cfg->bcr);
-		val |= SLV_CHAR_CTRL_DCR(target_cfg->dcr) << 8;
+		val |= FIELD_PREP(SLV_CHAR_CTRL_DCR_MASK, target_cfg->dcr);
 		/* HDR CAPs is not settable */
 		sys_write32(val, dw_i3c_regs(dev) + SLV_CHAR_CTRL);
 
 		val = sys_read32(dw_i3c_regs(dev) + SLV_MIPI_ID_VALUE);
 		val &= ~(SLV_MIPI_ID_VALUE_SLV_MIPI_MFG_ID_MASK |
 			 SLV_MIPI_ID_VALUE_SLV_PROV_ID_SEL);
-		val |= (uint32_t)(target_cfg->pid >> 16);
+		val |= (uint32_t)FIELD_PREP(SLV_MIPI_ID_VALUE_PID_HI_MASK,
+					    FIELD_GET(I3C_PID_HI_MASK, target_cfg->pid));
 		sys_write32(val, dw_i3c_regs(dev) + SLV_MIPI_ID_VALUE);
 
-		val = (uint32_t)(target_cfg->pid & 0xFFFFFFFF);
+		val = (uint32_t)FIELD_GET(I3C_PID_LO_MASK, target_cfg->pid);
 		sys_write32(val, dw_i3c_regs(dev) + SLV_PID_VALUE);
 #else
 		return -ENOTSUP;
@@ -3253,10 +3298,12 @@ static int dw_i3c_init(const struct device *dev)
 		return -ENOTSUP;
 	}
 
-	/* disable ibi (dual-role rejects via these regs */
-	if (DW_IBI_REJECT_VIA_REG(role)) {
+	/* Reject every SIR/MR by default; the readback says whether that took. */
+	if (DW_IBI_REJECT_REG_MAY_EXIST(role)) {
 		sys_write32(IBI_REQ_REJECT_ALL, dw_i3c_regs(dev) + IBI_SIR_REQ_REJECT);
 		sys_write32(IBI_REQ_REJECT_ALL, dw_i3c_regs(dev) + IBI_MR_REQ_REJECT);
+		data->ibi_reject_via_reg =
+			sys_read32(dw_i3c_regs(dev) + IBI_SIR_REQ_REJECT) == IBI_REQ_REJECT_ALL;
 	}
 
 	/* disable hot-join */

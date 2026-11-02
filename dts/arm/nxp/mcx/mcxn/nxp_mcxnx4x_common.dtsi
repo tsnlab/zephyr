@@ -170,6 +170,8 @@
 		mode = <0>;
 		input = <0>;
 		prescale = <0>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 	};
 
@@ -182,6 +184,8 @@
 		mode = <0>;
 		input = <0>;
 		prescale = <0>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 	};
 
@@ -194,6 +198,8 @@
 		mode = <0>;
 		input = <0>;
 		prescale = <0>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 	};
 
@@ -206,6 +212,8 @@
 		mode = <0>;
 		input = <0>;
 		prescale = <0>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 	};
 
@@ -218,6 +226,8 @@
 		mode = <0>;
 		input = <0>;
 		prescale = <0>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 	};
 
@@ -226,6 +236,12 @@
 		reg = <0x11000 0x10>;
 		interrupts = <71 0>;
 		clocks = <&syscon MCUX_FREQME_CLK>;
+		/*
+		 * FREQME is inactive in Deep Sleep and Power Down. Deep Power Down
+		 * removes power from FREQME and its INPUTMUX routes.
+		 */
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 
 		reference-sources {
@@ -304,28 +320,38 @@
 		resets = <&reset NXP_SYSCON_RESET(1, 0)>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		#power-domain-cells = <0>;
+		power-domains = <&core_domain>;
 
 		mrt0_channel0: mrt0_channel@0 {
 			compatible = "nxp,mrt-channel";
 			reg = <0>;
+			power-domains = <&mrt0>;
+			zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 			status = "disabled";
 		};
 
 		mrt0_channel1: mrt0_channel@1 {
 			compatible = "nxp,mrt-channel";
 			reg = <1>;
+			power-domains = <&mrt0>;
+			zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 			status = "disabled";
 		};
 
 		mrt0_channel2: mrt0_channel@2 {
 			compatible = "nxp,mrt-channel";
 			reg = <2>;
+			power-domains = <&mrt0>;
+			zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 			status = "disabled";
 		};
 
 		mrt0_channel3: mrt0_channel@3 {
 			compatible = "nxp,mrt-channel";
 			reg = <3>;
+			power-domains = <&mrt0>;
+			zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 			status = "disabled";
 		};
 	};

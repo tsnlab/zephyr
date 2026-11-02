@@ -39,7 +39,6 @@
 
 #include "conn_internal.h"
 #include "common/bt_str.h"
-#include "common/rpa.h"
 #include "crypto/bt_crypto.h"
 #include "ecc.h"
 #include "hci_core.h"
@@ -195,17 +194,17 @@ struct bt_smp {
 	/* MacKey */
 	uint8_t				mackey[16];
 
-	/* LE SC passkey */
-	uint32_t				passkey;
-
-	/* LE SC passkey round */
-	uint8_t				passkey_round;
-
 	/* LE SC local OOB data */
 	const struct bt_le_oob_sc_data	*oobd_local;
 
 	/* LE SC remote OOB data */
 	const struct bt_le_oob_sc_data	*oobd_remote;
+
+	/* LE SC passkey */
+	uint32_t				passkey;
+
+	/* LE SC passkey round */
+	uint8_t				passkey_round;
 
 	/* Local key distribution */
 	uint8_t				local_dist;
@@ -1535,7 +1534,7 @@ static void convert_to_id_on_irk_match(struct bt_conn *conn, void *data)
 		return;
 	}
 
-	if (bt_rpa_irk_matches(keys->irk.val, &conn->le.dst.a)) {
+	if (bt_addr_matches_irk(&conn->le.dst.a, keys->irk.val)) {
 		if (conn->le.keys != NULL && conn->le.keys != keys) {
 			bt_keys_clear(conn->le.keys);
 		}

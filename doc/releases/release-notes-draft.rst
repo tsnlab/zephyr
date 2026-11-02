@@ -65,6 +65,18 @@ New APIs and options
 
 * Bluetooth
 
+  * Audio
+
+    * :c:func:`bt_pacs_get_location`
+    * :c:struct:`bt_pacs_cb`
+    * :c:func:`bt_pacs_register_cb`
+    * :c:func:`bt_pacs_unregister_cb`
+
+  * Host
+
+    * :c:func:`bt_addr_matches_irk`
+    * :c:func:`bt_l2cap_server_unregister`
+
   * Services
 
     * :kconfig:option:`CONFIG_BT_HIDS`
@@ -73,6 +85,18 @@ New APIs and options
     * :c:func:`bt_hids_report_set`
     * :c:func:`bt_hids_report_get`
     * :c:func:`bt_hids_send_report`
+
+* Devicetree
+
+  * New ``var-uint64`` binding property type for variable-length unsigned
+    integers of up to 64 bits. It accepts a value encoded as 1 cell (32-bit
+    unsigned) or 2 cells (64-bit unsigned, high word first) and produces a
+    scalar ``DT_PROP`` integer macro
+
+* Display
+
+  * :c:func:`display_set_timing`
+  * :c:func:`display_get_timing`
 
 .. zephyr-keep-sorted-stop
 

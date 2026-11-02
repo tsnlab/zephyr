@@ -3308,9 +3308,6 @@ static int uarte_instance_deinit(const struct device *dev)
 
 #define UARTE_TIMER_REG(node) (NRF_TIMER_Type *)DT_REG_ADDR(node)
 
-#define UARTE_TIMER_NODE(idx) \
-	DT_NODELABEL(NRFX_CONCAT(timer, CONFIG_UART_##idx##_NRF_HW_ASYNC_TIMER))
-
 #define UARTE_TIMER_IRQN(idx) DT_IRQN(DT_PHANDLE(UARTE(idx), timer))
 
 #define UARTE_TIMER_IRQ_PRIO(idx) DT_IRQ(DT_PHANDLE(UARTE(idx), timer), priority)
@@ -3330,9 +3327,7 @@ static int uarte_instance_deinit(const struct device *dev)
 #define UARTE_COUNT_BYTES_WITH_TIMER_COMMON_CONFIG(idx)                            \
 	.timer_regs = COND_CODE_1(UARTE_USE_TIMER_PROP(idx),                       \
 		(UARTE_TIMER_REG(DT_PHANDLE(UARTE(idx), timer))),                  \
-		(COND_CODE_1(CONFIG_UART_##idx##_NRF_HW_ASYNC,                     \
-			(UARTE_TIMER_REG(UARTE_TIMER_NODE(idx))),                  \
-			(NULL)))),                                                 \
+		(NULL)),                                                           \
 	.uarte_irqn = DT_IRQN(UARTE(idx)),
 
 #define UARTE_COUNT_BYTES_WITH_TIMER_CONFIG(idx)					\
@@ -3618,6 +3613,10 @@ static int uarte_instance_deinit(const struct device *dev)
 				.tx_buff_size = sizeof(uarte##idx##_tx_buffer),\
 			};))
 
+#define UART_NRF_UARTE_DEVICE_DEFINE(idx) UART_NRF_UARTE_DEVICE(idx);
+#define UART_NRF_UARTE_DEVICE_SKIP(idx)
 #define COND_UART_NRF_UARTE_DEVICE(unused, prefix, i, _) \
-	IF_ENABLED(CONFIG_HAS_HW_NRF_UARTE##prefix##i, (UART_NRF_UARTE_DEVICE(prefix##i);))
+	COND_CODE_1(CONFIG_HAS_HW_NRF_UARTE##prefix##i, \
+		    (UART_NRF_UARTE_DEVICE_DEFINE), (UART_NRF_UARTE_DEVICE_SKIP))(prefix##i)
+
 UARTE_FOR_EACH_INSTANCE(COND_UART_NRF_UARTE_DEVICE, (), ())

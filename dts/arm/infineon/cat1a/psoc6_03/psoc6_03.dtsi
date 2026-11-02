@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <freq.h>
 #include <mem.h>
 
 / {
@@ -30,6 +31,13 @@
 		uid: device_uid@16000600 {
 			compatible = "infineon,uid";
 			reg = <0x16000600 0xb>;
+			status = "disabled";
+		};
+
+		watchdog0: watchdog@40260180 {
+			compatible = "infineon,watchdog";
+			reg = <0x40260180 0xc>;
+			interrupts = <22 6>;
 			status = "disabled";
 		};
 
@@ -257,7 +265,7 @@
 		reg = <0x8000000 0x40000>;
 	};
 
-	flash-controller@40240000 {
+	flash_controller: flash-controller@40240000 {
 		compatible = "infineon,flash-controller";
 		reg = <0x40240000 0x10000>;
 		#address-cells = <1>;
