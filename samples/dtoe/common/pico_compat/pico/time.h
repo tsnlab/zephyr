@@ -33,4 +33,18 @@ static inline void sleep_ms(uint32_t ms) {
     k_msleep((int32_t)ms);
 }
 
+static inline uint64_t time_us_64(void) {
+    return get_absolute_time();
+}
+
+static inline absolute_time_t from_us_since_boot(uint64_t us) {
+    return us;
+}
+
+// spins like pico-sdk; a thread of higher priority still preempts it
+static inline void busy_wait_until(absolute_time_t t) {
+    while (get_absolute_time() < t) {
+    }
+}
+
 #endif /* DTOE_APPS_PICO_TIME_H */
