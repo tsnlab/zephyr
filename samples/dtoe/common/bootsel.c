@@ -41,4 +41,5 @@ static void bootsel_thread(void *a, void *b, void *c)
 	}
 }
 
-K_THREAD_DEFINE(bootsel, 1024, bootsel_thread, NULL, NULL, NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
+/* cooperative, so that it also runs when the application never yields (busy-waiting loops); it sleeps 100 ms */
+K_THREAD_DEFINE(bootsel, 1024, bootsel_thread, NULL, NULL, NULL, K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1), 0, 0);
