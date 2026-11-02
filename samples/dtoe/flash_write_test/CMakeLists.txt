@@ -3,7 +3,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(flash_write_test)
 # DTOE async streaming test firmware (test/performance/async_stream_test/main.c, unchanged) with a Zephyr thread
 # that erases and writes the flash meanwhile: core 1 must keep running while core 0 has the flash out of XIP.
-set(DTOE_SOURCE_DIR $ENV{HOME}/workspaces/TSNLab-PICO-C/libraries/2026-wiznet-dtoe CACHE PATH "DTOE sources (test firmware)")
+include(../common/dtoe_source.cmake)
 set(STATE_PERIOD_US 2000 CACHE STRING "state period of the async streaming test")
 target_sources(app PRIVATE
     ${DTOE_SOURCE_DIR}/test/performance/async_stream_test/main.c
