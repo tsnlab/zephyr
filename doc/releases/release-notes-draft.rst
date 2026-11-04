@@ -98,6 +98,11 @@ New APIs and options
   * :c:func:`display_set_timing`
   * :c:func:`display_get_timing`
 
+* FIDO2
+
+  * Added PSA Protected Storage backend, enable with
+    :kconfig:option:`CONFIG_FIDO2_STORAGE_PSA_PROTECTED_STORAGE`
+
 .. zephyr-keep-sorted-stop
 
 .. _boards_added_in_zephyr_4_6:
@@ -140,6 +145,15 @@ Libraries / Subsystems
 
   * Added a HID Service server (:kconfig:option:`CONFIG_BT_HIDS`), the service
     the HID Device role of the HID over GATT Profile is built on.
+
+Devicetree
+**********
+
+* :dtcompatible:`gnss-nmea-generic` supports optional enable and reset GPIOs, with configurable
+  reset pulse and wake-up delays.
+
+* :dtcompatible:`zephyr,charger-gpio` supports charging and charge-complete status inputs,
+  including chargers without a software-controlled enable pin.
 
 Other notable changes
 *********************

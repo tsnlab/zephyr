@@ -4004,6 +4004,7 @@ LoRa and LoRaWAN:
     - martinjaeger
     - mniestroj
     - carlocaione
+    - juanjin-dev
   files:
     - drivers/lora/
     - include/zephyr/drivers/lora.h
@@ -4247,6 +4248,7 @@ Microchip RISC-V Platforms:
     - boards/microchip/pic64gx_curiosity_kit/
     - dts/riscv/microchip/
     - soc/microchip/miv/
+    - soc/microchip/polarfire/
     - soc/microchip/pic64/
     - drivers/*/*mchp*mss*
     - dts/bindings/*/microchip,mpfs*
@@ -5271,6 +5273,7 @@ OTP:
     - drivers/otp/
     - dts/bindings/otp/
     - include/zephyr/drivers/otp.h
+    - tests/drivers/otp/
     - tests/subsys/nvmem/api/otp.overlay
   labels:
     - "area: OTP"
@@ -5358,7 +5361,6 @@ PHYTEC Platforms:
   maintainers:
     - dnltz
   collaborators:
-    - jonas-rem
     - pefech
   files:
     - boards/phytec/
@@ -5491,6 +5493,17 @@ QNX Hypervisor Platforms:
     - dts/arm/quicklogic/
   labels:
     - "platform: Quicklogic"
+
+RAKwireless Platforms:
+  status: maintained
+  maintainers:
+    - juanjin-dev
+  files:
+    - boards/rakwireless/
+    - boards/shields/rakwireless_*/
+    - dts/vendor/rakwireless/
+  labels:
+    - "platform: RAKwireless"
 
 RISCV Platforms:
   status: maintained
@@ -5738,6 +5751,7 @@ Renesas R-Car Platforms:
     - lorc
   collaborators:
     - xakep-amatop
+    - jpanisbl
   files:
     - boards/renesas/rcar_*/
     - drivers/*/*rcar*
@@ -5856,6 +5870,7 @@ Retention:
     - include/zephyr/retention/
     - subsys/retention/
     - doc/services/storage/retention/
+    - tests/subsys/retention/
   labels:
     - "area: Retention"
 
